@@ -1,0 +1,12 @@
+[project]
+name = "llm-course"
+version = "0.1.0"
+description = "Course website for Training Language Models: From First Principles to Efficient Serving"
+requires-python = ">=3.12"
+dependencies = [
+    "mkdocs-material>=9,<10",
+]
+
+[tool.uv]
+package = false
+

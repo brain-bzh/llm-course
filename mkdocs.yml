@@ -1,0 +1,71 @@
+site_name: Training Language Models
+site_description: From first principles to efficient serving
+site_url: https://jonathanlys01.github.io/llm-course/
+
+theme:
+  name: material
+  favicon: assets/favicon.svg
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Use dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Use light mode
+
+nav:
+  - Home: index.md
+  - Schedule: schedule.md
+  - Modules: modules.md
+  - Session material:
+      - Overview: sessions/index.md
+      - 1. Transformer from first principles: sessions/01-transformer.md
+      - 2. Training-loop anatomy: sessions/02-training-loop.md
+      - 3. BPE and the data pipeline: sessions/03-data-pipeline.md
+      - 4. Train a small GPT: sessions/04-small-gpt.md
+      - 5. Data selection: sessions/05-data-selection.md
+      - 6. Single-GPU performance: sessions/06-single-gpu.md
+      - 7. Distributed data parallelism: sessions/07-ddp.md
+      - 8. FSDP and ZeRO: sessions/08-fsdp.md
+      - 9. Tensor parallelism: sessions/09-tensor-parallelism.md
+      - 10. Context and pipeline parallelism: sessions/10-context-pipeline.md
+      - 11. KV-cached decoding: sessions/11-kv-cache.md
+      - 12. Serving systems: sessions/12-serving.md
+      - 13. Beyond dense Transformers: sessions/13-beyond-transformers.md
+  - Continuous project: project.md
+  - Assessment: assessment.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+copyright: Training Language Models
