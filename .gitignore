@@ -4,3 +4,11 @@
 .sites-runtime/
 site/
 
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+dist/
+build/

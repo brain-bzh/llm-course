@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 280" role="img" aria-labelledby="title desc">
+  <title id="title">BPE and Training Data Pipeline</title>
+  <desc id="desc">Data ingestion pipeline: raw text documents, regex pre-tokenization, BPE subword merges, document packing with end-of-text tokens, binary memory-mapped shards, and shifted next-token batching.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 10 5 0 10z" fill="#68798a"/>
+    </marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .node { fill: #f3f7fa; stroke: #d8e2e8; stroke-width: 2; }
+      .block { fill: #e2f4f4; stroke: #007f86; stroke-width: 2; }
+      .core { fill: #10233f; stroke: #10233f; stroke-width: 2; }
+      .shard { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; }
+      .flow { fill: none; stroke: #68798a; stroke-width: 2.5; marker-end: url(#arrow); }
+      .label { fill: #10233f; font-size: 14px; font-weight: 700; }
+      .label-sub { fill: #526071; font-size: 11px; font-weight: 500; }
+      .inverse { fill: #ffffff; font-size: 14px; font-weight: 700; }
+      .inverse-sub { fill: #c5d3e0; font-size: 11px; font-weight: 500; }
+      .accent { fill: #ea580c; font-size: 14px; font-weight: 700; }
+      .accent-sub { fill: #9a3412; font-size: 11px; font-weight: 500; }
+      @media (prefers-color-scheme: dark) {
+        .node { fill: #182534; stroke: #2c4052; }
+        .block { fill: #173b40; stroke: #54d2d8; }
+        .core { fill: #2c4052; stroke: #54d2d8; }
+        .shard { fill: #382015; stroke: #f97316; }
+        .label { fill: #f3f7fa; }
+        .label-sub { fill: #9fb2c4; }
+        .accent { fill: #fb923c; }
+        .accent-sub { fill: #fdba74; }
+      }
+    </style>
+  </defs>
+
+  <!-- Stage 1: Raw Documents -->
+  <rect class="node" x="15" y="60" width="115" height="95" rx="8"/>
+  <text class="label" x="72" y="95" text-anchor="middle">Raw Corpus</text>
+  <text class="label-sub" x="72" y="118" text-anchor="middle">Unstructured Text</text>
+  <text class="label-sub" x="72" y="136" text-anchor="middle">UTF-8 Strings</text>
+
+  <!-- Flow 1 -> 2 -->
+  <path class="flow" d="M130 107H155"/>
+
+  <!-- Stage 2: Pre-Tokenization -->
+  <rect class="core" x="155" y="55" width="125" height="105" rx="8"/>
+  <text class="inverse" x="217" y="88" text-anchor="middle">Regex Split</text>
+  <text class="inverse-sub" x="217" y="110" text-anchor="middle">Contractions, Words,</text>
+  <text class="inverse-sub" x="217" y="128" text-anchor="middle">Numbers, Symbols</text>
+  <text class="inverse-sub" x="217" y="146" text-anchor="middle">(Isolate whitespace)</text>
+
+  <!-- Flow 2 -> 3 -->
+  <path class="flow" d="M280 107H305"/>
+
+  <!-- Stage 3: BPE Encoding / Merges -->
+  <rect class="block" x="305" y="55" width="135" height="105" rx="8"/>
+  <text class="label" x="372" y="88" text-anchor="middle">BPE Merges</text>
+  <text class="label-sub" x="372" y="110" text-anchor="middle">Base 256 bytes</text>
+  <text class="label-sub" x="372" y="128" text-anchor="middle">Iterative pair rank</text>
+  <text class="label-sub" x="372" y="146" text-anchor="middle">→ Token IDs [0 … V-1]</text>
+
+  <!-- Flow 3 -> 4 -->
+  <path class="flow" d="M440 107H465"/>
+
+  <!-- Stage 4: Packing with EOT -->
+  <rect class="core" x="465" y="55" width="135" height="105" rx="8"/>
+  <text class="inverse" x="532" y="88" text-anchor="middle">Sequence Pack</text>
+  <text class="inverse-sub" x="532" y="110" text-anchor="middle">Insert &lt;|endoftext|&gt;</text>
+  <text class="inverse-sub" x="532" y="128" text-anchor="middle">Eliminate padding</text>
+  <text class="inverse-sub" x="532" y="146" text-anchor="middle">Contiguous 1D stream</text>
+
+  <!-- Flow 4 -> 5 -->
+  <path class="flow" d="M600 107H625"/>
+
+  <!-- Stage 5: Binary Memmap Shards -->
+  <rect class="shard" x="625" y="55" width="125" height="105" rx="8"/>
+  <text class="accent" x="687" y="88" text-anchor="middle">Binary Shards</text>
+  <text class="accent-sub" x="687" y="110" text-anchor="middle">np.memmap (disk)</text>
+  <text class="accent-sub" x="687" y="128" text-anchor="middle">dtype=uint16</text>
+  <text class="accent-sub" x="687" y="146" text-anchor="middle">Zero-copy OS cache</text>
+
+  <!-- Flow 5 -> 6 -->
+  <path class="flow" d="M687 160V195H420"/>
+
+  <!-- Stage 6: Shifted Next-Token Batching -->
+  <rect class="node" x="180" y="195" width="480" height="60" rx="8"/>
+  <text class="label" x="420" y="222" text-anchor="middle">Contiguous Window Batching: Input X vs Target Y (Offset + 1)</text>
+  <text class="label-sub" x="420" y="242" text-anchor="middle">X = tokens[i : i + T]  →  Y = tokens[i + 1 : i + 1 + T]  (Shapes: B × T)</text>
+</svg>

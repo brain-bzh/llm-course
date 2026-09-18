@@ -24,6 +24,25 @@
   margin-top: 1.5rem;
 }
 
+.md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+.md-typeset a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.md-typeset a.headerlink,
+.md-typeset a.md-button,
+.md-typeset .footnote-backref,
+.md-typeset a:has(> img),
+.md-typeset a:has(> figure) {
+  text-decoration: none;
+}
+
+
 .md-typeset h1 {
   color: var(--md-default-fg-color);
   font-weight: 720;

@@ -47,6 +47,10 @@ nav:
       - 11. KV-cached decoding: sessions/11-kv-cache.md
       - 12. Serving systems: sessions/12-serving.md
       - 13. Beyond dense Transformers: sessions/13-beyond-transformers.md
+  - Companion guide:
+      - Overview: companion/index.md
+      - 1. Inspect & Naive MHA: companion/01-transformer.md
+      - 9. Tensor parallelism: companion/09-tensor-parallelism.md
   - Continuous project: project.md
   - External material: external-material.md
   - Assessment: assessment.md
@@ -55,6 +59,8 @@ markdown_extensions:
   - admonition
   - attr_list
   - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true
@@ -65,6 +71,10 @@ markdown_extensions:
 
 plugins:
   - search
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 extra_css:
   - assets/stylesheets/extra.css
