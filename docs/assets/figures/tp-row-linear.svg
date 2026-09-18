@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 390" role="img" aria-labelledby="title desc">
+  <title id="title">Row-parallel linear layer on two ranks</title>
+  <desc id="desc">Each rank multiplies its local hidden activation shard by the aligned input-row shard of W2. An all-reduce sums the two partial results and leaves a complete output Y on both ranks.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <marker id="comm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#007f86"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.lane{fill:#f3f7fa;stroke:#d8e2e8;stroke-width:2}.weight{fill:#10233f;stroke:#10233f;stroke-width:2}.activation{fill:#e2f4f4;stroke:#007f86;stroke-width:2}.partial{fill:#fff;stroke:#68798a;stroke-width:2}.collective{fill:#007f86;stroke:#007f86;stroke-width:2}.flow{fill:none;stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.comm{fill:none;stroke:#007f86;stroke-width:3;stroke-dasharray:7 6;marker-end:url(#comm-arrow)}.rank{fill:#10233f;font-size:21px;font-weight:700}.label{fill:#10233f;font-size:22px;font-weight:700}.inverse{fill:#fff;font-size:19px;font-weight:700}.dim{fill:#526476;font-size:15px;font-weight:500}.collective-text{fill:#fff;font-size:18px;font-weight:750;letter-spacing:.03em}
+      @media(prefers-color-scheme:dark){.lane{fill:#182534;stroke:#2c4052}.weight{fill:#2c4052;stroke:#54d2d8}.activation{fill:#173b40;stroke:#54d2d8}.partial{fill:#182534;stroke:#71869a}.collective{fill:#225a60;stroke:#54d2d8}.rank,.label{fill:#f3f7fa}.dim{fill:#b9c8d5}.comm{stroke:#54d2d8}.collective-text{fill:#f3f7fa}}
+    </style>
+  </defs>
+  <rect class="lane" x="24" y="24" width="440" height="205" rx="14"/><rect class="lane" x="496" y="24" width="440" height="205" rx="14"/>
+  <text class="rank" x="50" y="60">Rank 0</text><text class="rank" x="522" y="60">Rank 1</text>
+  <rect class="activation" x="50" y="92" width="74" height="64" rx="8"/><text class="label" x="87" y="132" text-anchor="middle">H₀</text><text class="dim" x="87" y="181" text-anchor="middle">B × m/2</text>
+  <rect class="weight" x="169" y="82" width="118" height="84" rx="8"/><text class="inverse" x="228" y="120" text-anchor="middle">W₂[0]</text><text class="inverse" x="228" y="145" text-anchor="middle">m/2 × d</text>
+  <rect class="partial" x="332" y="92" width="104" height="64" rx="8"/><text class="label" x="384" y="132" text-anchor="middle">Ŷ₀</text><text class="dim" x="384" y="181" text-anchor="middle">B × d</text>
+  <path class="flow" d="M124 124H165"/><path class="flow" d="M287 124H328"/>
+  <rect class="activation" x="522" y="92" width="74" height="64" rx="8"/><text class="label" x="559" y="132" text-anchor="middle">H₁</text><text class="dim" x="559" y="181" text-anchor="middle">B × m/2</text>
+  <rect class="weight" x="641" y="82" width="118" height="84" rx="8"/><text class="inverse" x="700" y="120" text-anchor="middle">W₂[1]</text><text class="inverse" x="700" y="145" text-anchor="middle">m/2 × d</text>
+  <rect class="partial" x="804" y="92" width="104" height="64" rx="8"/><text class="label" x="856" y="132" text-anchor="middle">Ŷ₁</text><text class="dim" x="856" y="181" text-anchor="middle">B × d</text>
+  <path class="flow" d="M596 124H637"/><path class="flow" d="M759 124H800"/>
+  <path class="comm" d="M384 156C384 221 431 226 449 249"/><path class="comm" d="M856 156C856 221 529 226 511 249"/>
+  <rect class="collective" x="390" y="249" width="180" height="54" rx="27"/><text class="collective-text" x="480" y="283" text-anchor="middle">ALL-REDUCE · Σ</text>
+  <path class="comm" d="M425 303C392 323 332 322 284 332"/><path class="comm" d="M535 303C568 323 628 322 676 332"/>
+  <rect class="activation" x="196" y="316" width="88" height="58" rx="8"/><text class="label" x="240" y="353" text-anchor="middle">Y</text>
+  <rect class="activation" x="676" y="316" width="88" height="58" rx="8"/><text class="label" x="720" y="353" text-anchor="middle">Y</text>
+</svg>

@@ -48,6 +48,7 @@ nav:
       - 12. Serving systems: sessions/12-serving.md
       - 13. Beyond dense Transformers: sessions/13-beyond-transformers.md
   - Continuous project: project.md
+  - External material: external-material.md
   - Assessment: assessment.md
 
 markdown_extensions:

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-labelledby="title desc">
+  <title id="title">Communication saved by composing column- and row-parallel layers</title>
+  <desc id="desc">At a materialized layer boundary, the hidden shards are all-gathered before the row-parallel layer. In the composed MLP, the shards stay local through the activation, eliminating that intermediate all-gather. Both arrangements still all-reduce the final output.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.panel{fill:#f3f7fa;stroke:#d8e2e8;stroke-width:2}.weight{fill:#10233f;stroke:#10233f;stroke-width:2}.activation{fill:#e2f4f4;stroke:#007f86;stroke-width:2}.collective{fill:#007f86;stroke:#007f86;stroke-width:2}.flow{fill:none;stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.continuity{fill:none;stroke:#007f86;stroke-width:4;marker-end:url(#arrow)}.lane-title{fill:#10233f;font-size:18px;font-weight:700}.label{fill:#10233f;font-size:18px;font-weight:700}.inverse{fill:#fff;font-size:17px;font-weight:750;letter-spacing:.02em}.phi{fill:#007f86;font-size:24px;font-weight:750}
+      @media(prefers-color-scheme:dark){.panel{fill:#182534;stroke:#2c4052}.weight{fill:#2c4052;stroke:#54d2d8}.activation{fill:#173b40;stroke:#54d2d8}.collective{fill:#225a60;stroke:#54d2d8}.lane-title,.label{fill:#f3f7fa}.continuity{stroke:#54d2d8}.phi{fill:#54d2d8}}
+    </style>
+  </defs>
+  <rect class="panel" x="24" y="22" width="912" height="112" rx="14"/><text class="lane-title" x="48" y="52">Materialized boundary</text>
+  <rect class="weight" x="48" y="70" width="116" height="46" rx="7"/><text class="inverse" x="106" y="99" text-anchor="middle">W₁ · COL</text><path class="flow" d="M164 93H187"/>
+  <rect class="activation" x="191" y="70" width="112" height="46" rx="7"/><text class="label" x="247" y="99" text-anchor="middle">H₀ | H₁</text><path class="flow" d="M303 93H326"/>
+  <rect class="collective" x="330" y="70" width="150" height="46" rx="7"/><text class="inverse" x="405" y="99" text-anchor="middle">ALL-GATHER</text><path class="flow" d="M480 93H503"/>
+  <rect class="weight" x="507" y="70" width="116" height="46" rx="7"/><text class="inverse" x="565" y="99" text-anchor="middle">W₂ · ROW</text><path class="flow" d="M623 93H646"/>
+  <rect class="collective" x="650" y="70" width="150" height="46" rx="7"/><text class="inverse" x="725" y="99" text-anchor="middle">ALL-REDUCE</text>
+  <rect class="panel" x="24" y="164" width="912" height="112" rx="14"/><text class="lane-title" x="48" y="194">Composed MLP</text>
+  <rect class="weight" x="48" y="212" width="116" height="46" rx="7"/><text class="inverse" x="106" y="241" text-anchor="middle">W₁ · COL</text><path class="flow" d="M164 235H187"/>
+  <rect class="activation" x="191" y="212" width="112" height="46" rx="7"/><text class="label" x="247" y="241" text-anchor="middle">H₀ | H₁</text><path class="continuity" d="M303 235H503"/><text class="phi" x="405" y="225" text-anchor="middle">φ</text>
+  <rect class="weight" x="507" y="212" width="116" height="46" rx="7"/><text class="inverse" x="565" y="241" text-anchor="middle">W₂ · ROW</text><path class="flow" d="M623 235H646"/>
+  <rect class="collective" x="650" y="212" width="150" height="46" rx="7"/><text class="inverse" x="725" y="241" text-anchor="middle">ALL-REDUCE</text>
+</svg>
