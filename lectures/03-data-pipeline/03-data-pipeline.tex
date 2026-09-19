@@ -122,6 +122,28 @@
   \centering Weight tying avoids paying $Vd$ twice.
 \end{frame}
 
+\begin{frame}{Tokenizer efficiency in bits per byte}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize}]
+    \node[draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=10.6cm,minimum height=.72cm,font=\scriptsize\bfseries] at (5.3,4.35)
+      {fidelity gate: $\operatorname{decode}(\operatorname{encode}(s))=s$ for every UTF-8 input};
+    \draw[-{Stealth},thick] (.5,.75)--(10.2,.75);
+    \node[below,font=\scriptsize\bfseries] at (.9,.75) {fine units};
+    \node[below,font=\scriptsize\bfseries] at (9.8,.75) {coarse units};
+    \draw[very thick,themebluedraw] (1.0,3.25) .. controls (4.0,2.7) and (7.0,2.0) .. (9.7,1.35);
+    \node[text=accentdark,font=\scriptsize\bfseries] at (3.0,3.05) {tokens per byte decreases};
+    \draw[very thick,warningdraw] (1.0,1.35) .. controls (4.0,2.0) and (7.0,2.7) .. (9.7,3.25);
+    \node[text=warningdraw,font=\scriptsize\bfseries] at (7.55,3.05) {bits per token increases};
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (1.45,2.15) {bytes / characters\\long sequences};
+    \node[draw=warningdraw,fill=warningbg,rounded corners,align=center] at (9.25,2.15) {large subwords\\large vocabulary};
+  \end{tikzpicture}
+  \[
+    \text{bits per byte}=\text{bits per token}\times\text{tokens per byte}
+  \]
+  \footnotesize Compare tokenizers on the same held-out byte corpus; loss per token alone is not comparable.
+  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 1 (2026)}
+\end{frame}
+
 \checkpoint{tokenizer choice}
   {A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters. Which training and serving measurements would decide whether this is a good trade?}
 

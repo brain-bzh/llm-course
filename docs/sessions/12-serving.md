@@ -86,6 +86,25 @@ A long prefill can improve bulk throughput while blocking dozens of decode
 tokens. A scheduler therefore balances two different kinds of GPU work, not a
 homogeneous queue.
 
+## Speculative decoding reduces target-model iterations
+
+Ordinary autoregressive decoding commits one token after each target-model
+step. Speculative decoding uses a smaller draft model to propose \(\gamma\)
+tokens, then asks the target model to verify the whole block in parallel. The
+system commits the accepted prefix, samples a correction at the first
+rejection, and drafts again from the longer context.
+
+<figure markdown="span">
+  ![A small draft model proposes several tokens. The target model verifies the block in parallel, accepts the matching prefix, corrects the first rejected position and repeats.](../assets/figures/speculative-decoding.svg){ loading=lazy }
+  <figcaption>One target-model iteration can commit several tokens when draft and target distributions agree.</figcaption>
+</figure>
+
+Correct rejection sampling preserves the target distribution. Performance is
+a systems question: speedup needs high acceptance, cheap drafting and efficient
+block verification. Extra draft work can lose under low agreement, large
+batches, or an already saturated target model. Report accepted tokens per
+target step together with TPOT and total GPU work.
+
 ## Why static batching wastes work
 
 Suppose four requests start together with different prompt and output lengths.
@@ -409,3 +428,5 @@ and connects every major result to queue, token, block or GPU evidence.
   — the memory-allocation and scheduling analysis behind vLLM;
 - [vLLM documentation](https://docs.vllm.ai/)
   — current configuration and benchmark interfaces.
+- Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 6
+  (2026) — speculative decoding and its acceptance-rate/verification-cost trade-off.

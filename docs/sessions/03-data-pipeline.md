@@ -155,6 +155,30 @@ $$\text{Compression Ratio} = \frac{\text{Total UTF-8 Bytes}}{\text{Total Tokens}
 - **GPT-4o ($V \approx 200,000$):** Significantly reduces token counts for non-Latin
   scripts (Arabic, Hindi, Chinese), directly reducing the per-word generation latency.
 
+Compression alone does not evaluate a tokenizer. First require **fidelity**:
+
+\[
+\operatorname{decode}(\operatorname{encode}(s)) = s
+\]
+
+for whitespace, code, URLs, emoji and arbitrary UTF-8 text. Then measure both
+tokens per byte (TPB) and model cross-entropy in bits per token (BPT). Their
+product gives bits per source byte:
+
+\[
+\text{bits per byte} = \text{bits per token} \times \text{tokens per byte}.
+\]
+
+<figure markdown="span">
+  ![Tokenizer fidelity is a hard requirement. Finer units produce more tokens per byte but easier token predictions, while coarser units shorten sequences but make each token harder to predict.](../assets/figures/tokenizer-efficiency.svg){ loading=lazy }
+  <figcaption>Sequence compression and prediction difficulty move in opposite directions. Bits per byte evaluates them together.</figcaption>
+</figure>
+
+This comparison must use the same held-out byte corpus. Reporting only loss per
+token can make a fine tokenizer look artificially good because it asks many
+easier prediction questions. Reporting only tokens per byte ignores whether the
+resulting symbols are learnable with the available model and data.
+
 ### Parameter footprint vs attention FLOPs
 
 1. **Memory cost:** The token embedding table $E$ and language-model head
@@ -337,3 +361,5 @@ A self-contained data pipeline demonstrating:
   — first application of BPE to neural NLP to solve the out-of-vocabulary problem.
 - [Radford et al. (2019) — Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
   — GPT-2 paper introducing byte-level BPE with pre-tokenization regex splitting.
+- Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 1
+  (2026) — fidelity, tokens per byte, bits per token and bits-per-byte evaluation.

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 470" role="img" aria-labelledby="title desc">
+  <title id="title">Checkpoint cadence balances save overhead and lost work</title>
+  <desc id="desc">Short checkpoint intervals spend too much time saving. Long intervals lose more training after a failure. Their sum forms a U-shaped expected overhead curve with a workload-specific optimum.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.axis{stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.save{stroke:#ea580c;stroke-width:4;fill:none}.loss{stroke:#007f86;stroke-width:4;fill:none}.total{stroke:#10233f;stroke-width:6;fill:none}.opt{stroke:#68798a;stroke-width:2;stroke-dasharray:6 5}.label{fill:#10233f;font-size:18px;font-weight:750}.sub{fill:#526071;font-size:13px;font-weight:500}.orange{fill:#ea580c;font-size:15px;font-weight:750}.teal{fill:#007f86;font-size:15px;font-weight:750}.formula{fill:#10233f;font-size:19px;font-weight:750}.point{fill:#10233f;stroke:#fff;stroke-width:3}
+      @media(prefers-color-scheme:dark){.label,.formula{fill:#f3f7fa}.sub{fill:#9fb2c4}.save{stroke:#fb923c}.loss{stroke:#54d2d8}.total{stroke:#f3f7fa}.orange{fill:#fb923c}.teal{fill:#54d2d8}.point{fill:#f3f7fa;stroke:#182534}}
+    </style>
+  </defs>
+  <line class="axis" x1="105" y1="390" x2="850" y2="390"/><line class="axis" x1="105" y1="390" x2="105" y2="55"/>
+  <path class="save" d="M130 90C190 160 270 245 800 355"/><path class="loss" d="M130 365L800 105"/>
+  <path class="total" d="M130 92C230 235 315 300 440 312C575 325 675 250 800 110"/>
+  <line class="opt" x1="440" y1="312" x2="440" y2="390"/><circle class="point" cx="440" cy="312" r="10"/>
+  <text class="orange" x="205" y="150">save overhead S / τ</text><text class="teal" x="660" y="175">expected lost work τ / (2M)</text><text class="label" x="535" y="300">total expected overhead</text>
+  <text class="label" x="440" y="420" text-anchor="middle">best interval for this job</text><text class="sub" x="160" y="420">save too often</text><text class="sub" x="750" y="420">lose too much work</text>
+  <text class="label" x="480" y="456" text-anchor="middle">checkpoint interval τ →</text><text class="label" x="30" y="230" text-anchor="middle" transform="rotate(-90 30 230)">expected overhead →</text>
+  <text class="formula" x="500" y="42" text-anchor="middle">overhead rate ≈ S/τ + τ/(2M) + L/M, with M = MTBI</text>
+</svg>

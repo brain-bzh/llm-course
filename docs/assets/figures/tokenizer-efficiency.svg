@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">Tokenizer fidelity and efficiency trade-offs</title>
+  <desc id="desc">A tokenizer must first preserve the input exactly. Moving from fine to coarse tokens lowers tokens per byte but makes each token harder to predict. Bits per byte combines tokens per byte and bits per token.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.gate{fill:#10233f}.fine{fill:#e2f4f4;stroke:#007f86;stroke-width:2}.coarse{fill:#fff7ed;stroke:#ea580c;stroke-width:2}.axis{stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.teal{stroke:#007f86;stroke-width:5;fill:none}.orange{stroke:#ea580c;stroke-width:5;fill:none}.label{fill:#10233f;font-size:18px;font-weight:750}.sub{fill:#526071;font-size:13px;font-weight:500}.inverse{fill:#fff;font-size:18px;font-weight:750}.tealtext{fill:#007f86;font-size:15px;font-weight:750}.orangetext{fill:#ea580c;font-size:15px;font-weight:750}.formula{fill:#10233f;font-size:22px;font-weight:750}
+      @media(prefers-color-scheme:dark){.fine{fill:#173b40;stroke:#54d2d8}.coarse{fill:#382015;stroke:#fb923c}.label,.formula{fill:#f3f7fa}.sub{fill:#9fb2c4}.teal,.axis{stroke:#54d2d8}.orange{stroke:#fb923c}.tealtext{fill:#54d2d8}.orangetext{fill:#fb923c}}
+    </style>
+  </defs>
+  <rect class="gate" x="35" y="34" width="890" height="64" rx="12"/><text class="inverse" x="480" y="62" text-anchor="middle">Fidelity gate: decode(encode(text)) = text</text><text class="sub" x="480" y="84" text-anchor="middle" fill="#c5d3e0">whitespace, code, emoji, URLs and every UTF-8 byte must survive</text>
+  <line class="axis" x1="115" y1="320" x2="855" y2="320"/><text class="label" x="115" y="350" text-anchor="middle">fine units</text><text class="label" x="855" y="350" text-anchor="middle">coarse units</text>
+  <rect class="fine" x="90" y="235" width="170" height="62" rx="10"/><text class="label" x="175" y="263" text-anchor="middle">bytes / characters</text><text class="sub" x="175" y="283" text-anchor="middle">long sequences</text>
+  <rect class="coarse" x="700" y="235" width="170" height="62" rx="10"/><text class="label" x="785" y="263" text-anchor="middle">large subwords</text><text class="sub" x="785" y="283" text-anchor="middle">large vocabulary</text>
+  <path class="teal" d="M140 150C330 185 560 220 815 255"/><text class="tealtext" x="260" y="168">tokens per byte decreases</text>
+  <path class="orange" d="M140 255C350 220 575 180 815 145"/><text class="orangetext" x="590" y="164">bits per token increases</text>
+  <text class="formula" x="480" y="395" text-anchor="middle">bits / byte = (bits / token) × (tokens / byte)</text>
+</svg>

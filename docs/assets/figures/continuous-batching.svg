@@ -27,5 +27,5 @@
     <text class="inverse" x="330" y="385" text-anchor="middle">B</text><text class="inverse" x="890" y="385" text-anchor="middle">B</text>
     <text class="inverse" x="330" y="419" text-anchor="middle">C</text><text class="inverse" x="410" y="419" text-anchor="middle">C ✓</text><text class="inverse" x="490" y="419" text-anchor="middle">E prefill</text><text class="inverse" x="570" y="419" text-anchor="middle">E</text><text class="inverse" x="730" y="419" text-anchor="middle">F prefill</text>
   </g>
-  <rect class="active" x="45" y="113" width="16" height="16" rx="3"/><text class="teal" x="70" y="126">decode token</text><rect class="prefill" x="135" y="113" width="16" height="16" rx="3"/><text class="accent" x="160" y="126">prefill chunk</text>
+  <rect class="active" x="45" y="113" width="16" height="16" rx="3"/><text class="teal" x="70" y="126">decode token</text><rect class="prefill" x="185" y="113" width="16" height="16" rx="3"/><text class="accent" x="210" y="126">prefill chunk</text>
 </svg>

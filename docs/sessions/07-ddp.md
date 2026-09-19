@@ -127,6 +127,29 @@ approximately
 bytes, ignoring latency and protocol details. The payload per rank approaches
 \(2G\) as \(D\) grows; adding ranks does not make gradient communication vanish.
 
+### Latency and bandwidth select the collective algorithm
+
+A first communication model separates fixed startup from bytes moved:
+
+\[
+T_{\mathrm{comm}}(m) \approx \alpha + \beta m,
+\]
+
+where \(\alpha\) is message-launch latency and \(\beta\) is approximately the
+inverse effective bandwidth. Splitting a payload into more chunks can expose
+more parallel channels, but every chunk must remain large enough to amortize
+its launch cost.
+
+<figure markdown="span">
+  ![Communication time versus message size for tree and ring all-reduce. The tree has lower startup latency for small messages, while the ring has a shallower bandwidth slope and wins for large payloads.](../assets/figures/collective-crossover.svg){ loading=lazy }
+  <figcaption>Small collectives are latency-sensitive. Large gradient buffers reward bandwidth-efficient algorithms.</figcaption>
+</figure>
+
+This explains why a tree-style all-reduce can win for small tensors or large
+rank counts, while a ring often wins for large contiguous buffers. Real NCCL
+selection also depends on topology, channels, protocol and contention, so use
+the model to predict a crossover and the profiler to locate it.
+
 The important performance variables are:
 
 - total gradient bytes;
@@ -305,3 +328,5 @@ scaling report supported by a profiler trace.
   — bus bandwidth conventions for collectives;
 - [Picotron data parallelism](https://github.com/huggingface/picotron/tree/main/picotron/data_parallel)
   — compact implementation for code reading.
+- Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 2
+  (2026) — Hockney communication model and tree/ring all-reduce crossover.

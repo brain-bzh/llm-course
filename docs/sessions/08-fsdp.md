@@ -223,6 +223,30 @@ A framework-managed format maps logical tensors to storage shards and may load
 into a different device mesh. Treat its manifest and metadata as part of the
 artifact, not disposable implementation detail.
 
+### Checkpoint cadence is an expected-cost decision
+
+Let \(\tau\) be the interval between checkpoints, \(S\) the exposed time to
+save one checkpoint, \(L\) the recovery load time and \(M\) the mean time
+between interruptions. A useful approximation to the overhead rate is
+
+\[
+\frac{S}{\tau} + \frac{\tau}{2M} + \frac{L}{M}.
+\]
+
+The first term penalizes saving too often. The second is the expected training
+work lost at failure when interruptions arrive uniformly inside an interval.
+The load term does not choose \(\tau\), but it determines the total recovery
+cost and motivates faster checkpoint formats.
+
+<figure markdown="span">
+  ![Expected checkpoint overhead is U-shaped as checkpoint interval changes. Frequent saves cause write overhead, while infrequent saves lose more computation after failures.](../assets/figures/checkpoint-cadence.svg){ loading=lazy }
+  <figcaption>The best cadence depends on measured save time and observed interruption rate, not on a universal step count.</figcaption>
+</figure>
+
+Asynchronous saves reduce exposed \(S\) only if GPU-to-CPU staging and storage
+traffic remain off the training critical path. Measure step-time disturbance,
+durable completion time and restart time separately.
+
 Checkpoint validation requires a fresh-process load followed by evaluation and
 at least one optimizer update. Listing files is not a restore test.
 
@@ -301,3 +325,5 @@ checkpoint round trip.
   — current PyTorch sharding model and usage;
 - [PyTorch Distributed Checkpoint](https://docs.pytorch.org/docs/stable/distributed.checkpoint.html)
   — sharded save/load concepts and APIs.
+- Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 4
+  (2026) — checkpoint frequency, recovery overhead and lost-compute trade-offs.

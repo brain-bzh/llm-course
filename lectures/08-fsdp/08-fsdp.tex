@@ -190,6 +190,40 @@
   \end{alertblock}
 \end{frame}
 
+\begin{frame}{Checkpoint cadence and expected overhead}
+  \begin{columns}[c]
+    \begin{column}{0.68\linewidth}
+      \centering
+      \begin{tikzpicture}[x=.75cm,y=.75cm,every node/.style={font=\scriptsize}]
+        \draw[-{Stealth},thick] (0,0)--(8.8,0);
+        \draw[-{Stealth},thick] (0,0)--(0,4.4) node[above,rotate=90,anchor=south east]{expected overhead};
+        \draw[very thick,warningdraw] (.35,4.0) .. controls (1.8,2.2) and (4.8,.9) .. (8.3,.55);
+        \draw[very thick,themebluedraw] (.35,.55)--(8.3,3.85);
+        \draw[very thick,accentdark] (.35,4.05) .. controls (2.3,1.35) and (4.15,.85) .. (4.75,1.12) .. controls (6.3,1.75) and (7.2,2.8) .. (8.3,4.0);
+        \fill[accentdark] (4.2,1.02) circle (3pt);
+        \draw[dashed,neutraldark] (4.2,0)--(4.2,1.02);
+        \node[text=warningdraw] at (2.1,3.35) {save overhead $S/\tau$};
+        \node[text=accentdark] at (6.8,3.15) {lost work $\tau/(2M)$};
+        \node[below,align=center] at (4.2,0) {best measured\\interval};
+        \node[below,text=neutraldark] at (7.35,-.48) {checkpoint interval $\tau$};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.30\linewidth}
+      \[
+        \text{rate}\approx
+        \frac{S}{\tau}+\frac{\tau}{2M}+\frac{L}{M}
+      \]
+      \small
+      $M$: mean time between interruptions\\[4pt]
+      $S$: exposed save time\\[4pt]
+      $L$: recovery load time
+    \end{column}
+  \end{columns}
+  \vspace{3pt}
+  \footnotesize Measure durable save completion and restart time; file creation alone does not define $S$ or $L$.
+  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 4 (2026)}
+\end{frame}
+
 \begin{frame}{A DDP--FSDP comparison needs a fixed contract}
   Match model, global token batch, optimizer, schedule, precision, data order, checkpoint cadence, and evaluation.
   \vspace{7pt}

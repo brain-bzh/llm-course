@@ -91,6 +91,39 @@
   \smallsource{Hugging Face Ultra-Scale Playbook}
 \end{frame}
 
+\begin{frame}{Collective latency and bandwidth crossover}
+  \begin{columns}[c]
+    \begin{column}{0.70\linewidth}
+      \centering
+      \begin{tikzpicture}[x=.72cm,y=.72cm,every node/.style={font=\scriptsize}]
+        \fill[warningbg] (0,0) rectangle (4.1,4.0);
+        \fill[themebluebg] (4.1,0) rectangle (9.0,4.0);
+        \draw[-{Stealth},thick] (0,0)--(9.35,0) node[below left]{message size $m$};
+        \draw[-{Stealth},thick] (0,0)--(0,4.45) node[above,rotate=90,anchor=south east]{communication time};
+        \draw[very thick,warningdraw] (.2,.55)--(8.4,3.85);
+        \draw[very thick,themebluedraw] (.2,1.45)--(8.8,3.2);
+        \draw[dashed,neutraldark] (4.1,0)--(4.1,4.0);
+        \node[text=warningdraw,anchor=west] at (5.9,3.45) {tree};
+        \node[text=accentdark,anchor=west] at (6.7,2.55) {ring};
+        \node[align=center] at (2.0,.55) {latency-bound\\tree can win};
+        \node[align=center] at (6.45,.55) {bandwidth-bound\\ring can win};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.28\linewidth}
+      \[
+        T_{\rm comm}(m)\approx\alpha+\beta m
+      \]
+      \begin{block}{$\alpha$}
+        fixed launch latency
+      \end{block}
+      \begin{block}{$\beta$}
+        time per byte, roughly $1/BW$
+      \end{block}
+    \end{column}
+  \end{columns}
+  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 2 (2026)}
+\end{frame}
+
 \section{Overlap and rank-aware state}
 
 \begin{frame}{Buckets overlap communication with backward}
