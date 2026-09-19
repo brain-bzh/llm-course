@@ -53,6 +53,11 @@ _Sessions 3 and 5._
   and exercise set for byte-level BPE.
 - **[The FineWeb Datasets](https://arxiv.org/abs/2406.17557)** — A documented
   large-scale filtering and deduplication pipeline with ablations.
+- **[FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1)**
+  — The long-form report behind the paper, including extraction choices,
+  unsuccessful global-deduplication strategies, custom filters and FineWeb-Edu.
+- **[DataTrove](https://github.com/huggingface/datatrove)** — The open-source
+  processing library and reproducible configurations used to build FineWeb.
 - **[DataComp-LM](https://arxiv.org/abs/2406.11794)** — A controlled framework
   for comparing language-model dataset construction strategies.
 
@@ -60,6 +65,9 @@ _Sessions 3 and 5._
 
 _Session 6._
 
+- **[How to Think About GPUs](https://jax-ml.github.io/scaling-book/gpus/)** —
+  The main hardware reference for SMs, warps, Tensor Cores, the memory
+  hierarchy, collectives and compute/communication rooflines.
 - **[PyTorch performance tuning guide](https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html)**
   — Practical starting points for measuring and improving PyTorch workloads.
 - **[FlashAttention](https://arxiv.org/abs/2205.14135)** — The IO-aware view of
@@ -148,6 +156,9 @@ _Sessions 7–10._
 
 _Sessions 11 and 12._
 
+- **[KV Cache Explained Intuitively](https://medium.com/@saad.ahmed1926q/kv-cache-explained-intuitively-2b425a36dfc7)**
+  — A visual introduction to repeated autoregressive work, prefill and cached
+  token generation.
 - **[Fast Transformer Decoding: One Write-Head is All You Need](https://arxiv.org/abs/1911.02150)**
   — Multi-query attention and the memory-bandwidth cost of incremental
   decoding.
@@ -156,6 +167,12 @@ _Sessions 11 and 12._
   MQA.
 - **[Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180)**
   — The paper behind vLLM's paged KV-cache design.
+- **[Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)**
+  — A guided tour of the vLLM V1 engine core, scheduler, KV-cache manager,
+  advanced features and distributed serving stack.
+- **[Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)**
+  — A visual derivation of ragged batching, chunked prefill and dynamic
+  scheduling from attention and KV caching.
 - **[vLLM documentation](https://docs.vllm.ai/)** — The serving engine used to
   study continuous batching, chunked prefill, prefix caching and production
   metrics.

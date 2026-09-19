@@ -1,8 +1,9 @@
 # Session material
 
-These pages are deliberately lightweight. They define the purpose and practical
-outcome of each session without prescribing the final slides, readings or
-exercise implementation.
+These pages are the conceptual spine of the course. Each one develops the
+mechanism, derives the quantities students need to reason about it, and ends
+with an evidence-producing investigation. Slides and implementation guides can
+be built from this material without replacing it.
 
 Every session follows the same rhythm:
 
@@ -28,4 +29,3 @@ Every session follows the same rhythm:
 | 13 | Beyond dense Transformers | Architecture comparison and synthesis |
 
 Use the navigation to open a session page.
-

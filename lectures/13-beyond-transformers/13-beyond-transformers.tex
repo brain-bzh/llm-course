@@ -1,0 +1,58 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+
+\title[TLM -- Session 13]{Session 13: Beyond Dense Transformers\\[4pt]
+\normalsize\itshape Sparsity, State Space Models, and Architectural Synthesis}
+\date{\today}
+
+\begin{document}
+
+%================= TITLE ==============================
+\makelecturetitle
+
+%================= OUTLINE ============================
+\begin{frame}{Lecture Plan}
+  \tableofcontents
+\end{frame}
+
+%================= SECTION 1 ==========================
+\section{Architectural Limits of Dense Attention}
+
+\begin{frame}{The Scaling Frontier: Sparsity \& Alternative Attention}
+  \begin{columns}[c]
+    \begin{column}{0.58\linewidth}
+      \small
+      \begin{itemize}
+        \setlength{\itemsep}{5pt}
+        \item \textbf{Dense Transformer constraints:}\; Every parameter is activated for every token ($\mathcal{O}(N)$ compute cost), and KV-cache footprint grows linearly with context length $T$.
+        \item \textbf{Sparse Mixture-of-Experts (MoE):}\; Route each token to Top-$k$ of $E$ specialized MLP experts. Dramatically expands parameter capacity without increasing active FLOPs.
+        \item \textbf{Recurrence \& State Space Models:}\; Mamba / RWKV replace softmax attention with linear recurrent states, achieving $\mathcal{O}(1)$ inference memory per token.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.40\linewidth}
+      \centering
+      \begin{tikzpicture}[
+        every node/.style={font=\scriptsize},
+        box/.style={draw=themebluedraw, fill=themebluebg, rounded corners=3pt, thick, align=center, minimum width=3.1cm, minimum height=0.48cm},
+        arr/.style={->, >=Stealth, thick, accentdarkdraw}
+      ]
+        \node[box] (dense) {Dense Transformer: $\mathcal{O}(T)$ KV};
+        \node[box, fill=warningbg, draw=warningdraw, below=0.25cm of dense] (moe) {Sparse MoE: Top-$k$ Routing};
+        \node[box, fill=themebluecard, below=0.25cm of moe] (ssm) {State Space Models: $\mathcal{O}(1)$ State};
+        \node[box, fill=successbg, draw=successdraw, below=0.25cm of ssm] (synth) {Hybrid Systems Frontier};
+
+        \draw[arr] (dense) -- (moe);
+        \draw[arr] (moe) -- (ssm);
+        \draw[arr] (ssm) -- (synth);
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% Planned future sections in this lecture
+\addcontentsline{toc}{section}{Sparse Mixture-of-Experts (MoE) \& Dynamic Routing}
+\addcontentsline{toc}{section}{Linear Attention \& State Space Models (Mamba)}
+\addcontentsline{toc}{section}{Hardware-Efficiency Frontiers: Recurrence vs Attention}
+\addcontentsline{toc}{section}{Course Synthesis: From First Principles to Scaled Inference}
+
+\end{document}

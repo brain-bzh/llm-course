@@ -1,0 +1,81 @@
+%==============================================================
+% Centralized Semantic Color Definitions for LLMs Presentation
+%==============================================================
+
+% ---- Base Template / Theme Colors ----
+\definecolor{themeblue}{RGB}{83,185,220} % The primary blue
+\colorlet{main_color}{themeblue}
+\colorlet{accent}{main_color}
+
+\definecolor{accentdark}{RGB}{40,110,150} % Secondary blue for contrast
+\definecolor{leafred}{RGB}{197,93,61}     % Terracotta red for branches/leaves
+
+% ---- Code listing style (syntax highlights) ----
+\definecolor{deepblue}{rgb}{0,0,0.5}
+\definecolor{deepred}{rgb}{0.6,0,0}
+\definecolor{deepgreen}{rgb}{0,0.5,0}
+\definecolor{halfgray}{gray}{0.55}
+
+% ---- Semantic Theme Blue Shades ----
+\colorlet{themebluebg}{themeblue!8}       % Light backgrounds/fills
+\colorlet{themebluecard}{themeblue!12}    % Mild card background fills
+\colorlet{themeblueborder}{themeblue!20}  % Light strokes/curves/borders
+\colorlet{themebluemid}{themeblue!35}     % Mid-contrast highlights / attention lines
+\colorlet{themebluedraw}{themeblue!65}     % Strong outline draws/strokes
+
+% ---- Semantic Secondary Dark Blue Shades ----
+\colorlet{accentdarkbg}{accentdark!12}    % Light secondary background fills
+\colorlet{accentdarkdraw}{accentdark!70}  % Secondary outlines/strokes/text/axes
+
+% ---- Functional Colors: Success Green ----
+\definecolor{successgreen}{RGB}{55,145,55}
+\colorlet{successbg}{successgreen!8}
+\colorlet{successdraw}{successgreen!75}
+
+% ---- Functional Colors: Alert Red ----
+\definecolor{alertred}{RGB}{197,55,55}
+\colorlet{alertbg}{alertred!8}
+\colorlet{alertdraw}{alertred!75}
+
+% ---- Functional Colors: Warning Orange ----
+\definecolor{warningorange}{RGB}{220,110,30}
+\colorlet{warningbg}{warningorange!10}
+\colorlet{warningdraw}{warningorange!80}
+
+% ---- Terracotta Red Shades ----
+\colorlet{leafredbg}{leafred!12}
+\colorlet{leafreddraw}{leafred!80}
+
+% ---- Accent Violet (SWE-bench / observe phases) ----
+\definecolor{accentviolet}{RGB}{120,70,180}
+\colorlet{accentvioletbg}{accentviolet!10}
+\colorlet{accentvioletdraw}{accentviolet!80}
+
+% ---- Post-Training Axis Blue ----
+\definecolor{posttrainingblue}{RGB}{40,90,165}
+\colorlet{posttrainingbg}{posttrainingblue!8}
+\colorlet{posttrainingdraw}{posttrainingblue!75}
+
+% ---- Harness Component Action Green ----
+\definecolor{actiongreen}{RGB}{55,145,55}
+\colorlet{actiongreenbg}{actiongreen!10}
+\colorlet{actiongreendraw}{actiongreen!65}
+
+% ---- Harness Component Persist Olive ----
+\definecolor{persistolive}{RGB}{120,135,40}
+\colorlet{persistolivebg}{persistolive!12}
+\colorlet{persistolivedraw}{persistolive!70}
+
+% ---- Harness Component Observe Violet ----
+\colorlet{observevioletbg}{accentvioletbg}
+\colorlet{observevioletdraw}{accentvioletdraw}
+
+% ---- Neutrals (Grays/Blacks) ----
+\colorlet{neutralbg}{black!4}             % Very light background fills
+\colorlet{neutrallight}{black!30}         % Border frames/ticks/dividers
+\colorlet{neutraldark}{black!75}          % Main body text/code listing text
+
+% ---- Beamer Block Color Overrides (Premium Terracotta Theme) ----
+\setbeamercolor{block title alert}{bg=leafreddraw,fg=white}
+\setbeamercolor{block body alert}{bg=leafredbg}
+\setbeamercolor{alerted text}{fg=leafreddraw}

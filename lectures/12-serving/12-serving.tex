@@ -1,0 +1,283 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+\title[TLM -- Session 12]{Session 12: Serving Systems\\[4pt]
+\normalsize\itshape Scheduling Tokens under Latency and Memory Constraints}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    How does an inference engine turn irregular requests into efficient GPU work while protecting latency objectives?
+  \end{block}
+\end{frame}
+\learninggoals
+  {Trace a request through scheduler, cache manager, model runner, and output path.}
+  {Explain continuous batching and chunked prefill at iteration granularity.}
+  {Connect paged KV memory, admission control, and preemption.}
+  {Design a serving benchmark with explicit workload and latency metrics.}
+
+\section{From model forward to inference engine}
+
+\begin{frame}{A serving engine coordinates four state machines}
+  \begin{columns}[c]
+    \begin{column}{0.52\linewidth}
+      \begin{enumerate}
+        \setlength{\itemsep}{7pt}
+        \item request queue and admission policy
+        \item iteration-level token scheduler
+        \item KV-block allocator and prefix index
+        \item model runner and sampled output stream
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.44\linewidth}
+      \begin{block}{One engine step}
+        select tokens\\assign cache blocks\\execute model\\sample tokens\\update request state
+      \end{block}
+    \end{column}
+  \end{columns}
+  \smallsource{vLLM Anatomy and Hugging Face Continuous Batching}
+\end{frame}
+
+\begin{frame}{Prefill and decode compete for the same device}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Prefill request}
+        many prompt tokens\\high parallelism\\large temporary attention work\\drives time to first token
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Decode request}
+        one token per active sequence\\growing KV reads\\latency sensitive\\drives inter-token latency
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Scheduling tension}
+    A long prefill can increase throughput but block many decode tokens, causing visible latency spikes.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Static batching waits for the slowest request}
+  \begin{center}
+  \begin{tikzpicture}[x=.7cm,y=.55cm,every node/.style={font=\scriptsize}]
+    \foreach \y/\name in {3/A,2/B,1/C}{\node[left] at (0,\y+.25) {\name};}
+    \fill[themebluecard] (0,3) rectangle (4,3.5);
+    \fill[neutralbg] (4,3) rectangle (8,3.5);
+    \fill[themebluecard] (0,2) rectangle (8,2.5);
+    \fill[themebluecard] (0,1) rectangle (2.5,1.5);
+    \fill[neutralbg] (2.5,1) rectangle (8,1.5);
+    \draw (0,3) rectangle (8,3.5); \draw (0,2) rectangle (8,2.5); \draw (0,1) rectangle (8,1.5);
+    \node at (6,3.25) {idle padding}; \node at (5.25,1.25) {idle padding};
+  \end{tikzpicture}
+  \end{center}
+  \begin{alertblock}{Head-of-line effect}
+    Completed sequences occupy batch slots until the longest member finishes. New work cannot enter even when capacity is available.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Continuous batching repacks every iteration}
+  \centering
+  \begin{tikzpicture}[x=.72cm,y=.56cm,every node/.style={font=\scriptsize}]
+    \node[anchor=west,font=\scriptsize\bfseries] at (2.2,6.65) {static batch};
+    \node[anchor=west,font=\scriptsize\bfseries,text=accentdark] at (2.2,2.85) {continuous batch};
+    \foreach \x in {0,...,7}{\node[text=neutraldark] at (2.6+\x,6.15) {\pgfmathparse{int(\x+1)}\pgfmathresult};}
+    \foreach \y/\name in {5.4/A,4.55/B,3.7/C}{\node[left] at (2.05,\y+.25) {\name};}
+    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,5.4) rectangle (3.2+\x,5.9);}
+    \fill[neutralbg] (5.2,5.4) rectangle (10.2,5.9); \node at (7.7,5.65) {idle};
+    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,4.55) rectangle (3.2+\x,5.05);}
+    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,3.7) rectangle (3.2+\x,4.2);}
+    \fill[neutralbg] (4.2,3.7) rectangle (10.2,4.2); \node at (7.2,3.95) {idle};
+    \draw[neutrallight] (2.2,3.7) rectangle (10.2,5.9);
+    \draw[neutrallight] (2.2,3.7)--(10.2,3.7); \draw[neutrallight] (2.2,4.55)--(10.2,4.55); \draw[neutrallight] (2.2,5.4)--(10.2,5.4);
+    \foreach \y/\name in {1.9/slot 1,1.05/slot 2,.2/slot 3}{\node[left] at (2.05,\y+.25) {\name};}
+    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
+    \fill[warningdraw] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\tiny\bfseries] at (5.7,2.15) {D prefill};
+    \foreach \x in {4,5,6,7}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
+    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,1.05) rectangle (3.2+\x,1.55);}
+    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
+    \fill[warningdraw] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\tiny\bfseries] at (4.7,.45) {E prefill};
+    \foreach \x in {3,4,5,6,7}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
+    \draw[neutrallight] (2.2,.2) rectangle (10.2,2.4);
+    \foreach \x in {0,...,7}{\draw[white] (2.2+\x,.2)--(2.2+\x,2.4);}
+    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\scriptsize\bfseries] at (11.25,1.3) {finished leaves\\new work enters};
+  \end{tikzpicture}
+  \vspace{3pt}
+  \begin{block}{Scheduling unit}
+    Repack useful decode tokens and prefill chunks every step, subject to token and KV-block budgets.
+  \end{block}
+\end{frame}
+
+\section{Token and memory scheduling}
+
+\begin{frame}{A token budget bounds work per engine step}
+  Suppose the iteration budget is $N_{\max}$ scheduled tokens.
+  \[
+    N_{\text{decode}}+N_{\text{prefill}}\le N_{\max}
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item Every active decode sequence usually asks for one token.
+    \item Remaining capacity can admit prompt tokens.
+    \item Cache-block availability may be the tighter constraint.
+  \end{itemize}
+  \begin{alertblock}{Policy matters}
+    Prioritizing decode protects inter-token latency. Prioritizing large prefills may improve throughput but delay active users.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Chunked prefill turns long prompts into schedulable pieces}
+  Instead of scheduling a 16k-token prompt atomically, split it into chunks that share iterations with decode work.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Benefits}
+        lower head-of-line blocking\\bounded iteration size\\better prefill-decode mixing
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Costs}
+        more scheduling boundaries\\possible loss of prefill efficiency\\partial-request state
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  Chunk size is a latency-throughput knob, not a universal constant.
+\end{frame}
+
+\begin{frame}{Paged KV allocation matches irregular lifetimes}
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item Divide KV memory into fixed-size physical blocks.
+    \item Map each request's logical token blocks to any free physical blocks.
+    \item Allocate as the sequence grows and return blocks on completion.
+    \item Share immutable prefix blocks when requests have identical prefixes.
+  \end{itemize}
+  \begin{block}{What paging solves}
+    External fragmentation and maximum-length over-reservation are reduced because requests need not occupy one contiguous region.
+  \end{block}
+  \begin{alertblock}{What remains}
+    Internal slack in the last block, allocator metadata, capacity limits, and bandwidth cost of reading the cache.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Prefix caching trades index work for avoided prefill}
+  A cache hit can reuse KV blocks for an identical token prefix.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Works well for}
+        repeated system prompts\\shared document prefixes\\branching completions
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Correctness conditions}
+        identical model and adapter\\identical token IDs and positions\\compatible cache precision and layout
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  Measure hit rate, tokens avoided, retained-block cost, and eviction behavior together.
+\end{frame}
+
+\begin{frame}{Admission control prevents memory collapse}
+  Before admitting work, estimate required blocks from prompt length, current cache, and maximum generation policy.
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item queue when safe cache capacity is unavailable
+    \item reject or cap requests outside the service contract
+    \item preempt lower-priority work only under a declared policy
+    \item distinguish recomputation preemption from host-memory swapping
+  \end{itemize}
+  \begin{alertblock}{Overcommit is not free}
+    Preemption can recover capacity but adds wasted compute, extra latency, and tail-risk amplification.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{CUDA graphs reward stable execution shapes}
+  Capturing a repeated GPU execution removes CPU launch overhead, but dynamic batches change shapes and memory addresses.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Engine strategy}
+        capture a set of padded batch shapes\\reuse stable buffers\\fall back for unsupported shapes
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Trade-off}
+        More capture sizes reduce padding but consume memory and operational complexity.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\checkpoint{schedule by hand}
+  {An iteration budget is 16 tokens. Ten sequences need decode, one waiting prompt has length 20, and cache capacity is available. Propose the next two iterations under a decode-first chunked-prefill policy.}
+
+\section{Measure the service, not a toy loop}
+
+\begin{frame}{Latency is a distribution with several clocks}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.20\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
+    \toprule
+    Metric & Definition & Dominant factors \\
+    \midrule
+    queue time & arrival to admission & load and policy \\
+    TTFT & arrival to first token & queue plus prefill \\
+    inter-token latency & time between output tokens & decode schedule and batch \\
+    end-to-end latency & arrival to completion & all phases and output length \\
+    throughput & completed or output tokens per second & batching and saturation \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  Report median and tail percentiles. A good average can hide an unusable p99.
+\end{frame}
+
+\begin{frame}{Open-loop and closed-loop loads answer different questions}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Closed loop}
+        Each client waits for completion before sending again. Offered load falls automatically when the server slows.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Open loop}
+        Arrivals follow an external process. Queues grow when demand exceeds capacity, revealing overload behavior.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Benchmark declaration}
+    Report arrival process, prompt and output distributions, sampling settings, concurrency, warmup, and duration.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A useful benchmark sweeps the operating curve}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item choose a representative request-length distribution
+    \item increase arrival rate or concurrency gradually
+    \item record TTFT, inter-token latency, throughput, cache occupancy, and preemptions
+    \item identify the saturation knee and tail-latency cliff
+    \item compare policies at matched service-level objectives
+  \end{enumerate}
+  \begin{block}{The right conclusion}
+    ``Policy A delivers more tokens/s while keeping p99 TTFT below the declared threshold for workload W.''
+  \end{block}
+\end{frame}
+
+\begin{frame}{Read metrics as one coupled system}
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item rising queue time with stable GPU time means admission is saturated
+    \item TTFT spikes with stable decode latency suggest long prefills or queueing
+    \item growing preemptions suggest cache overcommit
+    \item high cache occupancy with low throughput suggests bandwidth or scheduler inefficiency
+    \item lower mean latency with worse p99 may indicate unfair prioritization
+  \end{itemize}
+\end{frame}
+
+\checkpoint{serving report}
+  {Define a workload, one service-level objective, the policy under test, a baseline, and the five measurements needed to explain both throughput and tail latency.}
+
+\takeaways
+  {An inference engine schedules token work and cache state at every iteration.}
+  {Continuous batching removes static slots, while chunked prefill controls head-of-line blocking.}
+  {Paged memory, prefix reuse, admission, and preemption jointly determine capacity.}
+  {Serving claims require representative arrivals plus throughput and tail-latency evidence.}
+\end{document}

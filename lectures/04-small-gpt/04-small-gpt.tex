@@ -1,0 +1,249 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+
+\title[TLM -- Session 04]{Session 4: Train a Small GPT\\[4pt]
+\normalsize\itshape From the GPT-2 Recipe to a Controlled Baseline}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    What makes a small run a faithful experiment rather than merely a script that produces text?
+  \end{block}
+\end{frame}
+
+\learninggoals
+  {Read a GPT configuration as shapes, parameters, memory, and work.}
+  {Connect the GPT-2 paper's architectural choices to nanoGPT's implementation.}
+  {Pre-register a baseline whose changes can be interpreted.}
+  {Use curves, samples, and checkpoints as different kinds of evidence.}
+
+\section{What a GPT-2-like model means}
+
+\begin{frame}{GPT-2 tested a simple scaling hypothesis}
+  \begin{block}{Core idea}
+    Train one autoregressive objective on diverse web text. Capabilities may emerge from scale without task-specific training.
+  \end{block}
+  \[
+    \max_\theta \sum_t \log p_\theta(x_t\mid x_{<t})
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item The objective stays fixed across examples and tasks.
+    \item Model and data scale change, not the loss definition.
+    \item Evaluation asks what transfers from next-token prediction.
+  \end{itemize}
+  \smallsource{Radford et al., Language Models are Unsupervised Multitask Learners}
+\end{frame}
+
+\begin{frame}{GPT-2-like names an architectural recipe}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Retained in a small baseline}
+        decoder-only causal attention\\pre-norm residual blocks\\GELU MLP expansion\\learned absolute positions\\tied token embedding and LM head
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Reduced for teaching}
+        fewer layers\\narrower residual stream\\shorter context\\smaller data and token budget
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering The mechanism remains recognizable even when the scale changes.
+\end{frame}
+
+\begin{frame}{Configuration is a compact model of the run}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.19\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}>{\raggedright\arraybackslash}p{.39\linewidth}@{}}
+    \toprule
+    Field & Structural effect & Systems effect \\
+    \midrule
+    depth $L$ & repeated computation & activations, sequential depth \\
+    width $d$ & residual representation & parameters scale roughly as $d^2$ \\
+    heads $H$ & attention subspaces & requires $d\bmod H=0$ \\
+    context $T$ & visible history & attention scores scale as $T^2$ \\
+    vocabulary $V$ & output choices & embedding and softmax size \\
+    micro-batch $B$ & examples per pass & activation memory \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{Before launch}
+    Derive $d_h=d/H$, tokens per update, approximate parameter count, and expected peak memory.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Most block parameters come from six matrices}
+  For a GPT-2-style block with MLP width $4d$:
+  \[
+    \underbrace{3d^2+d^2}_{QKV\text{ and output}}
+    +\underbrace{4d^2+4d^2}_{\text{MLP}}
+    \approx 12d^2
+  \]
+  \[
+    N_{\text{params}}\approx 12Ld^2 + Vd + Td
+  \]
+  \begin{block}{Worked estimate}
+    $L=12$, $d=768$, $V\approx50$k gives about 124M parameters before small bias and norm terms, close to GPT-2 small.
+  \end{block}
+  \begin{alertblock}{Why estimate first?}
+    A surprising exact count often reveals untied embeddings, a wrong MLP width, or an accidental extra projection.
+  \end{alertblock}
+\end{frame}
+
+\section{A controlled training baseline}
+
+\begin{frame}{Initialization must respect repeated residual additions}
+  \[
+    X_{\ell+1}=X_\ell+F_\ell(X_\ell)
+  \]
+  If every branch contributes similar variance, depth accumulates it. GPT-style implementations commonly scale residual output projections:
+  \[
+    \sigma_{\text{proj}}=\frac{0.02}{\sqrt{2L}}
+  \]
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Ordinary weights}
+        Initialize with standard deviation near $0.02$.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Residual outputs}
+        Scale attention and MLP output projections by depth.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \smallsource{GPT-2 implementation convention reproduced in nanoGPT}
+\end{frame}
+
+\begin{frame}{Weight tying changes capacity and optimization}
+  \[
+    W_{\text{lm-head}} = W_E
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item The same token geometry supports input lookup and output scoring.
+    \item Parameter count falls by $Vd$.
+    \item Both input and output losses update one shared matrix.
+  \end{itemize}
+  \begin{alertblock}{Audit}
+    Confirm shared storage, not merely equal initial values. Two copied matrices will diverge after the first update.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{The experiment contract exists before the first batch}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Freeze data version, tokenizer, split, and sampling policy.
+    \item Record model configuration and initialization convention.
+    \item Fix tokens per update, optimizer, schedule, and total token budget.
+    \item Declare evaluation cadence, validation token count, and seeds.
+    \item Name the selection rule for the final checkpoint.
+  \end{enumerate}
+  \begin{block}{Controlled comparison}
+    Change one explanatory variable while holding the token and evaluation budgets fixed.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Tokens, not epochs, are the common unit}
+  \[
+    N_{\text{update}}=B_{\text{micro}}\,T\,K\,W
+  \]
+  \[
+    N_{\text{seen}}=N_{\text{update}}\times\text{optimizer steps}
+  \]
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Fair run comparison}
+        Match tokens seen and validation tokens evaluated.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Misleading comparison}
+        Matching wall time can reward a faster system with more optimization work.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\checkpoint{pre-registration}
+  {You want to test a new attention kernel. Which fields must remain fixed to support a quality claim, and which additional measurements support a speed claim?}
+
+\section{Reading evidence from a run}
+
+\begin{frame}{Four curves tell different stories}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Optimization}
+        training loss\\gradient norm\\learning rate
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Generalization and systems}
+        validation loss\\tokens per second\\peak allocated memory
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Interpret jointly}
+    A loss spike aligned with a learning-rate transition suggests optimization. A throughput drop with stable loss suggests the system path. A widening train-validation gap suggests overfitting or distribution shift.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Perplexity is an exponentiated token-level loss}
+  \[
+    \operatorname{PPL}=\exp(\mathcal{L}_{\text{CE}})
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item It is interpretable only for the same tokenizer and evaluation distribution.
+    \item Small cross-entropy changes can look larger after exponentiation.
+    \item Report the underlying mean loss and token count with perplexity.
+  \end{itemize}
+  \begin{alertblock}{Not a universal model score}
+    Different tokenizers create different prediction units, so their perplexities are not directly comparable.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Samples are diagnostics, not the selection metric}
+  Fix prompts and sampling settings across checkpoints.
+  \vspace{5pt}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Useful for detecting}
+        repetition loops\\broken boundaries\\memorized fragments\\loss of coherence
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Poor evidence for}
+        small quality differences\\cross-run ranking\\claims without fixed prompts and seeds
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Checkpoint choice answers a declared question}
+  \begin{enumerate}
+    \setlength{\itemsep}{8pt}
+    \item \textbf{Latest}: exact continuation and operational recovery.
+    \item \textbf{Best validation loss}: model selection under a fixed protocol.
+    \item \textbf{Fixed token budget}: fair comparison across experimental arms.
+  \end{enumerate}
+  \begin{alertblock}{Resume integrity}
+    Restore optimizer, scaler, step, sampler, and RNG state. Verify the next update against an uninterrupted run.
+  \end{alertblock}
+\end{frame}
+
+\checkpoint{curve triage}
+  {Training loss improves, validation loss stalls, samples become more fluent, and throughput is unchanged. Which conclusions are supported, and what experiment should come next?}
+
+\takeaways
+  {A small GPT is faithful when it preserves the architectural mechanism and states its reductions.}
+  {Configuration fields imply tensor shapes, parameter count, memory, and compute.}
+  {A baseline is defined by a frozen experimental contract, not by one successful run.}
+  {Curves, perplexity, samples, and checkpoints answer different questions.}
+
+\end{document}

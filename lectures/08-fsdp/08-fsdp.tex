@@ -1,0 +1,228 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+\title[TLM -- Session 08]{Session 8: FSDP and ZeRO\\[4pt]
+\normalsize\itshape Trading Redundant Memory for Collective Communication}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    Which persistent states can be sharded, when must they be materialized, and what does that cost on the critical path?
+  \end{block}
+\end{frame}
+\learninggoals
+  {Account for DDP's replicated model-state memory.}
+  {Explain ZeRO stages as progressive sharding.}
+  {Trace one FSDP unit through forward and backward.}
+  {Choose wrapping, precision, and checkpoint strategies from evidence.}
+
+\section{From replication to sharding}
+
+\begin{frame}{DDP replicates persistent state on every rank}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.28\linewidth}>{\raggedright\arraybackslash}p{.20\linewidth}>{\raggedright\arraybackslash}p{.41\linewidth}@{}}
+    \toprule
+    State & bytes / param. & DDP placement \\
+    \midrule
+    BF16 parameters & 2 & replicated \\
+    BF16 gradients & 2 & replicated \\
+    FP32 master copy & 4 & replicated \\
+    FP32 Adam moment $m$ & 4 & replicated \\
+    FP32 Adam moment $v$ & 4 & replicated \\
+    \midrule
+    total model state & about 16 & on every GPU \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{The scaling limit}
+    More GPUs improve compute throughput but do not reduce DDP's replicated state.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{ZeRO removes one class of redundancy at a time}
+  \centering\small
+  \begin{tabular}{llll}
+    \toprule
+    Method & optimizer state & gradients & parameters \\
+    \midrule
+    DDP & replicated & replicated & replicated \\
+    ZeRO-1 & sharded & replicated & replicated \\
+    ZeRO-2 & sharded & sharded & replicated \\
+    ZeRO-3 / FSDP & sharded & sharded & sharded \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Idealized per-rank model state}
+    With full sharding and world size $W$, persistent model-state memory approaches $1/W$ of the unsharded total, before activations, buffers, and temporary materialization.
+  \end{block}
+  \smallsource{Hugging Face Ultra-Scale Playbook and ZeRO}
+\end{frame}
+
+\begin{frame}{Sharding changes when full parameters exist}
+  \centering
+  \begin{tikzpicture}[x=.82cm,y=.85cm,scale=.90,transform shape,every node/.style={font=\scriptsize}]
+    \draw[-{Stealth},thick] (0,0)--(11.8,0) node[below left]{time};
+    \draw[dashed,neutrallight] (0,3.8)--(11.5,3.8);
+    \draw[dashed,neutrallight] (0,1.45)--(11.5,1.45);
+    \node[left,font=\scriptsize\bfseries,text=warningdraw] at (0,3.8) {full unit};
+    \node[left,font=\scriptsize\bfseries,text=accentdark] at (0,1.45) {$1/W$ shard};
+    \fill[themebluebg,draw=themebluedraw,very thick]
+      (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (1.35,-.8) {all-gather\\parameters};
+    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (3.20,-.8) {forward};
+    \node[draw=warningdraw,fill=warningbg,rounded corners,font=\tiny] at (4.85,-.8) {reshard};
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (6.35,-.8) {all-gather\\again};
+    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (8.10,-.8) {backward};
+    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny] at (10.25,-.8) {reduce-scatter\\gradients};
+  \end{tikzpicture}
+  \par\vspace{2pt}
+  \footnotesize Full parameters are transient around compute; the local shard is persistent.\par
+\end{frame}
+
+\section{Execution and wrapping}
+
+\begin{frame}{One FSDP unit is a materialization boundary}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Large unit}
+        fewer collectives\\larger peak all-gather\\less opportunity for overlap\\coarser memory release
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Tiny units}
+        low peak materialization\\many latency-dominated collectives\\more metadata and scheduling overhead
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  Wrapping each Transformer block is a common starting point because it aligns materialization with a natural compute unit.
+\end{frame}
+
+\begin{frame}{Communication volume and exposure are different}
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item \textbf{Volume}: total bytes transferred by all-gathers and reduce-scatters.
+    \item \textbf{Exposure}: communication time that remains visible after overlap with compute.
+    \item \textbf{Frequency}: number of collectives and their message sizes.
+  \end{itemize}
+  \begin{alertblock}{Why this matters}
+    Two wrapping policies can move similar bytes but have very different step times because one creates many small latency-bound collectives or a longer exposed tail.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Prefetching tries to move the next unit early}
+  \begin{center}
+  \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
+    \draw[->] (0,0)--(10.2,0) node[right]{time};
+    \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
+    \node at (2.8,.7) {compute unit $\ell$};
+    \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
+    \node at (3.8,1.55) {gather $\ell+1$};
+    \fill[themebluecard] (4.8,.4) rectangle (8.6,1.0);
+    \node at (6.7,.7) {compute unit $\ell+1$};
+  \end{tikzpicture}
+  \end{center}
+  \begin{alertblock}{Constraint}
+    Prefetching improves overlap but raises transient memory because current and next full units may coexist.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{FSDP does not shard activation memory automatically}
+  \begin{columns}[c]
+    \begin{column}{0.50\linewidth}
+      Full sharding reduces persistent parameter, gradient, and optimizer-state redundancy.
+    \end{column}
+    \begin{column}{0.46\linewidth}
+      \begin{alertblock}{Still scales with batch and sequence}
+        saved activations\\attention workspaces\\temporary full parameters\\communication buffers
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  Combine FSDP with activation checkpointing when activations, not model state, dominate the peak.
+\end{frame}
+
+\begin{frame}{Mixed precision has three separate decisions}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}>{\raggedright\arraybackslash}p{.38\linewidth}@{}}
+    \toprule
+    Quantity & Common choice & Main trade-off \\
+    \midrule
+    parameter compute dtype & BF16 & speed and temporary memory \\
+    gradient reduction dtype & BF16 or FP32 & bandwidth versus numerical range \\
+    optimizer state dtype & FP32 & stable moments at persistent cost \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Experimental rule}
+    When comparing DDP and FSDP, align precision policy. Otherwise, memory and numerical differences have multiple causes.
+  \end{block}
+\end{frame}
+
+\checkpoint{wrapping policy}
+  {A run fits in memory but launches hundreds of tiny all-gathers and scales poorly. What wrapping change would you test, and which memory and timing quantities could regress?}
+
+\section{Checkpointing and fair comparison}
+
+\begin{frame}{A distributed checkpoint is a data layout}
+  \begin{columns}[t]
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Full}
+        easy to consume\\expensive to gather\\rank 0 memory pressure
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Sharded}
+        scalable writes\\world-size coupling unless resharded
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Distributed format}
+        parallel I/O\\metadata and recovery complexity
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Completion protocol}
+    Publish a checkpoint only after every shard and its metadata are durable. A directory that exists is not proof of a complete save.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A DDP--FSDP comparison needs a fixed contract}
+  Match model, global token batch, optimizer, schedule, precision, data order, checkpoint cadence, and evaluation.
+  \vspace{7pt}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Correctness evidence}
+        first-update comparison\\loss trajectory\\resume equivalence
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Systems evidence}
+        peak allocated memory\\tokens per second\\collective exposure\\checkpoint time and size
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Choose FSDP when memory is the binding constraint}
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item Prefer DDP when the model fits comfortably and communication simplicity wins.
+    \item Prefer FSDP when replicated state blocks model size, batch size, or context.
+    \item Tune wrapping and prefetch from traces, not from a universal recipe.
+    \item Treat checkpoint load and resharding as part of the production design.
+  \end{itemize}
+\end{frame}
+
+\checkpoint{memory prediction}
+  {Estimate idealized model-state memory per rank for $P$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
+
+\takeaways
+  {ZeRO stages progressively shard optimizer state, gradients, and parameters.}
+  {FSDP materializes one wrapped unit through all-gather and returns sharded gradients.}
+  {Wrapping controls peak memory, collective size, frequency, and overlap.}
+  {Checkpoint format and a matched DDP baseline are part of the system claim.}
+\end{document}

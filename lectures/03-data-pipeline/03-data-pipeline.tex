@@ -1,0 +1,251 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+
+\title[TLM -- Session 03]{Session 3: BPE and the Data Pipeline\\[4pt]
+\normalsize\itshape From Raw Documents to Verified Token Batches}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    How do we turn irregular text into dense, reproducible GPU input without changing the learning task?
+  \end{block}
+\end{frame}
+
+\learninggoals
+  {Explain byte-level BPE as a learned compression code.}
+  {Reason about vocabulary size, sequence length, and parameter cost together.}
+  {Pack documents while keeping boundaries explicit.}
+  {Verify binary storage, sampling, and the next-token shift.}
+
+\section{A tokenizer is a model design choice}
+
+\begin{frame}{Granularity moves cost between vocabulary and sequence}
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Unit & Vocabulary & Sequence & Main cost \\
+    \midrule
+    bytes & 256 & very long & attention and context \\
+    words & millions & short & embeddings and unknowns \\
+    subwords & tunable & moderate & learned merge system \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Why byte-level BPE?}
+    Every UTF-8 string decomposes into 256 byte values, so the base system has no unknown text. Frequent byte sequences can then become single tokens.
+  \end{block}
+  \begin{alertblock}{System consequence}
+    Tokenization changes sequence length, attention work, KV-cache size, multilingual efficiency, and the number of embedding parameters.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{BPE learns a greedy compression hierarchy}
+  \begin{enumerate}
+    \setlength{\itemsep}{6pt}
+    \item Start from byte IDs and reserved special tokens.
+    \item Count adjacent token pairs in the training corpus.
+    \item Merge the most frequent pair into one new token.
+    \item Repeat until the vocabulary reaches its target size.
+  \end{enumerate}
+  \[
+    (p_0,p_1)\mapsto v_{\text{new}},
+    \qquad
+    \operatorname{repr}(v_{\text{new}})=
+    \operatorname{repr}(p_0)\Vert\operatorname{repr}(p_1)
+  \]
+  \begin{block}{Encoding new text}
+    Apply learned merges by rank. Earlier learned pairs win when several merges are possible.
+  \end{block}
+  \smallsource{Gage, Sennrich et al., GPT-2, and minBPE}
+\end{frame}
+
+\begin{frame}{A hand-worked merge exposes the algorithm}
+  Corpus: \texttt{low low lower}
+  \vspace{4pt}
+  \begin{center}
+  \begin{tabular}{lll}
+    \toprule
+    Round & frequent pair & stream fragment \\
+    \midrule
+    0 & -- & \texttt{l o w | l o w | l o w e r} \\
+    1 & \texttt{l o} & \texttt{lo w | lo w | lo w e r} \\
+    2 & \texttt{lo w} & \texttt{low | low | low e r} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \begin{alertblock}{What the table hides}
+    Real byte-level training also defines deterministic tie-breaking, special-token policy, and merge boundaries. These are part of the tokenizer artifact.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Pre-tokenization prevents pathological merges}
+  \begin{columns}[c]
+    \begin{column}{0.48\linewidth}
+      \begin{alertblock}{Naive byte stream}
+        Frequent punctuation and whitespace can merge across unrelated words or document structure.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Regex chunks}
+        Letters, numbers, punctuation, contractions, and whitespace form separate regions. BPE merges stay inside each region.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering
+  \texttt{" the"} and \texttt{"the"} may become different learned tokens because leading-space behavior carries information.
+\end{frame}
+
+\begin{frame}{Vocabulary size has two opposing effects}
+  \begin{columns}[c]
+    \begin{column}{0.52\linewidth}
+      \begin{block}{Larger vocabulary}
+        fewer tokens per document\\lower attention and decode length\\better compression for frequent patterns
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\linewidth}
+      \begin{alertblock}{But also}
+        larger embedding and output matrices\\rarer tail tokens\\more expensive vocabulary softmax
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \[
+    \text{embedding parameters}=Vd
+    \qquad
+    \text{compression}=\frac{\text{UTF-8 bytes}}{\text{tokens}}
+  \]
+  \centering Weight tying avoids paying $Vd$ twice.
+\end{frame}
+
+\checkpoint{tokenizer choice}
+  {A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters. Which training and serving measurements would decide whether this is a good trade?}
+
+\section{Packing documents into examples}
+
+\begin{frame}{Padding turns document length variance into wasted FLOPs}
+  \begin{center}
+    \begin{tikzpicture}[x=.0042cm,y=.65cm,every node/.style={font=\scriptsize}]
+      \fill[themebluecard] (0,2) rectangle (250,2.7);
+      \fill[neutralbg] (250,2) rectangle (2048,2.7);
+      \draw (0,2) rectangle (2048,2.7);
+      \node[left] at (0,2.35) {doc A};
+      \node at (1149,2.35) {88\% padding};
+      \fill[themebluecard] (0,1) rectangle (800,1.7);
+      \fill[neutralbg] (800,1) rectangle (2048,1.7);
+      \draw (0,1) rectangle (2048,1.7);
+      \node[left] at (0,1.35) {doc B};
+      \node at (1424,1.35) {61\% padding};
+    \end{tikzpicture}
+  \end{center}
+  \begin{block}{Dense packing}
+    Concatenate documents with an explicit end-of-text token, then slice fixed-length training windows from the resulting token stream.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Packing improves utilization but changes attention structure}
+  \begin{columns}[c]
+    \begin{column}{0.56\linewidth}
+      \texttt{[doc A][EOT][doc B][EOT][doc C]}
+      \vspace{8pt}
+      \begin{itemize}
+        \setlength{\itemsep}{7pt}
+        \item Every position contributes to the loss.
+        \item Windows can cross a document boundary.
+        \item Standard causal attention lets doc B see doc A.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.40\linewidth}
+      \begin{block}{Two valid policies}
+        Accept cross-document context and record it.\\[6pt]
+        Or use block-diagonal causal masks with document offsets.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Invariant}
+    Train and validation splits must happen at the document level before packing.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{The end-of-text token has two roles}
+  \begin{enumerate}
+    \setlength{\itemsep}{9pt}
+    \item It preserves a recoverable boundary in a contiguous stream.
+    \item It teaches the model that one document ended and another may begin.
+  \end{enumerate}
+  \begin{alertblock}{Special-token policy}
+    Reserve its ID before training merges. Prevent ordinary text from being confused with the special marker. Test round-trip behavior explicitly.
+  \end{alertblock}
+\end{frame}
+
+\section{Storage and correctness}
+
+\begin{frame}{Binary shards remove tokenization from the hot path}
+  \begin{columns}[c]
+    \begin{column}{0.55\linewidth}
+      \begin{itemize}
+        \setlength{\itemsep}{8pt}
+        \item Pre-tokenize once and store integer IDs contiguously.
+        \item Use \texttt{uint16} only when every ID fits below $65{,}536$.
+        \item Open shards with memory mapping and let the OS page cache serve workers.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.41\linewidth}
+      \begin{block}{Storage estimate}
+        $10^9$ tokens at 2 bytes each occupy 2.0 GB before metadata.
+      \end{block}
+      \begin{alertblock}{Schema contract}
+        Record dtype, tokenizer hash, token count, and document-boundary convention beside each shard.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{One contiguous slice creates inputs and targets}
+  Sample $T+1$ tokens beginning at offset $i$:
+  \[
+    x = s[i:i+T]
+    \qquad
+    y = s[i+1:i+T+1]
+  \]
+  \begin{center}
+    \begin{tabular}{c|ccccc}
+      & 0 & 1 & 2 & $\cdots$ & $T-1$ \\
+      \hline
+      $x$ & $s_i$ & $s_{i+1}$ & $s_{i+2}$ & $\cdots$ & $s_{i+T-1}$ \\
+      $y$ & $s_{i+1}$ & $s_{i+2}$ & $s_{i+3}$ & $\cdots$ & $s_{i+T}$ \\
+    \end{tabular}
+  \end{center}
+  \begin{block}{Fast correctness check}
+    For every batch, $y[:,:-1]$ must equal $x[:,1:]$ exactly.
+  \end{block}
+\end{frame}
+
+\begin{frame}{A data pipeline needs end-to-end evidence}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Encode and decode arbitrary Unicode text losslessly.
+    \item Verify deterministic token IDs and special-token handling.
+    \item Measure compression on representative languages and domains.
+    \item Audit document-level split membership before packing.
+    \item Saturate a loader benchmark without the GPU waiting for input.
+  \end{enumerate}
+  \begin{alertblock}{Do not optimize a corrupt stream}
+    Decode sampled training windows back to text. Human inspection often reveals split leakage, repeated boilerplate, or broken boundaries immediately.
+  \end{alertblock}
+\end{frame}
+
+\checkpoint{pipeline audit}
+  {A training run is fast, but validation loss is implausibly low. List three document- or token-level checks that distinguish a good model from split contamination.}
+
+\takeaways
+  {Byte-level BPE guarantees coverage, while merges trade vocabulary size for shorter sequences.}
+  {Pre-tokenization and special-token rules are part of the learned tokenizer.}
+  {Packing removes padding waste but requires an explicit document-boundary policy.}
+  {Binary shards are useful only when their schema, split, and target shift are verified.}
+
+\end{document}

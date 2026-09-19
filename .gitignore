@@ -12,3 +12,15 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.fls
+*.fdb_latexmk
+*.synctex*

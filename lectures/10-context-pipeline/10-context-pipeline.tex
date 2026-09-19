@@ -1,0 +1,227 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+\title[TLM -- Session 10]{Session 10: Context and Pipeline Parallelism\\[4pt]
+\normalsize\itshape Splitting Sequence Length and Model Depth}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    When width sharding is not enough, how do we divide long contexts and deep models without losing exactness or utilization?
+  \end{block}
+\end{frame}
+\learninggoals
+  {Distinguish context parallelism from sequence parallelism.}
+  {Explain exact ring attention through online softmax.}
+  {Compute pipeline bubbles for a micro-batch schedule.}
+  {Map parallel dimensions to a real cluster topology.}
+
+\section{Context parallelism}
+
+\begin{frame}{Two techniques shard the sequence axis for different reasons}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Sequence parallelism}
+        Complements tensor parallelism by sharding token activations around norms, dropout, and elementwise operations.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Context parallelism}
+        Splits a long context across devices so each rank stores only part of the queries and token activations.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{The hard part}
+    Attention couples every local query with keys and values that may live on every other rank.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Most layers are local after token sharding}
+  With $T$ split over $C$ context ranks, each rank owns roughly $T/C$ positions.
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item tokenwise normalization and MLPs operate locally
+    \item residual additions operate locally
+    \item attention needs remote key-value blocks
+    \item some losses and metrics need global reductions
+  \end{itemize}
+  \begin{block}{Memory effect}
+    Token activation memory falls roughly with $1/C$, while communication appears inside every attention layer.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Ring attention rotates key-value blocks}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},
+    rank/.style={draw=neutrallight,fill=neutralbg,rounded corners,minimum width=2.0cm,minimum height=1.0cm,align=center}]
+    \node[rank] (r0) at (5.4,3.7) {\textbf{$Q_0$ fixed}\\\color{themebluedraw}$KV_0$ moves};
+    \node[rank] (r1) at (9.0,2.0) {\textbf{$Q_1$ fixed}\\\color{warningdraw}$KV_1$ moves};
+    \node[rank] (r2) at (5.4,.3) {\textbf{$Q_2$ fixed}\\\color{accentvioletdraw}$KV_2$ moves};
+    \node[rank] (r3) at (1.8,2.0) {\textbf{$Q_3$ fixed}\\\color{leafreddraw}$KV_3$ moves};
+    \draw[-{Stealth},very thick,themebluedraw] (r0)--(r1);
+    \draw[-{Stealth},very thick,themebluedraw] (r1)--(r2);
+    \draw[-{Stealth},very thick,themebluedraw] (r2)--(r3);
+    \draw[-{Stealth},very thick,themebluedraw] (r3)--(r0);
+    \node[draw=successdraw,fill=successbg,rounded corners,align=center,minimum width=3.1cm,minimum height=.9cm,font=\scriptsize\bfseries] at (5.4,2.0) {update online softmax\\state $(m,\ell,o)$};
+    \node[text=accentdark,font=\small\bfseries] at (5.4,-.65) {after $C$ rounds: every $Q_r$ has seen all $KV$ blocks};
+  \end{tikzpicture}
+  \begin{alertblock}{Memory behavior}
+    Only a few $KV$ blocks are resident per rank; no rank gathers the full context or materializes a global $T\times T$ score matrix.
+  \end{alertblock}
+  \smallsource{Hugging Face Ultra-Scale Playbook and Ring Attention}
+\end{frame}
+
+\begin{frame}{Online softmax makes blockwise attention exact}
+  For one query row, maintain running maximum $m$, normalizer $\ell$, and numerator $o$.
+  For a new score block with maximum $m_b$:
+  \[
+    m'=\max(m,m_b)
+  \]
+  \[
+    \ell'=e^{m-m'}\ell+\sum_j e^{s_j-m'}
+  \]
+  \[
+    o'=e^{m-m'}o+\sum_j e^{s_j-m'}v_j
+  \]
+  Final attention is $o/\ell$. Rescaling preserves contributions computed under earlier maxima.
+\end{frame}
+
+\begin{frame}{Causal attention can imbalance ring work}
+  Early query positions have few valid keys. Late queries have many. A naive contiguous partition gives ranks unequal useful work after masking.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Symptom}
+        Some ranks wait while others process large valid attention regions.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Mitigation}
+        Interleave or pair early and late context blocks so valid attention work is balanced.
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\section{Pipeline parallelism}
+
+\begin{frame}{Pipeline parallelism assigns layer ranges to stages}
+  \begin{center}
+  \begin{tikzpicture}[node distance=.30cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,align=center,minimum width=2.3cm,minimum height=.7cm}]
+    \node[box] (s0) {stage 0\\ layers 0--5};
+    \node[box,right=of s0] (s1) {stage 1\\ layers 6--11};
+    \node[box,right=of s1] (s2) {stage 2\\ layers 12--17};
+    \node[box,right=of s2] (s3) {stage 3\\ layers 18--23};
+    \draw[-{Stealth},thick] (s0)--(s1);
+    \draw[-{Stealth},thick] (s1)--(s2);
+    \draw[-{Stealth},thick] (s2)--(s3);
+  \end{tikzpicture}
+  \end{center}
+  \begin{block}{Why micro-batches?}
+    Split a global batch into $M$ micro-batches so different stages can work on different micro-batches concurrently.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Pipeline bubbles shrink as micro-batches increase}
+  For $P$ balanced stages and $M$ forward-only micro-batches:
+  \[
+    \text{ideal utilization}\approx\frac{M}{M+P-1}
+  \]
+  \begin{block}{Worked example}
+    $P=4$, $M=8$ gives $8/(8+3)\approx73\%$ idealized forward utilization. With $M=32$, it rises to about $91\%$.
+  \end{block}
+  \begin{alertblock}{Trade-off}
+    More micro-batches reduce bubbles but can create smaller, less efficient kernels and more activation bookkeeping.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{AFAB and 1F1B trade memory for schedule complexity}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{All-forward-all-backward}
+        simple schedule\\many outstanding activations\\higher peak memory
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{One-forward-one-backward}
+        after warmup, alternate directions\\fewer stored activations\\more coordination
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  Both still have warmup and cooldown bubbles. Interleaving virtual stages can reduce them further at added complexity.
+\end{frame}
+
+\begin{frame}{The slowest stage sets pipeline throughput}
+  \[
+    t_{\text{cycle}}\approx\max_s t_s
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item Equal layer counts need not mean equal work.
+    \item Embeddings, output projection, and activation sizes can skew stages.
+    \item Stage boundaries determine activation communication volume.
+    \item Profile stage time and memory before moving boundaries.
+  \end{itemize}
+\end{frame}
+
+\checkpoint{schedule arithmetic}
+  {For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
+
+\section{Composing parallel dimensions}
+
+\begin{frame}{The device count factorizes across parallel groups}
+  \[
+    N_{\text{GPU}}=D\times T_p\times C\times P
+  \]
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    Dimension & Splits & Communication pattern \\
+    \midrule
+    data / FSDP & batch and model state & gradient or shard collectives \\
+    tensor & hidden width and heads & frequent activation collectives \\
+    context & sequence positions & key-value exchange per layer \\
+    pipeline & layer depth & point-to-point activations \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Map the chattiest group to the fastest fabric}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Use tensor parallelism inside a high-bandwidth GPU island.
+    \item Add context parallelism when token activations or attention exceed local memory.
+    \item Use pipeline parallelism when model depth spans nodes.
+    \item Replicate the resulting model group with data parallelism when batch and devices remain.
+  \end{enumerate}
+  \begin{alertblock}{Selection rule}
+    Choose the smallest degree on each axis that resolves a concrete memory or compute constraint.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Four cases lead to different strategies}
+  \small
+  \begin{tabular}{p{.41\linewidth}p{.49\linewidth}}
+    \toprule
+    Binding constraint & First strategy to evaluate \\
+    \midrule
+    model fits, short context, more GPUs & DDP or FSDP replicas \\
+    one wide layer does not fit & tensor parallelism \\
+    weights fit, 128k-token examples do not & context parallelism plus checkpointing \\
+    model exceeds one node & pipeline across nodes, TP within node \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\checkpoint{cluster design}
+  {Design a layout for 32 GPUs arranged as four 8-GPU nodes. State the memory constraint, proposed $D,T_p,C,P$, and which communication crosses node boundaries.}
+
+\takeaways
+  {Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
+  {Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
+  {Load balance matters across causal context blocks and pipeline stages.}
+  {Parallel dimensions should follow the workload constraint and physical network hierarchy.}
+\end{document}

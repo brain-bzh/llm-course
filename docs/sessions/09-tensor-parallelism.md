@@ -116,6 +116,82 @@ input expected by the column-parallel projection.
 Sequence parallelism primarily reduces activation residency. It changes the
 layout transitions, not the model's arithmetic.
 
+## Forward and backward are conjugate
+
+Every layout-changing collective has a complementary backward operation. If a
+forward all-gather concatenates shards, backward reduce-scatters the gradient
+back to the owners. If a forward all-reduce sums partial outputs, backward can
+often avoid another identical reduction because each input-gradient shard is
+already determined by its local weight shard.
+
+This is why a tensor-parallel layer should be reasoned about as an autograd
+pair, not only as a forward matrix multiplication:
+
+| Forward layout change | Backward counterpart |
+| --- | --- |
+| all-gather shards → replicated tensor | reduce-scatter replicated gradient → shards |
+| reduce-scatter partials → shards | all-gather gradient shards → replicated gradient |
+| all-reduce partials → replicated sum | identity or local shard computation, depending on boundary |
+
+The exact placement depends on which tensors the neighboring layer expects.
+Writing the layout beside every tensor is safer than memorizing a framework's
+operator names.
+
+## Communication model
+
+Let \(p\) be the TP degree and let one activation at a block boundary contain
+\(A = B T d\) elements. A ring all-reduce of an \(A\)-element tensor moves
+approximately
+
+\[
+2\frac{p-1}{p}Aq
+\]
+
+bytes per rank, where \(q\) is bytes per element. A classic tensor-parallel
+Transformer has synchronization points in both attention and MLP during
+forward, with conjugate communication during backward.
+
+The ratio between communication and matrix compute improves with hidden width:
+the payload grows roughly as \(BTd\), while dense projection work grows as
+\(BTd^2\). Wide layers amortize communication better than narrow ones. Larger
+TP degree, however, makes each local matrix smaller and can reduce Tensor Core
+efficiency while adding synchronization participants.
+
+Sequence parallelism replaces an all-reduce with a reduce-scatter plus a later
+all-gather. In bandwidth terms those two ring phases are comparable to an
+all-reduce; the benefit is lower activation residency between them, not free
+communication.
+
+## Attention head constraints
+
+Column-sharding Q, K and V naturally assigns whole heads to ranks. Check these
+divisibility constraints before choosing a TP degree:
+
+- query heads should divide across TP ranks;
+- with GQA, KV heads are the tighter constraint;
+- if \(p\) exceeds the number of KV heads, KV heads may need replication;
+- head dimension must remain intact unless an additional communication scheme
+  is introduced.
+
+For example, a model with 32 query heads and 8 KV heads maps cleanly to TP=8.
+TP=16 can shard query heads but cannot give every rank a distinct KV head;
+replication or a more complex layout is required.
+
+## Correctness invariants
+
+A tensor-parallel implementation is credible only if it verifies:
+
+1. the sharded weights reconstruct the dense reference weights;
+2. forward outputs match the dense layer;
+3. input gradients match;
+4. each parameter-shard gradient matches the corresponding dense slice;
+5. optimizer updates preserve the match;
+6. collectives occur in the same order on every rank;
+7. dropout and other stochastic operations use a deliberate RNG policy.
+
+Test at least one non-square shape and more than one batch/sequence size. A
+single symmetric example can hide a wrong split dimension.
+
 ## When tensor parallelism helps
 
 Tensor parallelism reduces the parameter and activation footprint of individual
@@ -124,6 +200,16 @@ kept within a node where the GPUs have high-bandwidth links, then combined with
 data, context or pipeline parallelism across slower links. The useful tensor-
 parallel degree is a measurement, not a constant: benchmark communication and
 matrix efficiency on the target hardware.
+
+Use these design rules as hypotheses:
+
+- keep TP inside the fastest interconnect domain when possible;
+- use the smallest TP degree that makes the layer fit and preserves efficient
+  local matrices;
+- pair TP with sequence parallelism when replicated non-TP activations dominate;
+- do not use TP merely because several GPUs are available—DDP gives independent
+  compute and often better throughput when the model already fits;
+- benchmark the exact hidden size, head layout, dtype and micro-batch.
 
 ## Practical task
 
@@ -136,6 +222,44 @@ Implement the two-rank MLP from this page using basic collective operations:
 5. compare the sharded and dense forward results and parameter gradients;
 6. record every tensor shape and the communicated bytes.
 
+## In-class investigation
+
+### Part A — layout ledger
+
+For one attention sublayer and one MLP sublayer, fill a table with:
+
+| Boundary | Global shape | Local shape | Layout | Collective |
+| --- | --- | --- | --- | --- |
+
+Include both forward and backward. Any row labeled only “sharded” is
+incomplete—state the dimension and process group.
+
+### Part B — degree selection
+
+For a model with \(d=4096\), 32 query heads, 8 KV heads, BF16 activations and
+an 8-GPU NVLink node:
+
+1. evaluate TP degrees 1, 2, 4, 8 and 16 for divisibility;
+2. estimate local projection shapes;
+3. identify which degree crosses a node boundary;
+4. predict memory and throughput trends;
+5. select a degree and state the measurement that could overturn the choice.
+
+### Part C — communication worksheet
+
+Using the course batch and sequence length, estimate the payload and optimistic
+time of one activation all-reduce. Compare it with the adjacent matrix
+multiplication time from Session 6's roofline model.
+
+## Exit ticket
+
+1. Why does column-then-row parallelism avoid an intermediate all-gather?
+2. Which collective turns row-parallel partial outputs into a replicated sum?
+3. What memory does sequence parallelism save?
+4. Why is TP usually more sensitive to interconnect bandwidth than pipeline
+   parallelism?
+5. Why can GQA limit the useful TP degree?
+
 ## Expected output
 
 A small tensor-parallel MLP whose outputs and gradients match the unsharded
@@ -143,13 +267,11 @@ reference, plus a trace that makes each layout transition explicit.
 
 ## References
 
-- [The Ultra-Scale Playbook — Tensor Parallelism](https://huggingface.co/spaces/nanotron/ultrascale-playbook#tensor-parallelism), the main conceptual sequence for this session;
-- [Picotron](https://github.com/huggingface/picotron), a compact implementation to read after the toy exercise;
-- [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053), the original Transformer tensor-parallel formulation.
-
-## Material to add later
-
-- an attention-head sharding figure;
-- a sequence-parallel layout exercise;
-- a communication-volume worksheet;
-- a small hardware benchmark comparing tensor-parallel degrees.
+- [The Ultra-Scale Playbook — Tensor Parallelism](https://huggingface.co/spaces/nanotron/ultrascale-playbook#tensor-parallelism)
+  — the main conceptual sequence and scaling evidence for this session;
+- [Picotron](https://github.com/huggingface/picotron)
+  — compact implementations of tensor and sequence parallelism;
+- [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053)
+  — the original Transformer tensor-parallel formulation;
+- [Reducing Activation Recomputation in Large Transformer Models](https://arxiv.org/abs/2205.05198)
+  — sequence parallelism and selective activation recomputation.

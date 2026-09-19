@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 440" role="img" aria-labelledby="title desc">
+  <title id="title">Ring all-reduce in two phases</title>
+  <desc id="desc">Four ranks circulate gradient chunks around a ring. Reduce-scatter leaves each rank with one reduced chunk; all-gather circulates those reduced chunks until every rank has the complete reduced gradient.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.panel{fill:#f3f7fa;stroke:#d8e2e8;stroke-width:2}.rank{fill:#10233f;stroke:#10233f;stroke-width:2}.ring{fill:none;stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.label{fill:#10233f;font-size:18px;font-weight:750}.sub{fill:#526071;font-size:13px;font-weight:500}.inverse{fill:#fff;font-size:15px;font-weight:750}.c0{fill:#54c6cd}.c1{fill:#f59e0b}.c2{fill:#c084fc}.c3{fill:#fb7185}.chunk{stroke:#fff;stroke-width:1.5}.phase{fill:#007f86;font-size:17px;font-weight:750}.formula{fill:#ea580c;font-size:16px;font-weight:750}
+      @media(prefers-color-scheme:dark){.panel{fill:#182534;stroke:#2c4052}.rank{fill:#2c4052;stroke:#54d2d8}.label{fill:#f3f7fa}.sub{fill:#9fb2c4}.phase{fill:#54d2d8}.formula{fill:#fb923c}}
+    </style>
+  </defs>
+  <rect class="panel" x="20" y="25" width="455" height="350" rx="16"/><rect class="panel" x="505" y="25" width="455" height="350" rx="16"/>
+  <text class="phase" x="247" y="58" text-anchor="middle">1 · Reduce-scatter</text><text class="sub" x="247" y="80" text-anchor="middle">circulate + sum matching chunks</text>
+  <text class="phase" x="732" y="58" text-anchor="middle">2 · All-gather</text><text class="sub" x="732" y="80" text-anchor="middle">circulate the reduced chunks</text>
+  <path class="ring" d="M247 120H350V218"/><path class="ring" d="M350 218V295H247"/><path class="ring" d="M247 295H145V218"/><path class="ring" d="M145 218V120H247"/>
+  <path class="ring" d="M732 120H835V218"/><path class="ring" d="M835 218V295H732"/><path class="ring" d="M732 295H630V218"/><path class="ring" d="M630 218V120H732"/>
+  <g><circle class="rank" cx="247" cy="115" r="38"/><text class="inverse" x="247" y="109" text-anchor="middle">rank 0</text><rect class="c0 chunk" x="235" y="122" width="24" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="355" cy="218" r="38"/><text class="inverse" x="355" y="212" text-anchor="middle">rank 1</text><rect class="c1 chunk" x="343" y="225" width="24" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="247" cy="300" r="38"/><text class="inverse" x="247" y="294" text-anchor="middle">rank 2</text><rect class="c2 chunk" x="235" y="307" width="24" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="140" cy="218" r="38"/><text class="inverse" x="140" y="212" text-anchor="middle">rank 3</text><rect class="c3 chunk" x="128" y="225" width="24" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="732" cy="115" r="38"/><text class="inverse" x="732" y="109" text-anchor="middle">rank 0</text><rect class="c0 chunk" x="704" y="122" width="14" height="9" rx="2"/><rect class="c1 chunk" x="721" y="122" width="14" height="9" rx="2"/><rect class="c2 chunk" x="738" y="122" width="14" height="9" rx="2"/><rect class="c3 chunk" x="755" y="122" width="14" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="840" cy="218" r="38"/><text class="inverse" x="840" y="212" text-anchor="middle">rank 1</text><rect class="c0 chunk" x="812" y="225" width="14" height="9" rx="2"/><rect class="c1 chunk" x="829" y="225" width="14" height="9" rx="2"/><rect class="c2 chunk" x="846" y="225" width="14" height="9" rx="2"/><rect class="c3 chunk" x="863" y="225" width="14" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="732" cy="300" r="38"/><text class="inverse" x="732" y="294" text-anchor="middle">rank 2</text><rect class="c0 chunk" x="704" y="307" width="14" height="9" rx="2"/><rect class="c1 chunk" x="721" y="307" width="14" height="9" rx="2"/><rect class="c2 chunk" x="738" y="307" width="14" height="9" rx="2"/><rect class="c3 chunk" x="755" y="307" width="14" height="9" rx="2"/></g>
+  <g><circle class="rank" cx="625" cy="218" r="38"/><text class="inverse" x="625" y="212" text-anchor="middle">rank 3</text><rect class="c0 chunk" x="597" y="225" width="14" height="9" rx="2"/><rect class="c1 chunk" x="614" y="225" width="14" height="9" rx="2"/><rect class="c2 chunk" x="631" y="225" width="14" height="9" rx="2"/><rect class="c3 chunk" x="648" y="225" width="14" height="9" rx="2"/></g>
+  <text class="sub" x="247" y="350" text-anchor="middle">one reduced chunk per rank</text><text class="sub" x="732" y="350" text-anchor="middle">full reduced buffer on every rank</text>
+  <text class="formula" x="490" y="420" text-anchor="middle">per-rank payload ≈ 2 · (D − 1) / D · G</text>
+</svg>

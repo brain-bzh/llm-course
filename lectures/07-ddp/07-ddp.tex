@@ -1,0 +1,223 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+\title[TLM -- Session 07]{Session 7: Distributed Data Parallelism\\[4pt]
+\normalsize\itshape Replicas, Collectives, and Global Invariants}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    When does training on $W$ GPUs reproduce one larger-batch update, and where can that equivalence fail?
+  \end{block}
+\end{frame}
+\learninggoals
+  {Derive the averaged gradient computed by data parallelism.}
+  {Reason about ring all-reduce cost and overlap.}
+  {Keep accumulation, sampling, logging, and checkpointing rank-aware.}
+  {Measure both numerical equivalence and scaling efficiency.}
+
+\section{The data-parallel contract}
+
+\begin{frame}{Each rank owns a full model and different examples}
+  \begin{columns}[c]
+    \begin{column}{0.53\linewidth}
+      \begin{itemize}
+        \setlength{\itemsep}{7pt}
+        \item one process controls one GPU
+        \item parameters begin identical on all ranks
+        \item local batches are disjoint parts of a global batch
+        \item gradients synchronize before every optimizer update
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.43\linewidth}
+      \begin{block}{Global batch}
+        \[
+          B_{\text{global}}=W\,B_{\text{local}},K
+        \]
+        $K$ is the number of accumulated micro-steps.
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Gradient averaging recovers the global mean}
+  Rank $r$ computes a mean gradient over $n_r$ valid tokens:
+  \[
+    g_r=\frac{1}{n_r}\sum_{i\in\mathcal{B}_r}\nabla_\theta \ell_i
+  \]
+  If every $n_r=n$, DDP's average is:
+  \[
+    \bar g=\frac{1}{W}\sum_{r=0}^{W-1}g_r
+    =\frac{1}{Wn}\sum_{r,i}\nabla_\theta\ell_i
+  \]
+  \begin{alertblock}{Unequal valid-token counts}
+    Averaging rank means is not the global token mean. Aggregate summed loss and counts, or weight gradients correctly.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A ring all-reduce distributes the traffic}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},rank/.style={circle,draw=accentdark,fill=accentdark,text=white,minimum size=.82cm,font=\scriptsize\bfseries}]
+    \begin{scope}[xshift=0cm]
+      \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {1. reduce-scatter};
+      \node[rank] (a0) at (2.4,3.0) {0}; \node[rank] (a1) at (4.0,1.8) {1};
+      \node[rank] (a2) at (2.4,.6) {2}; \node[rank] (a3) at (.8,1.8) {3};
+      \draw[-{Stealth},very thick,themebluedraw] (a0)--(a1);
+      \draw[-{Stealth},very thick,themebluedraw] (a1)--(a2);
+      \draw[-{Stealth},very thick,themebluedraw] (a2)--(a3);
+      \draw[-{Stealth},very thick,themebluedraw] (a3)--(a0);
+      \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (2.4,1.8) {circulate + sum\\matching chunks};
+      \node at (2.4,-.05) {one reduced chunk per rank};
+    \end{scope}
+    \begin{scope}[xshift=6.3cm]
+      \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {2. all-gather};
+      \node[rank] (b0) at (2.4,3.0) {0}; \node[rank] (b1) at (4.0,1.8) {1};
+      \node[rank] (b2) at (2.4,.6) {2}; \node[rank] (b3) at (.8,1.8) {3};
+      \draw[-{Stealth},very thick,successdraw] (b0)--(b1);
+      \draw[-{Stealth},very thick,successdraw] (b1)--(b2);
+      \draw[-{Stealth},very thick,successdraw] (b2)--(b3);
+      \draw[-{Stealth},very thick,successdraw] (b3)--(b0);
+      \node[draw=successdraw,fill=successbg,rounded corners,align=center] at (2.4,1.8) {circulate reduced\\chunks};
+      \node at (2.4,-.05) {full reduced buffer on every rank};
+    \end{scope}
+  \end{tikzpicture}
+  \vspace{-2pt}
+  \begin{block}{Per-rank payload for gradient buffer $S$}
+    \centering $2\frac{W-1}{W}S$ bytes, ignoring latency and protocol overhead.
+  \end{block}
+  \smallsource{Hugging Face Ultra-Scale Playbook}
+\end{frame}
+
+\section{Overlap and rank-aware state}
+
+\begin{frame}{Buckets overlap communication with backward}
+  Backward produces gradients from later layers first. DDP groups parameters into buckets and launches a collective as each bucket becomes ready.
+  \vspace{6pt}
+  \begin{center}
+  \begin{tikzpicture}[x=.82cm,y=.65cm,every node/.style={font=\scriptsize}]
+    \draw[->] (0,0)--(10.4,0) node[right]{time};
+    \fill[themebluecard] (0,.4) rectangle (8,1.0);
+    \node at (4,.7) {backward compute};
+    \fill[warningbg] (2.0,1.25) rectangle (4.0,1.85);
+    \fill[warningbg] (4.1,1.25) rectangle (6.1,1.85);
+    \fill[warningbg] (6.2,1.25) rectangle (8.8,1.85);
+    \node at (5.4,1.55) {bucket all-reduces};
+  \end{tikzpicture}
+  \end{center}
+  \begin{alertblock}{Tail exposure}
+    Communication that remains after backward completes is visible step-time overhead.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Accumulation should synchronize once per update}
+  \begin{columns}[c]
+    \begin{column}{0.53\linewidth}
+      \begin{itemize}
+        \setlength{\itemsep}{8pt}
+        \item Early micro-steps accumulate locally under \texttt{no\_sync()}.
+        \item The final micro-step triggers the bucket all-reduces.
+        \item Loss normalization still targets the global mean.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.43\linewidth}
+      \begin{alertblock}{Common waste}
+        Synchronizing every micro-step communicates $K$ times for one optimizer update.
+      \end{alertblock}
+      \begin{block}{Common bug}
+        Never synchronizing lets replicas drift immediately after the update.
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Distributed sampling is part of correctness}
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item Each rank needs a disjoint subset within an epoch or sampling interval.
+    \item All ranks must agree on the shuffle seed and epoch counter.
+    \item Dropping or padding the tail changes sample multiplicity.
+    \item Resume must restore the sampler's logical position.
+  \end{itemize}
+  \begin{block}{Fast audit}
+    Log sample IDs per rank for a few updates. Check within-step overlap, missing examples, and resume continuity.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Only some side effects should happen on every rank}
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    Action & Every rank? & Reason \\
+    \midrule
+    forward and backward & yes & local data contribution \\
+    optimizer update & yes & replicas remain identical \\
+    metric numerator/count & yes & later reduction \\
+    console and tracker logging & usually rank 0 & avoid duplicates \\
+    full checkpoint publication & coordinated & avoid corruption \\
+    validation sampling & sharded or rank 0 & declare aggregation \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\checkpoint{batch accounting}
+  {With $W=8$, micro-batch 2, context 2048, and four accumulated micro-steps, compute tokens per update. How many gradient synchronizations should occur?}
+
+\section{Correctness before scaling}
+
+\begin{frame}{A five-rung correctness ladder}
+  \begin{enumerate}
+    \setlength{\itemsep}{5pt}
+    \item parameters are identical immediately after initialization
+    \item one global-batch update matches a single-process reference
+    \item parameters remain synchronized after the update
+    \item sample IDs show the intended global data coverage
+    \item save and resume preserve model, optimizer, RNG, and sampler state
+  \end{enumerate}
+  \begin{alertblock}{Tolerance is part of the test}
+    Reduction order changes floating-point rounding. Define acceptable numerical error rather than demanding bitwise equality by accident.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Scaling efficiency separates speed from more work}
+  \[
+    \text{speedup}(W)=\frac{t_1}{t_W},
+    \qquad
+    \text{efficiency}(W)=\frac{\text{speedup}(W)}{W}
+  \]
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Strong scaling}
+        Hold the global batch and work fixed. Ask how much faster the same update becomes.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Weak scaling}
+        Hold work per GPU fixed. Global batch grows with $W$.
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{A trace explains poor scaling}
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item long exposed collectives suggest insufficient compute overlap or slow links
+    \item rank skew suggests data loading, imbalance, or stragglers
+    \item many small collectives suggest poor bucketing
+    \item gaps before collectives suggest autograd readiness or synchronization barriers
+    \item identical time with more GPUs may mean the local batch became too small
+  \end{itemize}
+\end{frame}
+
+\checkpoint{equivalence failure}
+  {A two-GPU run has the expected throughput, but its first update differs sharply from the single-process reference. Give a check order covering initialization, data, loss normalization, reduction, and optimizer state.}
+
+\takeaways
+  {DDP is equivalent to a global mean update only when data and normalization invariants hold.}
+  {Ring all-reduce spreads bandwidth cost, while buckets hide part of it behind backward.}
+  {Sampling, metrics, side effects, and resume logic must all understand rank.}
+  {Correctness comparisons come before speedup and efficiency measurements.}
+\end{document}

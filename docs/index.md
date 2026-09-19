@@ -8,7 +8,7 @@ and distributed, and finish by serving the resulting model efficiently.
 
 The course follows one question throughout:
 
-> **Given limited data and compute, where are we wasting resources—and how can
+> **Given limited data and compute, where are we wasting resources, and how can
 > we prove that an improvement is real?**
 
 ## Course at a glance

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 500" role="img" aria-labelledby="title desc">
+  <title id="title">Roofline model for GPU performance</title>
+  <desc id="desc">A sloped memory-bandwidth roof meets a flat peak-compute roof at the ridge point. Vector addition lies in the bandwidth-bound region, while a large tiled matrix multiplication can lie in the compute-bound region.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.axis{stroke:#68798a;stroke-width:3;marker-end:url(#arrow)}.grid{stroke:#d8e2e8;stroke-width:1.5;stroke-dasharray:5 6}.memory{stroke:#007f86;stroke-width:6;fill:none}.compute{stroke:#ea580c;stroke-width:6;fill:none}.ridge{stroke:#68798a;stroke-width:2;stroke-dasharray:6 5}.region-memory{fill:#e2f4f4;opacity:.75}.region-compute{fill:#fff7ed;opacity:.82}.label{fill:#10233f;font-size:17px;font-weight:750}.sub{fill:#526071;font-size:13px;font-weight:500}.teal{fill:#007f86;font-size:15px;font-weight:750}.orange{fill:#ea580c;font-size:15px;font-weight:750}.point-memory{fill:#007f86;stroke:#fff;stroke-width:3}.point-compute{fill:#ea580c;stroke:#fff;stroke-width:3}
+      @media(prefers-color-scheme:dark){.grid{stroke:#2c4052}.region-memory{fill:#173b40}.region-compute{fill:#382015}.label{fill:#f3f7fa}.sub{fill:#9fb2c4}.teal{fill:#54d2d8}.orange{fill:#fb923c}.memory{stroke:#54d2d8}.compute{stroke:#fb923c}}
+    </style>
+  </defs>
+  <path class="region-memory" d="M100 405L455 105V405Z"/><path class="region-compute" d="M455 105H835V405H455Z"/>
+  <line class="grid" x1="100" y1="330" x2="835" y2="330"/><line class="grid" x1="100" y1="255" x2="835" y2="255"/><line class="grid" x1="100" y1="180" x2="835" y2="180"/>
+  <line class="grid" x1="245" y1="405" x2="245" y2="70"/><line class="grid" x1="455" y1="405" x2="455" y2="70"/><line class="grid" x1="665" y1="405" x2="665" y2="70"/>
+  <path class="axis" d="M100 405H850"/><path class="axis" d="M100 405V55"/>
+  <path class="memory" d="M110 398L455 105"/><path class="compute" d="M455 105H835"/>
+  <line class="ridge" x1="455" y1="105" x2="455" y2="405"/>
+  <circle class="point-memory" cx="205" cy="318" r="10"/><text class="teal" x="220" y="310">vector add</text><text class="sub" x="220" y="330">bytes dominate</text>
+  <circle class="point-compute" cx="690" cy="105" r="10"/><text class="orange" x="690" y="85" text-anchor="middle">large tiled GEMM</text>
+  <text class="teal" x="245" y="222" transform="rotate(-40 245 222)">HBM bandwidth × intensity</text>
+  <text class="orange" x="650" y="132">peak compute</text>
+  <text class="label" x="455" y="442" text-anchor="middle">Arithmetic intensity  I = FLOPs / HBM byte  →</text>
+  <text class="label" x="28" y="235" text-anchor="middle" transform="rotate(-90 28 235)">Attained throughput  →</text>
+  <text class="label" x="455" y="470" text-anchor="middle">ridge point  C / W</text>
+  <text class="sub" x="238" y="383" text-anchor="middle">bandwidth-bound</text><text class="sub" x="650" y="383" text-anchor="middle">compute-bound</text>
+</svg>

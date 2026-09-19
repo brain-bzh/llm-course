@@ -1,0 +1,205 @@
+\documentclass[handout]{beamer}
+\input{../common/preamble.tex}
+\title[TLM -- Session 09]{Session 9: Tensor Parallelism\\[4pt]
+\normalsize\itshape Splitting Matrix Multiplication Inside Each Layer}
+\date{\today}
+
+\begin{document}
+\makelecturetitle
+\begin{frame}{Lecture map}
+  \tableofcontents
+  \vfill
+  \begin{block}{Guiding question}
+    How can several GPUs compute one Transformer layer without reconstructing every intermediate tensor?
+  \end{block}
+\end{frame}
+\learninggoals
+  {Derive column- and row-parallel linear layers from matrix multiplication.}
+  {Track replicated and sharded tensor layouts through an MLP and attention block.}
+  {Connect forward collectives with their backward counterparts.}
+  {Choose tensor-parallel degree from layer shapes and topology.}
+
+\section{Start from one matrix multiplication}
+
+\begin{frame}{Column parallelism shards output features}
+  Let $Y=XW$ and split $W$ by columns:
+  \[
+    W=[W_1\;W_2\;\cdots\;W_p]
+  \]
+  \[
+    Y=[XW_1\;XW_2\;\cdots\;XW_p]
+  \]
+  \begin{block}{Local computation}
+    Every rank receives replicated $X$, stores one $W_i$, and produces one output-feature shard $Y_i$ without forward communication.
+  \end{block}
+  \begin{alertblock}{Layout change}
+    Input is replicated. Output is sharded across the hidden-feature axis.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Row parallelism shards input features}
+  Split both input and weight along their contracting dimension:
+  \[
+    X=[X_1\;X_2\;\cdots\;X_p],
+    \qquad
+    W=\begin{bmatrix}W_1\\W_2\\\vdots\\W_p\end{bmatrix}
+  \]
+  \[
+    Y=\sum_{i=1}^{p}X_iW_i
+  \]
+  \begin{block}{Local computation and collective}
+    Each rank computes a partial replicated-shape output. An all-reduce sum produces the full $Y$ on every rank.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Column then row parallelism forms an efficient sandwich}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},
+    op/.style={draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=1.72cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries},
+    shard/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.55cm,minimum height=.66cm,align=center},
+    collective/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=1.8cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries}]
+    \node[anchor=east,font=\scriptsize\bfseries] at (1.45,3.25) {materialize $H$};
+    \node[op] (m1) at (2.55,3.25) {$W_1$\\column};
+    \node[shard] (mh) at (4.55,3.25) {$H_0\mid H_1$};
+    \node[collective,fill=warningbg,draw=warningdraw] (mag) at (6.65,3.25) {all-gather};
+    \node[op] (m2) at (8.75,3.25) {$W_2$\\row};
+    \node[collective] (mar) at (10.85,3.25) {all-reduce};
+    \draw[-{Stealth},thick] (m1)--(mh); \draw[-{Stealth},thick] (mh)--(mag); \draw[-{Stealth},thick] (mag)--(m2); \draw[-{Stealth},thick] (m2)--(mar);
+    \node[anchor=east,font=\scriptsize\bfseries,text=accentdark] at (1.45,1.55) {composed MLP};
+    \node[op] (c1) at (2.55,1.55) {$W_1$\\column};
+    \node[shard] (ch) at (4.55,1.55) {$H_0\mid H_1$};
+    \node[op] (c2) at (8.75,1.55) {$W_2$\\row};
+    \node[collective] (car) at (10.85,1.55) {all-reduce};
+    \draw[-{Stealth},thick] (c1)--(ch);
+    \draw[-{Stealth},very thick,themebluedraw] (ch)-- node[above,text=accentdark] {$\phi$ stays sharded} (c2);
+    \draw[-{Stealth},thick] (c2)--(car);
+    \draw[very thick,alertdraw] (5.78,1.25)--(7.52,1.85);
+    \draw[very thick,alertdraw] (5.78,1.85)--(7.52,1.25);
+    \node[text=alertdraw,font=\scriptsize\bfseries] at (6.65,.82) {no intermediate all-gather};
+  \end{tikzpicture}
+  \vspace{4pt}
+  \footnotesize $H_i=\phi(XW_{1,i})$, then $Y=\sum_i H_iW_{2,i}$: two GEMMs, one forward collective.
+  \smallsource{Hugging Face Ultra-Scale Playbook and Megatron-LM}
+\end{frame}
+
+\section{Inside a Transformer block}
+
+\begin{frame}{Attention naturally shards by heads}
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item Column-shard the fused $QKV$ projection so each rank owns a subset of heads.
+    \item Compute attention locally for those heads.
+    \item Row-shard the output projection and all-reduce its partial residual update.
+  \end{itemize}
+  \begin{alertblock}{Divisibility invariant}
+    The number of query heads must divide by tensor-parallel degree. With GQA, key-value head partitioning imposes an additional constraint.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A layout ledger is the core debugging tool}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
+    \toprule
+    Point in block & Layout & Local shape \\
+    \midrule
+    residual input & replicated & $B\times T\times d$ \\
+    QKV output & head/feature sharded & $B\times T\times 3d/p$ \\
+    local attention output & head sharded & $B\times T\times d/p$ \\
+    output projection partial & partial replicated shape & $B\times T\times d$ \\
+    after all-reduce & replicated & $B\times T\times d$ \\
+    MLP expansion & feature sharded & $B\times T\times 4d/p$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  Every operation must declare what is sharded, what is replicated, and what collective changes that layout.
+\end{frame}
+
+\begin{frame}{Sequence parallelism removes replicated token activations}
+  LayerNorm, dropout, and some elementwise work do not require the full hidden tensor on every rank. Sequence parallelism shards the $B\times T$ token dimension between tensor-parallel regions.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Benefit}
+        lower activation memory for operations that would otherwise remain replicated
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Cost}
+        reduce-scatter and all-gather transitions around tensor-parallel linear regions
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Forward and backward collectives are conjugate}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}>{\raggedright\arraybackslash}p{.29\linewidth}@{}}
+    \toprule
+    Forward operation & Forward layout change & Backward communication \\
+    \midrule
+    identity with replicated input & replicated to sharded use & all-reduce input gradient \\
+    all-reduce sum & partial to replicated & identity on matching shard flow \\
+    reduce-scatter & replicated partials to shard & all-gather \\
+    all-gather & shards to replicated & reduce-scatter \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{Testing rule}
+    Compare forward outputs, input gradients, and parameter gradients against an unsharded reference.
+  \end{alertblock}
+\end{frame}
+
+\checkpoint{layout trace}
+  {Trace replicated or sharded status through a column-parallel MLP expansion, activation, row-parallel contraction, and residual add. At which point is communication unavoidable?}
+
+\section{Cost and placement}
+
+\begin{frame}{Communication cost depends on activation size}
+  A collective over $B\times T\times d$ elements moves bytes proportional to the activation tensor, not the parameter matrix.
+  \[
+    S_{\text{act}}=B\,T\,d\,s
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item Larger batch and context increase collective payload.
+    \item Higher TP degree shrinks local matmuls and can reduce arithmetic efficiency.
+    \item Collective latency and link bandwidth set the exposed cost.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Tensor parallelism belongs on the fastest links}
+  \begin{columns}[c]
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Intra-node}
+        High-bandwidth, low-latency GPU fabrics suit frequent activation collectives.
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{alertblock}{Across slow links}
+        Small per-rank matmuls plus exposed all-reduces can erase the benefit quickly.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  Keep TP inside a fast island when possible, then use data or pipeline parallelism across nodes.
+\end{frame}
+
+\begin{frame}{Choose the smallest degree that solves the constraint}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Determine whether a layer's weights or activations fail to fit on one GPU.
+    \item Check head, hidden, and MLP divisibility for candidate degrees.
+    \item Map the group to the strongest available links.
+    \item Measure local matmul efficiency and collective exposure.
+    \item Verify numerics against the unsharded block.
+  \end{enumerate}
+\end{frame}
+
+\checkpoint{degree selection}
+  {A model fits with TP=2, but TP=8 gives lower throughput. Explain the result using local matrix shapes, collective frequency, and topology.}
+
+\takeaways
+  {Column parallelism shards output features, while row parallelism sums partial outputs.}
+  {Their composition keeps intermediate MLP and attention shards local.}
+  {A layout ledger and unsharded numerical reference are essential correctness tools.}
+  {Tensor parallelism is a fine-grained method that needs large local work and fast links.}
+\end{document}
