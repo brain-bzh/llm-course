@@ -1,6 +1,6 @@
-# Session 1 Lab — Inspect a Transformer & Reimplement Naive MHA
+# Module 1 Lab — Inspect a Transformer & Reimplement Naive MHA
 
-This lab accompanies [Session 1: Transformer from first principles](../sessions/01-transformer.md).
+This lab accompanies [Module 1: Transformer from first principles](../modules/01-transformer.md).
 
 ---
 
@@ -223,7 +223,7 @@ uv run python scripts/01_inspect_and_mha.py
 
 Expected output:
 ```text
-=== Session 1: Inspect Transformer & Naive MHA ===
+=== Module 1: Inspect Transformer & Naive MHA ===
 [Part 1] Model parameter inventory:
   transformer.wte.weight              | Shape: [50257, 128]
   transformer.wpe.weight              | Shape: [256, 128]
@@ -235,7 +235,7 @@ Expected output:
   Step 10 | Loss: 2.2715
   Step 30 | Loss: 0.0806
   Step 60 | Loss: 0.0135
-SUCCESS: Session 1 exit criterion satisfied!
+SUCCESS: Module 1 exit criterion satisfied!
 ```
 
 ---
@@ -244,4 +244,4 @@ SUCCESS: Session 1 exit criterion satisfied!
 
 - Core reference implementation: [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
 - Standalone runnable script: [`companion/scripts/01_inspect_and_mha.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_inspect_and_mha.py)
-- Unit tests: [`companion/tests/test_session_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_session_01_model.py)
+- Unit tests: [`companion/tests/test_module_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_01_model.py)

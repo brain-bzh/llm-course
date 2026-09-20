@@ -1,4 +1,4 @@
-# Session 13 — Beyond dense Transformers
+# Module 13 — Beyond dense Transformers
 
 ## Purpose
 

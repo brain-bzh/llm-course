@@ -1,4 +1,4 @@
-# Session 9 — Tensor parallelism
+# Module 9 — Tensor parallelism
 
 ## Purpose
 
@@ -249,7 +249,7 @@ an 8-GPU NVLink node:
 
 Using the course batch and sequence length, estimate the payload and optimistic
 time of one activation all-reduce. Compare it with the adjacent matrix
-multiplication time from Session 6's roofline model.
+multiplication time from Module 6's roofline model.
 
 ## Exit ticket
 
@@ -268,7 +268,7 @@ reference, plus a trace that makes each layout transition explicit.
 ## References
 
 - [The Ultra-Scale Playbook — Tensor Parallelism](https://huggingface.co/spaces/nanotron/ultrascale-playbook#tensor-parallelism)
-  — the main conceptual sequence and scaling evidence for this session;
+  — the main conceptual sequence and scaling evidence for this module;
 - [Picotron](https://github.com/huggingface/picotron)
   — compact implementations of tensor and sequence parallelism;
 - [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053)

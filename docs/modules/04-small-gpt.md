@@ -1,13 +1,13 @@
-# Session 4 — Train a small GPT
+# Module 4 — Train a small GPT
 
 ## Purpose
 
-Turn the components from Sessions 1–3 into the first controlled language-model
+Turn the components from Modules 1–3 into the first controlled language-model
 experiment. The goal is not merely to make the loss decrease: it is to know
 what was trained, why the run is credible, and which checkpoint should become
 the baseline for every later comparison.
 
-The session uses two complementary references:
+The module uses two complementary references:
 
 - the [GPT-2 report](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
   explains the modeling hypothesis, data choices and architecture;
@@ -20,7 +20,7 @@ mechanism without pretending to reproduce GPT-2's result or budget.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - connect a GPT configuration to tensor shapes and a parameter count;
 - explain which details make the course model GPT-2-like;
@@ -189,8 +189,8 @@ B_{\text{micro}} \times T \times A \times D,
 \]
 
 where \(A\) is the number of gradient-accumulation steps and \(D\) the number
-of data-parallel replicas. For this session \(D=1\), but keeping it explicit
-prevents confusion when the same run is moved to DDP in Session 7.
+of data-parallel replicas. For this module \(D=1\), but keeping it explicit
+prevents confusion when the same run is moved to DDP in Module 7.
 
 Total training tokens are
 

@@ -1,11 +1,11 @@
-# Session 1 — Transformer from first principles
+# Module 1 — Transformer from first principles
 
 ## Purpose
 
 Build a shared mental model of the decoder-only Transformer, then turn that
 model into the smallest implementation students can fully inspect.
 
-This session follows the component-by-component progression of
+This module follows the component-by-component progression of
 [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/),
 but adapts its original encoder–decoder model to the causal decoder-only model
 we will train during the course.
@@ -159,25 +159,25 @@ shows how decoder-only models then vary along several mostly independent axes:
 - learned positions, RoPE or layers without explicit positional encoding;
 - normalization placement, activation functions and repeated layer recipes.
 
-Use the gallery at the end of the session to compare GPT-2 with a modern model.
+Use the gallery at the end of the module to compare GPT-2 with a modern model.
 First identify what stayed structurally the same, then isolate which components
 changed and what memory, optimization or inference trade-off each change targets.
 
 ## Practical companion guide
 
 !!! tip "Practical Lab: Inspect a Transformer & Reimplement Naive MHA"
-    To work through the hands-on implementation for this session:
+    To work through the hands-on implementation for this module:
 
-    👉 **Follow the [Session 1 Companion Lab Guide](../companion/01-transformer.md)** to inspect parameter tensors, trace activations through token and position embeddings, implement a naive multi-head causal attention module from first principles, and verify both causal masking invariance and tiny-batch overfitting.
+    👉 **Follow the [Module 1 Companion Lab Guide](../companion/01-transformer.md)** to inspect parameter tensors, trace activations through token and position embeddings, implement a naive multi-head causal attention module from first principles, and verify both causal masking invariance and tiny-batch overfitting.
 
     - **Lab script:** [`companion/scripts/01_inspect_and_mha.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_inspect_and_mha.py)
     - **Reference module:** [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
-    - **Unit tests:** [`companion/tests/test_session_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_session_01_model.py)
+    - **Unit tests:** [`companion/tests/test_module_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_01_model.py)
 
 ## References
 
 - [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)
-  — the main component-by-component reference for this session;
+  — the main component-by-component reference for this module;
 - [Sebastian Raschka — Chapter 17: Encoder- and Decoder-Style Transformers](https://www.sebastianraschka.com/books/ml-q-and-ai-chapters/ch17/)
   — context for the three Transformer families;
 - [Sebastian Raschka's LLM Architecture Gallery](https://sebastianraschka.com/llm-architecture-gallery/)

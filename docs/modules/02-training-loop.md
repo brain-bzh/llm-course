@@ -1,4 +1,4 @@
-# Session 2 — Training-loop anatomy
+# Module 2 — Training-loop anatomy
 
 ## Purpose
 
@@ -10,7 +10,7 @@ PyTorch training loops do not throw errors or raise exceptions; instead, they
 fail silently—causing runaway GPU memory consumption, stale parameter updates,
 unintended gradient accumulation, or numerical divergence.
 
-This session deconstructs the training loop from first principles, progressively
+This module deconstructs the training loop from first principles, progressively
 adding production LLM training features while grounding the mechanics in
 [The Annotated PyTorch Training Loop](https://idlemachines.co.uk/essays/pytorch-training-loop).
 
@@ -326,19 +326,19 @@ A robust trainer that reports:
 ## Practical companion guide
 
 !!! tip "Practical Lab: Training-Loop Anatomy"
-    To inspect and test the components covered in this session:
+    To inspect and test the components covered in this module:
 
     👉 **Follow the companion implementation** to verify parameter grouping, step accumulation, and checkpoint round-trip invariants:
 
     - **Lab script:** [`companion/scripts/02_training_step.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/02_training_step.py)
     - **Optimizer module:** [`companion/minilm/optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/optim.py)
     - **Trainer module:** [`companion/minilm/train.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/train.py)
-    - **Unit tests:** [`companion/tests/test_session_02_optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_session_02_optim.py)
+    - **Unit tests:** [`companion/tests/test_module_02_optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_02_optim.py)
 
     Run the verification suite:
     ```bash
     cd companion
-    uv run pytest tests/test_session_02_optim.py -v
+    uv run pytest tests/test_module_02_optim.py -v
     uv run python scripts/02_training_step.py
     ```
 

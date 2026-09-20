@@ -1,11 +1,11 @@
-# Session 12 — Serving systems
+# Module 12 — Serving systems
 
 ## Purpose
 
 Move from one correct cached request to a system that admits, schedules and
 retires many requests under finite compute, KV memory and latency budgets.
 
-The session uses two complementary explanations:
+The module uses two complementary explanations:
 
 - [Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)
   derives the mechanism from attention masks, KV caching, chunked prefill and
@@ -19,7 +19,7 @@ state machine and resource trade-offs shared by modern LLM serving systems.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - distinguish model execution from online serving infrastructure;
 - explain static, dynamic and continuous batching;
@@ -228,7 +228,7 @@ block table while reading K/V.
 - too-small blocks increase metadata/lookup overhead;
 - too-large blocks waste more tail capacity.
 
-Use Session 11's formula to convert free blocks into token and request capacity.
+Use Module 11's formula to convert free blocks into token and request capacity.
 
 ## Prefix caching
 

@@ -1,7 +1,7 @@
 # External material
 
 This page collects the references behind the course. It is a working shelf, not
-a mandatory reading list: each session will point students toward the smallest
+a mandatory reading list: each module will point students toward the smallest
 useful subset.
 
 ## Course spine
@@ -191,7 +191,7 @@ _Session 13._
 ## Further additions
 
 Use this section for material added during course preparation. Prefer a short
-note saying which session the resource supports and what students should learn
+note saying which module the resource supports and what students should learn
 from it.
 
 ### Videos and lectures

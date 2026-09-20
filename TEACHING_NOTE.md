@@ -31,31 +31,39 @@ convincing evidence about what it does.
 
 ## Course format and time allocation
 
-The course contains **40 contact hours**, organized as **32 periods of 1h15**
-over **eight teaching days**.
+The course contains **40 contact hours**, organized as **32 sessions of
+1h15**. Sessions are grouped into **8 blocks**, spread across several teaching
+days. The exact number of days depends on the institutional calendar and can
+change without changing the course itself — what stays fixed is the 32
+sessions and the 13 technical modules they cover (see the
+[schedule](docs/schedule.md) and [modules](docs/modules/index.md) pages for the
+session-by-session and module-by-module breakdown).
 
-| Activity | Periods | Time | Share |
+| Activity | Sessions | Time | Share |
 | --- | ---: | ---: | ---: |
-| Concepts and technical foundations | 13 | 16h15 | 41% |
-| Guided implementation and experiments | 15 | 18h45 | 47% |
+| Concepts and technical foundations | 12 | 15h | 38% |
+| Guided implementation and experiments | 16 | 20h | 50% |
 | Mid-course paper presentations | 2 | 2h30 | 6% |
 | Final project presentations and synthesis | 2 | 2h30 | 6% |
 | **Total** | **32** | **40h** | **100%** |
 
-Long-running experiments should happen between teaching days. Contact time is
-better used for implementation, diagnosis, comparison and discussion than for
-waiting for jobs to finish.
+Long-running experiments should happen between sessions, not only between
+days. Contact time is better used for implementation, diagnosis, comparison and
+discussion than for waiting for jobs to finish.
 
-For assessment purposes, a **course session** means one teaching day, not one
-1h15 period. The current proposal therefore has eight short pre-session
-quizzes, rather than 32 separate quizzes.
+For assessment purposes, a **teaching day** is the unit that matters, not the
+1h15 session: a day may contain several sessions. The current proposal
+therefore has one short pre-day quiz per teaching day, rather than 32 separate
+quizzes; the best scores count, dropping the lowest one or two to allow for an
+absence or technical problem.
 
 ## Tentative schedule
 
 The schedule keeps one technical progression while making the two assessed
-presentations explicit.
+presentations explicit. Blocks are numbered in teaching order; how many
+calendar days they span is a scheduling detail, not a course property.
 
-| Day | Periods | Main topics and activities | Assessment milestone |
+| Block | Sessions | Main topics and activities | Assessment milestone |
 | --- | ---: | --- | --- |
 | 1 | 5 | Transformer anatomy; causal attention; minimal GPT; training-loop foundations | Teams begin identifying possible papers |
 | 2 | 2 | Tokenization, document boundaries, packing, shuffling and data splits | Paper shortlist |
@@ -74,9 +82,9 @@ course concepts and measurement tools are introduced.
 
 | Component | Proposed weight | Purpose |
 | --- | ---: | --- |
-| Pre-session quizzes | 10% | Encourage preparation and reveal misconceptions early |
+| Pre-session quizzes | 15% | Encourage preparation and reveal misconceptions early |
 | Mid-course paper presentation | 20% | Assess understanding of a large-scale LLM training or systems technique |
-| Reproduction project | 70% | Assess the ability to verify a precise claim with code and controlled evidence |
+| Reproduction project | 65% | Assess the ability to verify a precise claim with code and controlled evidence |
 | **Total** | **100%** | |
 
 The paper presentation and reproduction project are two stages of the same
@@ -86,14 +94,14 @@ the spirit of the
 [Poster Presentation Project](https://web.archive.org/web/20260410071224/https://training-large-models-course.github.io/hw/poster.pdf),
 but separates understanding and experimental verification into two moments.
 
-### 1. Pre-session quizzes - 10%
+### 1. Pre-session quizzes - 15%
 
-- One short online quiz before each of the eight teaching days.
+- One short online quiz before each teaching day (not before each session).
 - Approximately 5-10 minutes and 3-5 questions.
 - Questions check prerequisite reading, core concepts and interpretation of a
   small trace, figure or result; they should not require lengthy calculations.
-- The best seven of eight scores count. This keeps the quizzes low stakes and
-  allows for one absence or technical problem.
+- All but the lowest one or two scores count. This keeps the quizzes low stakes
+  and allows for one absence or technical problem.
 - Quiz results should inform the start of the session: common errors can be
   addressed briefly before new material begins.
 
@@ -129,7 +137,7 @@ should be understandable to classmates who have not read the paper.
 This stage evaluates understanding, not experimental results. Its main output
 is an approved, testable reproduction question.
 
-### 3. Reproduction project - 70%
+### 3. Reproduction project - 65%
 
 Each group reproduces or verifies **one precise claim** from its selected paper.
 The goal is not to retrain a frontier model or reproduce every table. Students
@@ -173,13 +181,13 @@ why the original claim did not transfer to the reduced setting.
 
 | Criterion | Weight within component | Share of final grade |
 | --- | ---: | ---: |
-| Team artifact: correctness and faithfulness | 15% | 10.5% |
-| Team artifact: experimental design and controls | 15% | 10.5% |
-| Team artifact: results and interpretation | 10% | 7% |
-| Team artifact: reproducibility and code quality | 10% | 7% |
-| Individual technical defense | 25% | 17.5% |
-| Individual diagnosis and adaptation task | 15% | 10.5% |
-| Individual decision record and reflection | 10% | 7% |
+| Team artifact: correctness and faithfulness | 15% | 9.75% |
+| Team artifact: experimental design and controls | 15% | 9.75% |
+| Team artifact: results and interpretation | 10% | 6.5% |
+| Team artifact: reproducibility and code quality | 10% | 6.5% |
+| Individual technical defense | 25% | 16.25% |
+| Individual diagnosis and adaptation task | 15% | 9.75% |
+| Individual decision record and reflection | 10% | 6.5% |
 
 ## Relationship between the course and the project
 
@@ -225,16 +233,16 @@ student's competence.
 
 ### Recommended grading split
 
-Within the existing 10% / 20% / 70% structure, the detailed rubrics above make
+Within the existing 15% / 20% / 65% structure, the detailed rubrics above make
 more than half of the final grade individually attributable:
 
 | Assessment evidence | Team or individual | Share of final grade |
 | --- | --- | ---: |
-| Pre-session quizzes | Individual | 10% |
+| Pre-session quizzes | Individual | 15% |
 | Paper presentation content | Team | 10% |
 | Paper presentation questions | Individual | 10% |
-| Reproduction artifact: code, report and evidence | Team | 35% |
-| Project defense, diagnosis and adaptation | Individual | 35% |
+| Reproduction artifact: code, report and evidence | Team | 32.5% |
+| Project defense, diagnosis and adaptation | Individual | 32.5% |
 | **Total** | | **100%** |
 
 This preserves collaborative project work while making it impossible for a

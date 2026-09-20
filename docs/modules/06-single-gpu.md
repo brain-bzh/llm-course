@@ -1,4 +1,4 @@
-# Session 6 — Single-GPU performance
+# Module 6 — Single-GPU performance
 
 ## Purpose
 
@@ -13,7 +13,7 @@ with the specification of the GPU actually used.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - distinguish CUDA cores, Tensor Cores, SMs and GPU memory levels;
 - explain warps, occupancy, divergence and memory coalescing at a useful level;

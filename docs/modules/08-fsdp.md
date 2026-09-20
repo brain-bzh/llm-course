@@ -1,4 +1,4 @@
-# Session 8 — FSDP and ZeRO
+# Module 8 — FSDP and ZeRO
 
 ## Purpose
 
@@ -12,7 +12,7 @@ with PyTorch FSDP as the concrete system studied in class.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - account for persistent model-state memory by dtype;
 - explain ZeRO stages 1–3 and which redundancy each removes;

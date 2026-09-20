@@ -31,27 +31,27 @@ theme:
 nav:
   - Home: index.md
   - Schedule: schedule.md
-  - Modules: modules.md
-  - Session material:
-      - Overview: sessions/index.md
-      - 1. Transformer from first principles: sessions/01-transformer.md
-      - 2. Training-loop anatomy: sessions/02-training-loop.md
-      - 3. BPE and the data pipeline: sessions/03-data-pipeline.md
-      - 4. Train a small GPT: sessions/04-small-gpt.md
-      - 5. Data selection: sessions/05-data-selection.md
-      - 6. Single-GPU performance: sessions/06-single-gpu.md
-      - 7. Distributed data parallelism: sessions/07-ddp.md
-      - 8. FSDP and ZeRO: sessions/08-fsdp.md
-      - 9. Tensor parallelism: sessions/09-tensor-parallelism.md
-      - 10. Context and pipeline parallelism: sessions/10-context-pipeline.md
-      - 11. KV-cached decoding: sessions/11-kv-cache.md
-      - 12. Serving systems: sessions/12-serving.md
-      - 13. Beyond dense Transformers: sessions/13-beyond-transformers.md
+  - Modules:
+      - Overview: modules/index.md
+      - 1. Transformer from first principles: modules/01-transformer.md
+      - 2. Training-loop anatomy: modules/02-training-loop.md
+      - 3. BPE and the data pipeline: modules/03-data-pipeline.md
+      - 4. Train a small GPT: modules/04-small-gpt.md
+      - 5. Data selection: modules/05-data-selection.md
+      - 6. Single-GPU performance: modules/06-single-gpu.md
+      - 7. Distributed data parallelism: modules/07-ddp.md
+      - 8. FSDP and ZeRO: modules/08-fsdp.md
+      - 9. Tensor parallelism: modules/09-tensor-parallelism.md
+      - 10. Context and pipeline parallelism: modules/10-context-pipeline.md
+      - 11. KV-cached decoding: modules/11-kv-cache.md
+      - 12. Serving systems: modules/12-serving.md
+      - 13. Beyond dense Transformers: modules/13-beyond-transformers.md
   - Companion guide:
       - Overview: companion/index.md
       - 1. Inspect & Naive MHA: companion/01-transformer.md
       - 9. Tensor parallelism: companion/09-tensor-parallelism.md
   - Continuous project: project.md
+  - Reproduction project: reproduction-project.md
   - External material: external-material.md
   - Assessment: assessment.md
 

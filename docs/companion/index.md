@@ -1,14 +1,14 @@
 # Companion Guide
 
-This guide contains the step-by-step practical lab protocols that accompany each theory session in **Training Language Models: From First Principles to Efficient Serving**.
+This guide contains the step-by-step practical lab protocols that accompany each module in **Training Language Models: From First Principles to Efficient Serving**.
 
-While the [Session material](../sessions/index.md) defines the theoretical concepts, system bottlenecks, and mathematical foundations, the **Companion Guide** walks through the implementation, code inspection, measurement exercises, and testable exit criteria.
+While the [Module material](../modules/index.md) defines the theoretical concepts, system bottlenecks, and mathematical foundations, the **Companion Guide** walks through the implementation, code inspection, measurement exercises, and testable exit criteria.
 
 ---
 
 ## The Companion Codebase
 
-All practical sessions are backed by the minimalist, self-contained companion repository located in the [`companion/`](https://github.com/jonathanlys01/llm-course/tree/main/companion) subdirectory of the course repository.
+All practical modules are backed by the minimalist, self-contained companion repository located in the [`companion/`](https://github.com/jonathanlys01/llm-course/tree/main/companion) subdirectory of the course repository.
 
 ```bash
 # Navigate to companion repository
@@ -29,9 +29,9 @@ The companion codebase is built with strictly minimal dependencies:
 
 ---
 
-## Practical Session Roadmap
+## Practical Module Roadmap
 
-| Session | Lab Guide | Focus | Companion Scripts & Modules | Milestone / Exit Criterion |
+| Module | Lab Guide | Focus | Companion Scripts & Modules | Milestone / Exit Criterion |
 | :---: | :--- | :--- | :--- | :--- |
 | **1** | [**Inspect Transformer & Naive MHA**](01-transformer.md) | Inspect weights/shapes & implement causal Multi-Head Attention from first principles | `minilm/model.py`<br>`scripts/01_inspect_and_mha.py` | Causal masking invariance & tiny-batch overfit (`loss < 0.1`) |
 | **2** | Training-Loop Anatomy *(coming next)* | Implement step execution, AdamW parameter grouping, cosine warmup, and checkpoint recovery | `minilm/optim.py`<br>`scripts/02_training_step.py` | Weight decay grouping verification & checkpoint round-trip |

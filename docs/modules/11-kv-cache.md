@@ -1,4 +1,4 @@
-# Session 11 — KV-cached decoding
+# Module 11 — KV-cached decoding
 
 ## Purpose
 
@@ -9,12 +9,12 @@ the optimization creates.
 The intuition follows
 [KV Cache Explained Intuitively](https://medium.com/@saad.ahmed1926q/kv-cache-explained-intuitively-2b425a36dfc7):
 past tokens do not change when a new token is appended, so their keys and
-values should not be recomputed. This session makes that intuition precise in
+values should not be recomputed. This module makes that intuition precise in
 shapes, bytes and correctness tests.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - distinguish prefill from decode;
 - explain why K and V are reusable but a new Q is still required;
@@ -188,7 +188,7 @@ so weight reuse is limited. Increasing the batch of concurrent sequences
 increases reuse and throughput, but also consumes more KV memory and may worsen
 latency.
 
-This is the serving trade-off developed in Session 12:
+This is the serving trade-off developed in Module 12:
 
 ```text
 larger active batch

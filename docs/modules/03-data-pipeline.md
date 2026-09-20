@@ -1,4 +1,4 @@
-# Session 3 — BPE and the data pipeline
+# Module 3 — BPE and the data pipeline
 
 ## Purpose
 
@@ -12,7 +12,7 @@ characters, its multilingual efficiency, and the sequence length $T$ that dictat
 the quadratic cost of attention. Once tokenized, millions of documents must be
 packed, indexed, and streamed to GPUs at gigabytes per second without CPU bottlenecks.
 
-This session covers the mathematics and systems engineering of the pretraining
+This module covers the mathematics and systems engineering of the pretraining
 data pipeline, from building a Byte-Pair Encoding (BPE) tokenizer from scratch to
 zero-copy memory-mapped binary dataset sharding.
 
@@ -331,19 +331,19 @@ A self-contained data pipeline demonstrating:
 ## Practical companion guide
 
 !!! tip "Practical Lab: BPE and the Data Pipeline"
-    To explore the hands-on implementation for this session:
+    To explore the hands-on implementation for this module:
 
     👉 **Follow the companion implementation** to train a BPE tokenizer from scratch, inspect subword merge rules, pack documents, and stream memory-mapped batches:
 
     - **Lab script:** [`companion/scripts/03_prepare_dataset.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/03_prepare_dataset.py)
     - **Tokenizer implementation:** [`companion/minilm/tokenizer.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tokenizer.py)
     - **Dataset module:** [`companion/minilm/data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/data.py)
-    - **Unit tests:** [`companion/tests/test_session_03_data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_session_03_data.py)
+    - **Unit tests:** [`companion/tests/test_module_03_data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_03_data.py)
 
     Run the verification suite:
     ```bash
     cd companion
-    uv run pytest tests/test_session_03_data.py -v
+    uv run pytest tests/test_module_03_data.py -v
     uv run python scripts/03_prepare_dataset.py
     ```
 

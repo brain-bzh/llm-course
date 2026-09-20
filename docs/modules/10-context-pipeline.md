@@ -1,4 +1,4 @@
-# Session 10 — Context and pipeline parallelism
+# Module 10 — Context and pipeline parallelism
 
 ## Purpose
 
@@ -14,7 +14,7 @@ sections.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - distinguish sequence parallelism from context parallelism;
 - explain why attention makes sequence sharding non-local;

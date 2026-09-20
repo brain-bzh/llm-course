@@ -1,18 +1,18 @@
-# Session 7 — Distributed data parallelism
+# Module 7 — Distributed data parallelism
 
 ## Purpose
 
 Scale a correct single-GPU trainer across replicated model copies without
 silently changing the data order, global batch or optimizer update.
 
-This session follows the data-parallel progression in the
+This module follows the data-parallel progression in the
 [Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook):
 start from independent micro-batches, derive the required gradient reduction,
 then overlap that communication with backward computation.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - distinguish rank, local rank, world size, process and node;
 - derive why averaging gradients preserves synchronous data-parallel SGD;

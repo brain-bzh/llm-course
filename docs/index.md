@@ -19,7 +19,7 @@ The course follows one question throughout:
 
 ### 40 hours
 
-32 × 1h15 across eight intensive teaching days.
+32 × 1h15 sessions across several intensive teaching days.
 
 </div>
 
@@ -62,8 +62,13 @@ Theory and practice alternate throughout the course. A concept is not complete
 when students can repeat its definition. It is complete when they can implement
 it, validate it, measure it and explain the trade-off it introduces.
 
-Long-running jobs execute between teaching days. Contact time is reserved for
+Long-running jobs execute between sessions. Contact time is reserved for
 implementation, diagnosis and interpretation—not watching progress bars.
+
+Alongside this shared system, each team also selects a recent paper, presents
+it mid-course, and spends the second half of the course reproducing or
+verifying one of its claims — see the
+[reproduction project](reproduction-project.md).
 
 [View the complete schedule](schedule.md){ .md-button .md-button--primary }
 [Read the project specification](project.md){ .md-button }

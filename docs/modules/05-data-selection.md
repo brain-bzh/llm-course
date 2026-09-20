@@ -1,4 +1,4 @@
-# Session 5 — Data selection through the FineWeb case study
+# Module 5 — Data selection through the FineWeb case study
 
 ## Purpose
 
@@ -15,7 +15,7 @@ decisions.
 
 ## Learning goals
 
-By the end of the session, students should be able to:
+By the end of the module, students should be able to:
 
 - treat dataset construction as an empirical modeling problem;
 - distinguish extraction, filtering, deduplication, selection and mixing;

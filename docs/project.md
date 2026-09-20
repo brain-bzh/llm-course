@@ -1,5 +1,13 @@
 # Continuous project
 
+This is the shared, in-class laboratory: every team builds the same evolving
+language-model system, session after session, module after module. It is
+where the course's techniques get implemented, tested and measured — it is
+**not** the separately graded team project. That graded work, in which each
+team instead verifies one claim from a paper of its choice using the skills
+built here, is described on the [Reproduction project](reproduction-project.md)
+page.
+
 ## Objective
 
 Every team owns one evolving language-model system and answers:
@@ -8,7 +16,8 @@ Every team owns one evolving language-model system and answers:
 > compute and serving compute budgets?**
 
 The final result is not merely a checkpoint. It is a reproducible technical
-argument supported by code, measurements and controlled comparisons.
+argument supported by code, measurements and controlled comparisons, and the
+evidence base the reproduction project and its individual defense draw on.
 
 ## Repository progression
 
@@ -58,15 +67,20 @@ served model and benchmark report
    result.
 6. Never call a change an optimization without a measured baseline.
 
-## Final technical defense
+## Synthesis discussion
 
-Each team presents four decisions:
+The course closes with a comparative postmortem on this shared system (see the
+final block of the [schedule](schedule.md)), not a separate grade. Each team
+should be ready to discuss four decisions:
 
 - which data deserved the training budget;
 - where the original training system wasted resources;
 - which parallel strategy fit the tested hardware and model;
 - what limited serving throughput or latency.
 
-The defense must also identify the strongest remaining uncertainty and the next
-experiment the team would run with additional compute.
+This discussion should also surface the strongest remaining uncertainty and
+the next experiment the team would run with additional compute. It is common
+material for the individual technical defense in the
+[reproduction project](reproduction-project.md), since questions can be drawn
+from either the shared system or the team's paper reproduction.
 
