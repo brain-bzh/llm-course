@@ -2,6 +2,13 @@
 
 This lab accompanies [Module 9: Tensor parallelism](../modules/09-tensor-parallelism.md).
 
+!!! tip "Practical Lab Resources"
+    To work through the hands-on implementation for this module:
+
+    - **Lab script:** [`companion/scripts/09_tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/09_tensor_parallel.py)
+    - **Reference module:** [`companion/minilm/tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tensor_parallel.py)
+    - **Unit tests:** [`companion/tests/test_module_09_tp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_09_tp.py)
+
 ---
 
 ## Objective
@@ -223,11 +230,3 @@ Column + Row Parallel MLP output shape: [2, 4, 64]
 Max absolute difference vs reference: 0.00e+00
 SUCCESS: Simulated Tensor Parallel MLP is mathematically identical to reference MLP.
 ```
-
----
-
-## Related Code
-
-- **Core module:** [`companion/minilm/tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tensor_parallel.py)
-- **Standalone script:** [`companion/scripts/09_tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/09_tensor_parallel.py)
-- **Unit test:** [`companion/tests/test_module_09_tp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_09_tp.py)

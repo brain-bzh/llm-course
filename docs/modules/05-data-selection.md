@@ -335,3 +335,9 @@ heuristic and deduplicated baselines.
   — checkpoints for inspecting the evidence behind pipeline decisions;
 - [DataComp-LM](https://arxiv.org/abs/2406.11794)
   — a complementary benchmark for controlled dataset experiments.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/05-data-selection.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/05-data-selection.md){ .md-button .md-button--primary }
+

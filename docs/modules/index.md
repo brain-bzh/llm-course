@@ -28,7 +28,7 @@ behind a high-level model library.
 
 **Prove:** tensor shapes, causal masking and a tiny-batch overfit test all pass.
 
-[Open the module page →](01-transformer.md)
+[Open the module page →](01-transformer.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/01-transformer.pdf){ target="_blank" }
 
 ## 2. Training-loop anatomy
 
@@ -40,7 +40,7 @@ accumulation, clipping and mixed precision.
 **Prove:** accumulation matches the intended effective batch and optimizer-step
 count; checkpoints resume deterministically enough for the stated setup.
 
-[Open the module page →](02-training-loop.md)
+[Open the module page →](02-training-loop.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/02-training-loop.pdf){ target="_blank" }
 
 ## 3. BPE and the data pipeline
 
@@ -52,7 +52,7 @@ shuffling, splits, streaming and loader throughput.
 **Prove:** boundaries and splits are valid, samples are reproducible and the
 loader does not starve the accelerator.
 
-[Open the module page →](03-data-pipeline.md)
+[Open the module page →](03-data-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/03-data-pipeline.pdf){ target="_blank" }
 
 ## 4. Train a small GPT
 
@@ -64,7 +64,7 @@ and common failure signatures.
 **Prove:** training beats trivial baselines, validation behaves coherently and
 the checkpoint can generate samples.
 
-[Open the module page →](04-small-gpt.md)
+[Open the module page →](04-small-gpt.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/04-small-gpt.pdf){ target="_blank" }
 
 ## 5. Data selection
 
@@ -77,7 +77,7 @@ token budget.
 **Prove:** comparisons use the same model, token budget, optimizer recipe and
 evaluation protocol.
 
-[Open the module page →](05-data-selection.md)
+[Open the module page →](05-data-selection.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/05-data-selection.pdf){ target="_blank" }
 
 ## 6. Single-GPU performance
 
@@ -89,7 +89,7 @@ traces, MFU, SDPA/FlashAttention, compilation and fused operations.
 **Prove:** report both throughput and peak memory, and isolate changes instead
 of enabling every optimization simultaneously.
 
-[Open the module page →](06-single-gpu.md)
+[Open the module page →](06-single-gpu.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/06-single-gpu.pdf){ target="_blank" }
 
 ## 7. Distributed data parallelism
 
@@ -101,7 +101,7 @@ global batches and communication overlap.
 **Prove:** parameters remain synchronized, samples are covered exactly as
 intended and token accounting is global rather than rank-local.
 
-[Open the module page →](07-ddp.md)
+[Open the module page →](07-ddp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/07-ddp.pdf){ target="_blank" }
 
 ## 8. FSDP and ZeRO
 
@@ -113,7 +113,7 @@ occur, and how checkpointing changes.
 **Prove:** memory savings and throughput costs are measured, and the produced
 checkpoint can be restored.
 
-[Open the module page →](08-fsdp.md)
+[Open the module page →](08-fsdp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-fsdp.pdf){ target="_blank" }
 
 ## 9. Tensor and sequence parallelism
 
@@ -125,7 +125,7 @@ and collective placement.
 **Prove:** its forward results and parameter gradients match the unsharded
 reference within the expected numerical tolerance.
 
-[Open the module page →](09-tensor-parallelism.md)
+[Open the module page →](09-tensor-parallelism.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/09-tensor-parallelism.pdf){ target="_blank" }
 
 ## 10. Context and pipeline parallelism
 
@@ -138,7 +138,7 @@ production framework.
 **Prove:** every proposed strategy fits memory and identifies its dominant
 communication and utilization costs.
 
-[Open the module page →](10-context-pipeline.md)
+[Open the module page →](10-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-context-pipeline.pdf){ target="_blank" }
 
 ## 11. KV-cached decoding
 
@@ -150,7 +150,7 @@ decode is often bandwidth-bound.
 **Prove:** cached and uncached logits agree and the benchmark separates prefill
 from per-token decode.
 
-[Open the module page →](11-kv-cache.md)
+[Open the module page →](11-kv-cache.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-kv-cache.pdf){ target="_blank" }
 
 ## 12. Serving systems
 
@@ -162,7 +162,7 @@ caching and scheduling.
 **Prove:** measure time to first token, inter-token latency, throughput and
 memory under declared workloads.
 
-[Open the module page →](12-serving.md)
+[Open the module page →](12-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/12-serving.pdf){ target="_blank" }
 
 ## 13. Beyond the dense autoregressive Transformer
 
@@ -175,4 +175,4 @@ the course.
 **Prove:** claims are tied to concrete changes in compute, memory, data or
 inference behavior rather than novelty alone.
 
-[Open the module page →](13-beyond-transformers.md)
+[Open the module page →](13-beyond-transformers.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/13-beyond-transformers.pdf){ target="_blank" }

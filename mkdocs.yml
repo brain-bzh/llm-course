@@ -49,7 +49,18 @@ nav:
   - Companion guide:
       - Overview: companion/index.md
       - 1. Inspect & Naive MHA: companion/01-transformer.md
+      - 2. Training-loop anatomy: companion/02-training-loop.md
+      - 3. BPE and data pipeline: companion/03-data-pipeline.md
+      - 4. Train a small GPT: companion/04-small-gpt.md
+      - 5. Data selection: companion/05-data-selection.md
+      - 6. Single-GPU performance: companion/06-single-gpu.md
+      - 7. Distributed data parallelism: companion/07-ddp.md
+      - 8. FSDP and ZeRO: companion/08-fsdp.md
       - 9. Tensor parallelism: companion/09-tensor-parallelism.md
+      - 10. Context and pipeline parallelism: companion/10-context-pipeline.md
+      - 11. KV-cached decoding: companion/11-kv-cache.md
+      - 12. Serving systems: companion/12-serving.md
+      - 13. Beyond dense Transformers: companion/13-beyond-transformers.md
   - Continuous project: project.md
   - Reproduction project: reproduction-project.md
   - External material: external-material.md
@@ -62,12 +73,18 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+
+hooks:
+  - hooks/copy_slides.py
 
 plugins:
   - search

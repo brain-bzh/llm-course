@@ -321,28 +321,6 @@ A robust trainer that reports:
 - correct learning rate warmup and decay trajectories;
 - exact state restoration from saved checkpoints.
 
----
-
-## Practical companion guide
-
-!!! tip "Practical Lab: Training-Loop Anatomy"
-    To inspect and test the components covered in this module:
-
-    👉 **Follow the companion implementation** to verify parameter grouping, step accumulation, and checkpoint round-trip invariants:
-
-    - **Lab script:** [`companion/scripts/02_training_step.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/02_training_step.py)
-    - **Optimizer module:** [`companion/minilm/optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/optim.py)
-    - **Trainer module:** [`companion/minilm/train.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/train.py)
-    - **Unit tests:** [`companion/tests/test_module_02_optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_02_optim.py)
-
-    Run the verification suite:
-    ```bash
-    cd companion
-    uv run pytest tests/test_module_02_optim.py -v
-    uv run python scripts/02_training_step.py
-    ```
-
----
 
 ## References
 
@@ -354,3 +332,9 @@ A robust trainer that reports:
   — execution details of the forward graph, saved tensors, and backward vector-Jacobian passes.
 - [PyTorch Performance Tuning Guide](https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html)
   — best practices for `set_to_none=True`, `pin_memory=True`, and mixed-precision execution.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/02-training-loop.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/02-training-loop.md){ .md-button .md-button--primary }
+

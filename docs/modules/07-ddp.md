@@ -330,3 +330,9 @@ scaling report supported by a profiler trace.
   — compact implementation for code reading.
 - Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 2
   (2026) — Hockney communication model and tree/ring all-reduce crossover.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/07-ddp.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/07-ddp.md){ .md-button .md-button--primary }
+

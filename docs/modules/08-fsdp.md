@@ -327,3 +327,9 @@ checkpoint round trip.
   — sharded save/load concepts and APIs.
 - Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 4
   (2026) — checkpoint frequency, recovery overhead and lost-compute trade-offs.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/08-fsdp.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/08-fsdp.md){ .md-button .md-button--primary }
+

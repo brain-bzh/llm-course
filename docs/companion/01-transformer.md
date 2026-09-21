@@ -2,6 +2,13 @@
 
 This lab accompanies [Module 1: Transformer from first principles](../modules/01-transformer.md).
 
+!!! tip "Practical Lab Resources"
+    To work through the hands-on implementation for this module:
+
+    - **Lab script:** [`companion/scripts/01_inspect_and_mha.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_inspect_and_mha.py) · [`companion/scripts/01_overfit.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_overfit.py)
+    - **Reference module:** [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
+    - **Unit tests:** [`companion/tests/test_module_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_01_model.py)
+
 ---
 
 ## Objective
@@ -237,11 +244,3 @@ Expected output:
   Step 60 | Loss: 0.0135
 SUCCESS: Module 1 exit criterion satisfied!
 ```
-
----
-
-## Related Code
-
-- Core reference implementation: [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
-- Standalone runnable script: [`companion/scripts/01_inspect_and_mha.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_inspect_and_mha.py)
-- Unit tests: [`companion/tests/test_module_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_01_model.py)

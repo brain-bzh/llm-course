@@ -363,3 +363,9 @@ cached-versus-uncached throughput across context lengths.
   — grouped-query attention as the intermediate design;
 - [Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)
   — visual connection from KV caching to multi-request serving.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/11-kv-cache.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/11-kv-cache.md){ .md-button .md-button--primary }
+

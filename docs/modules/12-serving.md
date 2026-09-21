@@ -430,3 +430,9 @@ and connects every major result to queue, token, block or GPU evidence.
   — current configuration and benchmark interfaces.
 - Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 6
   (2026) — speculative decoding and its acceptance-rate/verification-cost trade-off.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/12-serving.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/12-serving.md){ .md-button .md-button--primary }
+

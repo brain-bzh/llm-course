@@ -1,18 +1,18 @@
 :root {
-  --md-primary-fg-color: #10233f;
-  --md-primary-fg-color--light: #18375f;
-  --md-primary-fg-color--dark: #091527;
-  --md-accent-fg-color: #007f86;
-  --course-panel: #f3f7fa;
-  --course-border: #d8e2e8;
+  --md-primary-fg-color: #164666;
+  --md-primary-fg-color--light: #225c84;
+  --md-primary-fg-color--dark: #0f3148;
+  --md-accent-fg-color: #009fb0;
+  --course-panel: #edf5f9;
+  --course-border: #cce2ee;
 }
 
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #10233f;
-  --md-accent-fg-color: #54d2d8;
-  --md-typeset-a-color: #54d2d8;
-  --course-panel: #182534;
-  --course-border: #2c4052;
+  --md-primary-fg-color: #164666;
+  --md-accent-fg-color: #38b2d6;
+  --md-typeset-a-color: #38b2d6;
+  --course-panel: #142533;
+  --course-border: #234057;
 }
 
 .md-header {

@@ -29,3 +29,16 @@ experiment or system change.
 - code-reading examples;
 - final discussion prompts.
 
+## References
+
+- [Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity](https://arxiv.org/abs/2101.03961)
+  — mixture-of-experts routing and capacity factors;
+- [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)
+  — selective state space models as an alternative to attention.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/13-beyond-transformers.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/13-beyond-transformers.md){ .md-button .md-button--primary }
+
+

@@ -2,30 +2,38 @@
 % Centralized Semantic Color Definitions for LLMs Presentation
 %==============================================================
 
-% ---- Base Template / Theme Colors ----
-\definecolor{themeblue}{RGB}{83,185,220} % The primary blue
-\colorlet{main_color}{themeblue}
-\colorlet{accent}{main_color}
+% ---- Base Template / Theme Colors (Aligned with Palette B) ----
+\definecolor{themenavy}{RGB}{22,70,102}       % Palette B primary cerulean: #164666
+\definecolor{themeblue}{RGB}{22,70,102}       % Primary alias
+\definecolor{primarylight}{RGB}{34,92,132}    % Primary light: #225c84
+\definecolor{themeteal}{RGB}{0,159,176}       % Accent cyan-teal: #009fb0
+\colorlet{main_color}{themenavy}
+\colorlet{accent}{themeteal}
 
-\definecolor{accentdark}{RGB}{40,110,150} % Secondary blue for contrast
-\definecolor{leafred}{RGB}{197,93,61}     % Terracotta red for branches/leaves
+\definecolor{accentdark}{RGB}{0,108,120}      % Deep cyan-teal for contrast text
+\definecolor{accentlight}{RGB}{56,178,214}    % Slate accent cyan: #38b2d6
+\definecolor{leafred}{RGB}{197,93,61}         % Terracotta red for branches/leaves
+
+% ---- Website Panel & Border Neutrals ----
+\definecolor{panelbg}{RGB}{237,245,249}       % Course-panel: #edf5f9
+\definecolor{panelborder}{RGB}{204,226,238}   % Course-border: #cce2ee
 
 % ---- Code listing style (syntax highlights) ----
-\definecolor{deepblue}{rgb}{0,0,0.5}
+\definecolor{deepblue}{RGB}{22,70,102}
 \definecolor{deepred}{rgb}{0.6,0,0}
-\definecolor{deepgreen}{rgb}{0,0.5,0}
+\definecolor{deepgreen}{RGB}{0,135,150}
 \definecolor{halfgray}{gray}{0.55}
 
-% ---- Semantic Theme Blue Shades ----
-\colorlet{themebluebg}{themeblue!8}       % Light backgrounds/fills
-\colorlet{themebluecard}{themeblue!12}    % Mild card background fills
-\colorlet{themeblueborder}{themeblue!20}  % Light strokes/curves/borders
-\colorlet{themebluemid}{themeblue!35}     % Mid-contrast highlights / attention lines
-\colorlet{themebluedraw}{themeblue!65}     % Strong outline draws/strokes
+% ---- Semantic Theme Navy / Cerulean Shades ----
+\colorlet{themebluebg}{panelbg}               % Panel #edf5f9
+\colorlet{themebluecard}{main_color!8}        % Mild card background fills
+\colorlet{themeblueborder}{panelborder}       % Border #cce2ee
+\colorlet{themebluemid}{themeteal!60}         % Accent mid-contrast
+\colorlet{themebluedraw}{main_color!80}       % Strong outline draws/strokes
 
-% ---- Semantic Secondary Dark Blue Shades ----
-\colorlet{accentdarkbg}{accentdark!12}    % Light secondary background fills
-\colorlet{accentdarkdraw}{accentdark!70}  % Secondary outlines/strokes/text/axes
+% ---- Semantic Secondary Accent Teal Shades ----
+\colorlet{accentdarkbg}{themeteal!10}        % Light secondary background fills
+\colorlet{accentdarkdraw}{themeteal}         % Secondary outlines/strokes/text/axes
 
 % ---- Functional Colors: Success Green ----
 \definecolor{successgreen}{RGB}{55,145,55}

@@ -23,7 +23,7 @@ shows exactly which sessions cover which module.
 
 ### Block 1 — Model and training loop
 
-**5 sessions · 6h15 · Module 1 (sessions 1-3), Module 2 (sessions 4-5)**
+**5 sessions · 6h15 · [Module 1](modules/01-transformer.md) ([slides](slides/01-transformer.pdf){ target="_blank" }, sessions 1–3), [Module 2](modules/02-training-loop.md) ([slides](slides/02-training-loop.pdf){ target="_blank" }, sessions 4–5)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -43,7 +43,7 @@ shows exactly which sessions cover which module.
 
 ### Block 2 — From raw text to tensors
 
-**2 sessions · 2h30 · Module 3 (sessions 6-7)**
+**2 sessions · 2h30 · [Module 3](modules/03-data-pipeline.md) ([slides](slides/03-data-pipeline.pdf){ target="_blank" }, sessions 6–7)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -55,7 +55,7 @@ shows exactly which sessions cover which module.
 
 ### Block 3 — Baseline training and data selection
 
-**5 sessions · 6h15 · Module 3 continued (session 8), Module 4 (sessions 9-10), Module 5 (sessions 11-12)**
+**5 sessions · 6h15 · [Module 3](modules/03-data-pipeline.md) continued (session 8), [Module 4](modules/04-small-gpt.md) ([slides](slides/04-small-gpt.pdf){ target="_blank" }, sessions 9–10), [Module 5](modules/05-data-selection.md) ([slides](slides/05-data-selection.pdf){ target="_blank" }, sessions 11–12)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -88,7 +88,7 @@ are discussed at the start of Block 5.
 
 ### Block 5 — Data experiments, profiling and single-GPU optimization
 
-**5 sessions · 6h15 · Module 5 continued (discussion), Module 6 (sessions 15-16), Module 7 (sessions 17-18), Module 8 (session 19)**
+**5 sessions · 6h15 · [Module 5](modules/05-data-selection.md) continued, [Module 6](modules/06-single-gpu.md) ([slides](slides/06-single-gpu.pdf){ target="_blank" }, sessions 15–16), [Module 7](modules/07-ddp.md) ([slides](slides/07-ddp.pdf){ target="_blank" }, sessions 17–18), [Module 8](modules/08-fsdp.md) ([slides](slides/08-fsdp.pdf){ target="_blank" }, session 19)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -103,7 +103,7 @@ are discussed at the start of Block 5.
 
 ### Block 6 — Sharded and multidimensional parallelism
 
-**5 sessions · 6h15 · Module 8 continued (session 20), Module 9 (sessions 21-22), Module 10 (sessions 23-24)**
+**5 sessions · 6h15 · [Module 8](modules/08-fsdp.md) continued (session 20), [Module 9](modules/09-tensor-parallelism.md) ([slides](slides/09-tensor-parallelism.pdf){ target="_blank" }, sessions 21–22), [Module 10](modules/10-context-pipeline.md) ([slides](slides/10-context-pipeline.pdf){ target="_blank" }, sessions 23–24)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -124,7 +124,7 @@ are discussed at the start of Block 5.
 
 ### Block 7 — Autoregressive decoding
 
-**3 sessions · 3h45 · Module 11 (sessions 25-27)**
+**3 sessions · 3h45 · [Module 11](modules/11-kv-cache.md) ([slides](slides/11-kv-cache.pdf){ target="_blank" }, sessions 25–27)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
@@ -139,7 +139,7 @@ are discussed at the start of Block 5.
 
 ### Block 8 — Serving and final demonstration
 
-**5 sessions · 6h15 · Module 12 (sessions 28-29), Module 13 (session 30), synthesis (sessions 31-32)**
+**5 sessions · 6h15 · [Module 12](modules/12-serving.md) ([slides](slides/12-serving.pdf){ target="_blank" }, sessions 28–29), [Module 13](modules/13-beyond-transformers.md) ([slides](slides/13-beyond-transformers.pdf){ target="_blank" }, session 30), synthesis (sessions 31–32)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |

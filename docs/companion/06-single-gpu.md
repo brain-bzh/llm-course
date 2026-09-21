@@ -1,0 +1,29 @@
+# Module 6 Lab — Single-GPU Performance and Profiling
+
+This lab accompanies [Module 6: Single-GPU performance](../modules/06-single-gpu.md).
+
+!!! tip "Practical Lab Resources"
+    To work through the hands-on implementation for this module:
+
+    - **Lab script:** [`companion/scripts/06_single_gpu_perf.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/06_single_gpu_perf.py)
+    - **Reference module:** [`companion/minilm/profile_utils.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/profile_utils.py)
+    - **Unit tests:** `companion/tests/test_module_06_profile.py` *(TODO)*
+
+---
+
+## Objectives
+
+1. **Profile execution breakdown**: Measure runtime spent in attention, MLP projections, normalization, and memory transfers using PyTorch Profiler.
+2. **Compute arithmetic intensity & MFU**: Calculate theoretical FLOPs per token and assess Model FLOPs Utilization against accelerator peak specs.
+3. **Ablate optimizations**: Isolate the impact of `bfloat16`, scaled dot-product attention (SDPA/FlashAttention), and `torch.compile`.
+
+---
+
+## Quickstart
+
+Run the single-GPU profiling benchmark:
+
+```bash
+cd companion
+uv run python scripts/06_single_gpu_perf.py
+```

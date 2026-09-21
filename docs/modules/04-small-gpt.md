@@ -339,3 +339,9 @@ decision record explaining why it is the baseline.
   — readable GPT-2-shaped model and training-loop reference;
 - [Let's reproduce GPT-2 (124M)](https://www.youtube.com/watch?v=l8pRSuU81PU)
   — an end-to-end walkthrough connecting the report to an implementation.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/04-small-gpt.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/04-small-gpt.md){ .md-button .md-button--primary }
+

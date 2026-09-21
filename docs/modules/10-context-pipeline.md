@@ -375,3 +375,9 @@ reject each strategy.
   — stage construction and schedules;
 - [Picotron](https://github.com/huggingface/picotron)
   — minimal code for reading the communication patterns.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/10-context-pipeline.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/10-context-pipeline.md){ .md-button .md-button--primary }
+

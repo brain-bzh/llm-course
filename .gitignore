@@ -3,6 +3,7 @@
 .cache/
 .sites-runtime/
 site/
+docs/slides/
 
 # Python bytecode & cache
 __pycache__/

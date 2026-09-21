@@ -326,28 +326,6 @@ A self-contained data pipeline demonstrating:
 - packed `uint16` binary dataset shards on disk;
 - fast memory-mapped batch generation with verified $Y_{b, t} = X_{b, t+1}$ alignment.
 
----
-
-## Practical companion guide
-
-!!! tip "Practical Lab: BPE and the Data Pipeline"
-    To explore the hands-on implementation for this module:
-
-    👉 **Follow the companion implementation** to train a BPE tokenizer from scratch, inspect subword merge rules, pack documents, and stream memory-mapped batches:
-
-    - **Lab script:** [`companion/scripts/03_prepare_dataset.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/03_prepare_dataset.py)
-    - **Tokenizer implementation:** [`companion/minilm/tokenizer.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tokenizer.py)
-    - **Dataset module:** [`companion/minilm/data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/data.py)
-    - **Unit tests:** [`companion/tests/test_module_03_data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_03_data.py)
-
-    Run the verification suite:
-    ```bash
-    cd companion
-    uv run pytest tests/test_module_03_data.py -v
-    uv run python scripts/03_prepare_dataset.py
-    ```
-
----
 
 ## References
 
@@ -363,3 +341,9 @@ A self-contained data pipeline demonstrating:
   — GPT-2 paper introducing byte-level BPE with pre-tokenization regex splitting.
 - Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 1
   (2026) — fidelity, tokens per byte, bits per token and bits-per-byte evaluation.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/03-data-pipeline.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/03-data-pipeline.md){ .md-button .md-button--primary }
+

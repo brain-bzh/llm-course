@@ -275,3 +275,9 @@ reference, plus a trace that makes each layout transition explicit.
   — the original Transformer tensor-parallel formulation;
 - [Reducing Activation Recomputation in Large Transformer Models](https://arxiv.org/abs/2205.05198)
   — sequence parallelism and selective activation recomputation.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/09-tensor-parallelism.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/09-tensor-parallelism.md){ .md-button .md-button--primary }
+

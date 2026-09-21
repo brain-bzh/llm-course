@@ -354,3 +354,9 @@ single-GPU configuration.
   — practical tuning mechanisms;
 - [FlashAttention](https://arxiv.org/abs/2205.14135)
   — IO-aware exact attention and tiling analysis.
+
+---
+
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/06-single-gpu.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/06-single-gpu.md){ .md-button .md-button--primary }
+
