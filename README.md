@@ -1,7 +1,7 @@
 # Training and Scaling Language Models
 
 Markdown source for the course website **Training and Scaling Language Models: From First
-Principles to Efficient Serving**.
+Principles to Efficient Serving**, designed by the [BRAIN team](https://www.imt-atlantique.fr/en/research-innovation/teams/brain) for [IMT Atlantique](https://www.imt-atlantique.fr/en).
 
 ## Local development
 

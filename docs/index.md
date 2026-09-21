@@ -3,7 +3,8 @@
 ## From first principles to efficient serving
 
 An intensive, implementation-led course on the complete language-model
-pipeline. We begin with raw text and a minimal Transformer, make training fast
+pipeline, designed by the [BRAIN team](https://www.imt-atlantique.fr/en/research-innovation/teams/brain) for [IMT Atlantique](https://www.imt-atlantique.fr/en).
+We begin with raw text and a minimal Transformer, make training fast
 and distributed, and finish by serving the resulting model efficiently.
 
 The course follows one question throughout:

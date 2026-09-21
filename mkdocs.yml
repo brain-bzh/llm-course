@@ -92,4 +92,4 @@ extra_javascript:
 extra_css:
   - assets/stylesheets/extra.css
 
-copyright: Training and Scaling Language Models
+copyright: 'Training and Scaling Language Models — <a href="https://www.imt-atlantique.fr/en/research-innovation/teams/brain" target="_blank">BRAIN Team</a>, <a href="https://www.imt-atlantique.fr/en" target="_blank">IMT Atlantique</a>'

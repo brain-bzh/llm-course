@@ -1,6 +1,6 @@
 # Companion Guide
 
-This guide contains the step-by-step practical lab protocols that accompany each module in **Training and Scaling Language Models: From First Principles to Efficient Serving**.
+This guide contains the step-by-step practical lab protocols that accompany each module in **Training and Scaling Language Models: From First Principles to Efficient Serving**, designed by the [BRAIN team](https://www.imt-atlantique.fr/en/research-innovation/teams/brain) for [IMT Atlantique](https://www.imt-atlantique.fr/en).
 
 While the [Module material](../modules/index.md) defines the theoretical concepts, system bottlenecks, and mathematical foundations, the **Companion Guide** walks through the implementation, code inspection, measurement exercises, and testable exit criteria.
 
