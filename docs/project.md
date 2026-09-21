@@ -22,37 +22,35 @@ evidence base the reproduction project and its individual defense draw on.
 ## Repository progression
 
 ```text
-raw documents
+minimal GPT & training loop
     ↓
-tokenizer and packed dataset
+pretraining data pipeline (filtering, BPE, binary shards)
     ↓
-correct minimal GPT
+documented baseline checkpoint
     ↓
-baseline checkpoint
+optimized single-GPU trainer (bf16, FlashAttention, compile)
     ↓
-selected training corpus
+distributed scaling (DDP, FSDP, tensor parallelism)
     ↓
-optimized single-GPU trainer
-    ↓
-DDP and focused sharding experiments
+multidimensional parallelism & cluster sizing strategy
     ↓
 KV-cached decoder
     ↓
-served model and benchmark report
+continuous-batching served model and benchmark report
 ```
 
 ## Milestones
 
 | Milestone | Required evidence |
 | --- | --- |
-| Correctness | Tiny-batch overfit, masking tests and deterministic sample inspection |
-| Data pipeline | Tokenizer statistics, split/boundary checks and loader throughput |
-| Baseline | Configuration, curves, checkpoint and generated samples |
-| Ingestion | Verified zero-copy streaming pipeline with lossless tokenization |
-| Performance | Before/after profiler evidence, tokens/s and peak memory |
-| Distributed training | Equivalence checks, global accounting and scaling measurements |
-| Inference | Cached/uncached equivalence plus prefill/decode benchmarks |
-| Serving | Declared workload with TTFT, ITL, throughput and memory |
+| Model & loop correctness | Tiny-batch overfit (`loss < 0.1`), causal masking test, and deterministic sample inspection |
+| Data pipeline & ingestion | Tokenizer fidelity/compression, contiguous packing with `<\|endoftext\|>`, zero-copy memmap loader throughput |
+| Baseline checkpoint | Hyperparameter tuple, loss/grad-norm curves, verified resume determinism, and fluent generated samples |
+| Single-GPU performance | Profiler trace comparison, bf16/SDPA/compile speedups, tokens/s, peak VRAM, and MFU calculation |
+| Distributed training | Multi-rank synchronization checks, `no_sync` gradient accumulation, FSDP memory savings, and TP numerical equivalence |
+| Multidimensional strategy | Cluster sizing identity verification ($G = P \times D \times F \times E_P \times T_P \times C$) and topology hierarchy defense |
+| Cached inference | Cached vs uncached logit/token equivalence, prefill vs per-token decode latency, and memory bandwidth analysis |
+| Serving engine | Declared dynamic workload with TTFT, ITL, throughput, and memory under continuous batching |
 
 ## Experimental rules
 

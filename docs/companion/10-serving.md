@@ -2,12 +2,15 @@
 
 This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
+!!! info "Live Demonstration & Optional Exploration"
+    In Session 28, serving architectures are demonstrated live by the instructor using production vLLM and educational implementations. There is no mandatory lab assignment or report to submit for this module, preserving student focus for [Reproduction Studio 4](../schedule.md#phase-3-serve-and-synthesize).
+    
+    The simulation scripts below and [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) are provided as clean, readable references for students who want to explore iteration-level scheduling and paged memory allocation in Python.
 
-    - **Lab script:** [`scripts/10_serving_benchmark.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/10_serving_benchmark.py)
-    - **Reference module:** [`minilm/serving_sim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/serving_sim.py)
-    - **Unit tests:** `tests/test_module_10_serving.py` *(TODO)*
+!!! tip "Exploration & Simulation Resources"
+    - **Educational reference:** [nano-vllm (GitHub)](https://github.com/GeeeekExplorer/nano-vllm) — lightweight Python implementation of vLLM's PagedAttention and continuous batching scheduler.
+    - **Lab simulation script:** [`scripts/10_serving_benchmark.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/10_serving_benchmark.py)
+    - **Reference simulator module:** [`minilm/serving_sim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/serving_sim.py)
 
 ---
 

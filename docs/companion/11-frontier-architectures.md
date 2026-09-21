@@ -2,9 +2,12 @@
 
 This lab accompanies [Module 11: Frontier architectures and efficient generation](../modules/11-frontier-architectures.md).
 
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
+!!! info "Lecture & Optional Exploration"
+    Session 30 is a theory lecture covering frontier architectures and inference acceleration, leading directly into final project presentations and defenses (Sessions 31–32). There is no mandatory lab assignment or report to submit for this module, preserving full team bandwidth for [Reproduction Project Defenses](../schedule.md#phase-3-serve-and-synthesize).
 
+    The exploration scripts and unit tests below are provided as optional reference implementations for self-paced study or for teams incorporating frontier techniques into their reproduction project.
+
+!!! tip "Optional Exploration & Reference Resources"
     - **Lab script:** [`scripts/11_frontier_exploration.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/11_frontier_exploration.py)
     - **Reference module:** [`minilm/moe.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/moe.py)
     - **Unit tests:** [`tests/test_module_11_frontier.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_11_frontier.py)

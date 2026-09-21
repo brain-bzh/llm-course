@@ -54,7 +54,7 @@ By the end of the course, students should be able to:
 - choose a parallelization strategy from model size, sequence length and
   interconnect constraints;
 - implement a KV cache and explain why autoregressive decode is memory-bound;
-- benchmark a serving system using time to first token, inter-token latency,
+- understand a serving system using time to first token, inter-token latency,
   throughput and memory.
 
 ## Teaching principle

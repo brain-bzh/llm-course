@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Continuous Batching &amp; PagedAttention Lab · Training and Scaling Language Models</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --sb-bg: #f5f7fb;
+      --sb-panel: #ffffff;
+      --sb-shell: #edf4f8;
+      --sb-ink: #102232;
+      --sb-heading: #123e5b;
+      --sb-muted: #5b7080;
+      --sb-line: #c9dde8;
+      --sb-line-subtle: #e3ebf0;
+      --sb-primary: #12627d;
+      --sb-accent: #00a3b5;
+      --sb-prefill: #00a387;
+      --sb-prefill-soft: #d7f5ee;
+      --sb-decode: #7c3aed;
+      --sb-decode-soft: #ede5ff;
+      --sb-wait: #e6edf2;
+      --sb-idle: #dbe5eb;
+      --sb-warn: #e27120;
+      --sb-free: #e9f0f4;
+      --sb-shadow: 0 12px 36px -24px rgba(19, 62, 91, 0.35);
+      --sb-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --sb-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sb-radius: 14px;
+    }
+
+    [data-theme="dark"] {
+      --sb-bg: #09141d;
+      --sb-panel: #122330;
+      --sb-shell: #0d1c27;
+      --sb-ink: #edf5f8;
+      --sb-heading: #f6fbfd;
+      --sb-muted: #91a8b7;
+      --sb-line: #29485b;
+      --sb-line-subtle: #1c3444;
+      --sb-primary: #4cc8df;
+      --sb-accent: #38c7d7;
+      --sb-prefill: #26caa7;
+      --sb-prefill-soft: #143e38;
+      --sb-decode: #aa82ff;
+      --sb-decode-soft: #30234d;
+      --sb-wait: #203542;
+      --sb-idle: #233946;
+      --sb-warn: #ff9b50;
+      --sb-free: #172d3b;
+      --sb-shadow: 0 12px 36px -18px rgba(0, 0, 0, 0.65);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --sb-bg: #09141d;
+        --sb-panel: #122330;
+        --sb-shell: #0d1c27;
+        --sb-ink: #edf5f8;
+        --sb-heading: #f6fbfd;
+        --sb-muted: #91a8b7;
+        --sb-line: #29485b;
+        --sb-line-subtle: #1c3444;
+        --sb-primary: #4cc8df;
+        --sb-accent: #38c7d7;
+        --sb-prefill: #26caa7;
+        --sb-prefill-soft: #143e38;
+        --sb-decode: #aa82ff;
+        --sb-decode-soft: #30234d;
+        --sb-wait: #203542;
+        --sb-idle: #233946;
+        --sb-warn: #ff9b50;
+        --sb-free: #172d3b;
+        --sb-shadow: 0 12px 36px -18px rgba(0, 0, 0, 0.65);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background:
+        radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--sb-accent) 8%, transparent), transparent 32rem),
+        var(--sb-bg);
+      color: var(--sb-ink);
+      font-family: var(--sb-font);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    button, input { font: inherit; color: inherit; }
+    #sb-lab { max-width: 1180px; margin: 0 auto; }
+
+    .sb-nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 4px 12px;
+      font-size: 12px;
+    }
+
+    .sb-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--sb-muted); font-weight: 650; }
+    .sb-breadcrumb a { color: var(--sb-accent); text-decoration: none; }
+    .sb-breadcrumb a:hover { text-decoration: underline; }
+
+    .sb-theme-toggle, .sb-icon-btn, .sb-tab {
+      border: 1px solid var(--sb-line);
+      background: var(--sb-shell);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, transform .15s;
+    }
+
+    .sb-theme-toggle { padding: 5px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .sb-theme-toggle:hover, .sb-icon-btn:hover, .sb-tab:hover { border-color: var(--sb-accent); }
+    .sb-shell { background: var(--sb-panel); border: 1px solid var(--sb-line); border-radius: var(--sb-radius); box-shadow: var(--sb-shadow); overflow: hidden; }
+
+    .sb-head {
+      position: relative;
+      padding: 24px 26px 20px;
+      border-bottom: 1px solid var(--sb-line);
+      background:
+        linear-gradient(115deg, color-mix(in srgb, var(--sb-accent) 8%, transparent), transparent 42%),
+        var(--sb-shell);
+      overflow: hidden;
+    }
+
+    .sb-head::after {
+      content: "";
+      position: absolute;
+      width: 220px;
+      height: 220px;
+      right: -70px;
+      top: -130px;
+      border: 24px solid color-mix(in srgb, var(--sb-accent) 8%, transparent);
+      border-radius: 50%;
+    }
+
+    .sb-badge { color: var(--sb-accent); font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 5px; }
+    h1.sb-title { position: relative; z-index: 1; margin: 0 0 7px; color: var(--sb-heading); font-size: clamp(21px, 3vw, 27px); line-height: 1.2; letter-spacing: -.025em; }
+    .sb-sub { position: relative; z-index: 1; max-width: 880px; margin: 0; color: var(--sb-muted); font-size: 13px; }
+
+    .sb-controls {
+      display: grid;
+      grid-template-columns: 1.25fr 1.1fr 1fr .8fr .8fr .8fr;
+      gap: 14px;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--sb-line);
+    }
+
+    .sb-control-title, .sb-control label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--sb-muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .055em;
+      text-transform: uppercase;
+    }
+
+    .sb-control label span { color: var(--sb-heading); font-family: var(--sb-mono); letter-spacing: 0; }
+    .sb-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+    .sb-tab { padding: 6px 9px; font-size: 11px; font-weight: 700; }
+    .sb-tab[aria-pressed="true"] { color: white; background: var(--sb-primary); border-color: var(--sb-primary); }
+    [data-theme="dark"] .sb-tab[aria-pressed="true"] { color: #07151c; background: var(--sb-accent); border-color: var(--sb-accent); }
+    input[type="range"] { width: 100%; accent-color: var(--sb-accent); cursor: pointer; }
+
+    .sb-story {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 9px;
+      padding: 11px 24px;
+      background: var(--sb-shell);
+      border-bottom: 1px solid var(--sb-line);
+      font-size: 12px;
+    }
+
+    .sb-story-icon { width: 23px; height: 23px; display: grid; place-items: center; color: var(--sb-accent); border: 1px solid var(--sb-line); border-radius: 50%; font-weight: 800; }
+    .sb-story strong { color: var(--sb-heading); }
+    .sb-story span { color: var(--sb-muted); }
+    .sb-model-pill { color: var(--sb-muted); font: 10px var(--sb-mono); border: 1px solid var(--sb-line); border-radius: 99px; padding: 4px 8px; white-space: nowrap; }
+
+    .sb-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--sb-line); }
+    .sb-metric { padding: 14px 18px; border-right: 1px solid var(--sb-line); min-width: 0; }
+    .sb-metric:last-child { border-right: 0; }
+    .sb-metric-name { display: block; color: var(--sb-muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .sb-metric-line { display: flex; align-items: baseline; gap: 7px; margin: 3px 0 1px; }
+    .sb-metric-value { color: var(--sb-heading); font: 700 22px/1.2 var(--sb-mono); letter-spacing: -.03em; }
+    .sb-metric-delta { font: 700 10px var(--sb-mono); color: var(--sb-prefill); }
+    .sb-metric-delta.is-worse { color: var(--sb-warn); }
+    .sb-metric-note { display: block; overflow: hidden; color: var(--sb-muted); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+
+    .sb-main { padding: 18px 22px; }
+    .sb-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+    .sb-section-head h2, .sb-panel h3 { margin: 0; color: var(--sb-heading); font-size: 13px; letter-spacing: -.01em; }
+    .sb-section-head p, .sb-panel-sub { margin: 2px 0 0; color: var(--sb-muted); font-size: 10px; }
+    .sb-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; color: var(--sb-muted); font-size: 10px; }
+    .sb-key { display: inline-flex; align-items: center; gap: 5px; }
+    .sb-swatch { width: 9px; height: 9px; border-radius: 3px; }
+
+    .sb-step-strip {
+      display: flex;
+      gap: 6px;
+      min-height: 86px;
+      padding: 8px;
+      overflow-x: auto;
+      border: 1px solid var(--sb-line);
+      border-radius: 10px;
+      background: var(--sb-shell);
+      scrollbar-width: thin;
+    }
+
+    .sb-step {
+      position: relative;
+      flex: 0 0 54px;
+      height: 68px;
+      padding: 5px;
+      border: 1px solid var(--sb-line-subtle);
+      border-radius: 7px;
+      background: var(--sb-panel);
+      cursor: pointer;
+    }
+
+    .sb-step:hover { border-color: var(--sb-accent); }
+    .sb-step.is-selected { border-color: var(--sb-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sb-accent) 20%, transparent); }
+    .sb-step-label { display: flex; justify-content: space-between; color: var(--sb-muted); font: 8px var(--sb-mono); }
+    .sb-step-stack { position: absolute; inset: 19px 5px 6px; display: flex; align-items: flex-end; gap: 2px; }
+    .sb-step-prefill, .sb-step-decode, .sb-step-idle { min-width: 3px; border-radius: 3px 3px 1px 1px; }
+    .sb-step-prefill { background: var(--sb-prefill); }
+    .sb-step-decode { background: var(--sb-decode); }
+    .sb-step-idle { background: var(--sb-idle); }
+
+    .sb-focus-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .8fr); gap: 14px; margin-top: 14px; }
+    .sb-panel { min-width: 0; padding: 14px; border: 1px solid var(--sb-line); border-radius: 10px; background: var(--sb-shell); }
+
+    .sb-engine-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .sb-engine-time { color: var(--sb-muted); font: 10px var(--sb-mono); }
+    .sb-flow { display: grid; grid-template-columns: 1fr 26px 1.45fr 26px 1fr; align-items: stretch; gap: 5px; }
+    .sb-flow-box { min-height: 104px; padding: 9px; border: 1px solid var(--sb-line-subtle); border-radius: 8px; background: var(--sb-panel); }
+    .sb-flow-box.is-gpu { border-color: color-mix(in srgb, var(--sb-accent) 58%, var(--sb-line)); }
+    .sb-flow-label { display: flex; align-items: center; justify-content: space-between; color: var(--sb-muted); font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .sb-flow-count { font-family: var(--sb-mono); }
+    .sb-arrow { display: grid; place-items: center; color: var(--sb-accent); font-size: 17px; }
+    .sb-chip-list { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; margin-top: 8px; }
+    .sb-req-chip { display: inline-flex; align-items: center; gap: 4px; min-width: 28px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--req) 55%, var(--sb-line)); border-radius: 5px; background: color-mix(in srgb, var(--req) 11%, var(--sb-panel)); color: var(--sb-heading); font: 700 9px var(--sb-mono); }
+    .sb-req-chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--req); }
+    .sb-empty { margin-top: 10px; color: var(--sb-muted); font-size: 9px; font-style: italic; }
+
+    .sb-budget-bar { display: flex; height: 34px; margin-top: 9px; overflow: hidden; border-radius: 6px; background: var(--sb-idle); box-shadow: inset 0 0 0 1px var(--sb-line-subtle); }
+    .sb-budget-slice { position: relative; display: grid; place-items: center; min-width: 2px; color: white; font: 700 8px var(--sb-mono); overflow: hidden; }
+    .sb-budget-slice[data-kind="prefill"] { background: var(--sb-prefill); }
+    .sb-budget-slice[data-kind="decode"] { background: var(--sb-decode); }
+    .sb-budget-idle { display: grid; place-items: center; color: var(--sb-muted); font: 8px var(--sb-mono); }
+    .sb-work-list { display: grid; gap: 4px; margin-top: 8px; }
+    .sb-work-row { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 6px; color: var(--sb-muted); font-size: 9px; }
+    .sb-phase-pill { padding: 2px 4px; border-radius: 4px; color: white; font: 700 7px var(--sb-mono); text-align: center; text-transform: uppercase; }
+    .sb-phase-pill.prefill { background: var(--sb-prefill); }
+    .sb-phase-pill.decode { background: var(--sb-decode); }
+    .sb-work-row strong { color: var(--sb-heading); }
+    .sb-work-row code { font: 8px var(--sb-mono); }
+
+    .sb-sweep-wrap { position: relative; min-height: 212px; }
+    #sb-sweep { width: 100%; height: 160px; display: block; margin-top: 8px; overflow: visible; }
+    .sb-chart-axis { stroke: var(--sb-line); stroke-width: 1; }
+    .sb-chart-grid { stroke: var(--sb-line-subtle); stroke-width: 1; stroke-dasharray: 3 4; }
+    .sb-chart-path { fill: none; stroke: var(--sb-accent); stroke-width: 2.2; }
+    .sb-chart-dot { fill: var(--sb-panel); stroke: var(--sb-accent); stroke-width: 2; cursor: pointer; }
+    .sb-chart-dot.is-current { fill: var(--sb-accent); stroke: var(--sb-panel); stroke-width: 3; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sb-accent) 55%, transparent)); }
+    .sb-chart-text { fill: var(--sb-muted); font: 8px var(--sb-mono); }
+    .sb-chart-label { fill: var(--sb-heading); font: 8px var(--sb-font); font-weight: 700; }
+    .sb-sweep-note { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-top: 1px; color: var(--sb-muted); font-size: 9px; }
+    .sb-sweep-note span:nth-child(2) { color: var(--sb-accent); }
+    .sb-sweep-note span:last-child { text-align: right; }
+
+    .sb-stepper { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 22px; border-top: 1px solid var(--sb-line); border-bottom: 1px solid var(--sb-line); background: var(--sb-shell); }
+    .sb-playset { display: flex; gap: 5px; }
+    .sb-icon-btn { width: 31px; height: 29px; font-size: 11px; }
+    #sb-scrub { width: 100%; }
+    .sb-time { min-width: 104px; color: var(--sb-heading); font: 10px var(--sb-mono); text-align: right; }
+
+    .sb-bottom { display: grid; grid-template-columns: 1.18fr .82fr; }
+    .sb-bottom > .sb-panel { border: 0; border-radius: 0; background: var(--sb-panel); padding: 17px 22px 20px; }
+    .sb-bottom > .sb-panel + .sb-panel { border-left: 1px solid var(--sb-line); }
+    .sb-kv-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 9px 0; color: var(--sb-muted); font: 9px var(--sb-mono); }
+    .sb-kv-summary strong { color: var(--sb-heading); }
+    .sb-block-pool { display: grid; grid-template-columns: repeat(10, minmax(22px, 1fr)); gap: 5px; }
+    .sb-block { position: relative; aspect-ratio: 1.3; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--sb-line-subtle); border-radius: 4px; background: var(--sb-free); color: var(--sb-muted); font: 7px var(--sb-mono); }
+    .sb-block.is-used { border-color: color-mix(in srgb, var(--req) 60%, var(--sb-line)); background: color-mix(in srgb, var(--req) 16%, var(--sb-panel)); color: var(--sb-heading); font-weight: 700; }
+    .sb-block-fill { position: absolute; left: 0; bottom: 0; width: 100%; background: color-mix(in srgb, var(--req) 62%, transparent); opacity: .48; }
+    .sb-block span { position: relative; z-index: 1; }
+    .sb-block-table-list { display: grid; gap: 5px; max-height: 180px; overflow-y: auto; margin-top: 10px; }
+    .sb-block-table { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 7px; color: var(--sb-muted); font-size: 9px; }
+    .sb-block-table strong { color: var(--sb-heading); font-family: var(--sb-mono); }
+    .sb-block-ids { display: flex; flex-wrap: wrap; gap: 3px; }
+    .sb-block-id { padding: 2px 4px; border: 1px solid color-mix(in srgb, var(--req) 48%, var(--sb-line)); border-radius: 3px; background: color-mix(in srgb, var(--req) 10%, var(--sb-panel)); font: 8px var(--sb-mono); }
+
+    .sb-lifecycle-wrap { overflow-x: auto; margin-top: 10px; }
+    .sb-lifecycle { min-width: 500px; }
+    .sb-life-row { display: grid; grid-template-columns: 46px repeat(var(--steps), 1fr); gap: 2px; align-items: center; min-height: 17px; margin-bottom: 2px; }
+    .sb-life-label { position: sticky; left: 0; z-index: 2; color: var(--sb-heading); background: var(--sb-panel); font: 700 8px var(--sb-mono); }
+    .sb-life-cell { height: 12px; border-radius: 2px; background: var(--sb-free); }
+    .sb-life-cell[data-phase="waiting"] { background: var(--sb-wait); }
+    .sb-life-cell[data-phase="prefill"] { background: var(--sb-prefill); }
+    .sb-life-cell[data-phase="decode"] { background: var(--sb-decode); }
+    .sb-life-cell[data-phase="done"] { background: color-mix(in srgb, var(--req) 20%, var(--sb-panel)); }
+    .sb-life-cell.is-current { outline: 2px solid var(--sb-heading); outline-offset: 1px; }
+
+    .sb-footnote { padding: 10px 22px 14px; border-top: 1px solid var(--sb-line); background: var(--sb-shell); color: var(--sb-muted); font-size: 9px; }
+    .sb-footnote strong { color: var(--sb-heading); }
+
+    @media (max-width: 980px) {
+      .sb-controls { grid-template-columns: repeat(3, 1fr); }
+      .sb-focus-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 700px) {
+      body { padding: 8px; }
+      .sb-head { padding: 19px 17px 16px; }
+      .sb-controls { grid-template-columns: 1fr 1fr; padding: 14px 16px; }
+      .sb-story { grid-template-columns: auto 1fr; padding: 10px 16px; }
+      .sb-model-pill { display: none; }
+      .sb-metrics { grid-template-columns: 1fr 1fr; }
+      .sb-metric:nth-child(2) { border-right: 0; }
+      .sb-metric:nth-child(-n+2) { border-bottom: 1px solid var(--sb-line); }
+      .sb-main { padding: 15px 14px; }
+      .sb-flow { grid-template-columns: 1fr; }
+      .sb-arrow { transform: rotate(90deg); min-height: 18px; }
+      .sb-bottom { grid-template-columns: 1fr; }
+      .sb-bottom > .sb-panel + .sb-panel { border-left: 0; border-top: 1px solid var(--sb-line); }
+      .sb-block-pool { grid-template-columns: repeat(8, 1fr); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="sb-lab">
+    <div class="sb-nav-bar">
+      <div class="sb-breadcrumb">
+        <span>LLM Course</span><span>›</span>
+        <a href="../modules/10-serving/">Module 10: Serving Systems</a><span>›</span>
+        <span>Serving Lab</span>
+      </div>
+      <button type="button" class="sb-theme-toggle" id="sb-theme-btn" aria-label="Toggle theme">
+        <span id="sb-theme-icon">◐</span> <span id="sb-theme-text">Toggle Theme</span>
+      </button>
+    </div>
+
+    <div class="sb-shell">
+      <header class="sb-head">
+        <div class="sb-badge">Interactive Inference Engine</div>
+        <h1 class="sb-title">Continuous Batching &amp; PagedAttention Simulator</h1>
+        <p class="sb-sub">Watch requests arrive, share a token budget, stream their first token, and occupy physical
+          KV blocks. Change the scheduler and allocator to expose the trade-off between throughput, TTFT, fairness,
+          and cache efficiency.</p>
+      </header>
+
+      <section class="sb-controls" aria-label="Simulation controls">
+        <div class="sb-control">
+          <div class="sb-control-title">Batching</div>
+          <div class="sb-tabs" role="group" aria-label="Batching policy">
+            <button class="sb-tab" data-batching="static" aria-pressed="false">Static</button>
+            <button class="sb-tab" data-batching="continuous" aria-pressed="true">Continuous</button>
+          </div>
+        </div>
+        <div class="sb-control">
+          <div class="sb-control-title">KV allocation</div>
+          <div class="sb-tabs" role="group" aria-label="KV allocation">
+            <button class="sb-tab" data-allocator="contiguous" aria-pressed="false">Reserved</button>
+            <button class="sb-tab" data-allocator="paged" aria-pressed="true">Paged</button>
+          </div>
+        </div>
+        <div class="sb-control">
+          <div class="sb-control-title">Traffic</div>
+          <div class="sb-tabs" role="group" aria-label="Traffic preset">
+            <button class="sb-tab" data-workload="mixed" aria-pressed="true">Mixed</button>
+            <button class="sb-tab" data-workload="burst" aria-pressed="false">Burst</button>
+            <button class="sb-tab" data-workload="long" aria-pressed="false">Long</button>
+          </div>
+        </div>
+        <div class="sb-control">
+          <label for="sb-budget">Token budget <span id="sb-budget-value">16</span></label>
+          <input id="sb-budget" type="range" min="8" max="32" step="4" value="16">
+        </div>
+        <div class="sb-control">
+          <label for="sb-chunk">Prefill chunk <span id="sb-chunk-value">8</span></label>
+          <input id="sb-chunk" type="range" min="2" max="32" step="2" value="8">
+        </div>
+        <div class="sb-control">
+          <label for="sb-block-size">Tokens / block <span id="sb-block-size-value">4</span></label>
+          <input id="sb-block-size" type="range" min="2" max="8" step="2" value="4">
+        </div>
+      </section>
+
+      <div class="sb-story" aria-live="polite">
+        <div class="sb-story-icon">i</div>
+        <div><strong id="sb-story-title">Continuous + paged:</strong> <span id="sb-story-text"></span></div>
+        <div class="sb-model-pill">educational cost model · 40 KV blocks</div>
+      </div>
+
+      <section class="sb-metrics" aria-live="polite">
+        <div class="sb-metric"><span class="sb-metric-name">Output throughput</span><div class="sb-metric-line"><span class="sb-metric-value" id="sb-throughput">—</span><span class="sb-metric-delta" id="sb-throughput-delta"></span></div><span class="sb-metric-note">generated tokens per simulated second</span></div>
+        <div class="sb-metric"><span class="sb-metric-name">Median TTFT</span><div class="sb-metric-line"><span class="sb-metric-value" id="sb-ttft50">—</span><span class="sb-metric-delta" id="sb-ttft50-delta"></span></div><span class="sb-metric-note">arrival → first streamed token</span></div>
+        <div class="sb-metric"><span class="sb-metric-name">p95 TTFT</span><div class="sb-metric-line"><span class="sb-metric-value" id="sb-ttft95">—</span><span class="sb-metric-delta" id="sb-ttft95-delta"></span></div><span class="sb-metric-note">tail latency reveals queueing</span></div>
+        <div class="sb-metric"><span class="sb-metric-name">KV slot efficiency</span><div class="sb-metric-line"><span class="sb-metric-value" id="sb-kv-efficiency">—</span><span class="sb-metric-delta" id="sb-kv-delta"></span></div><span class="sb-metric-note">live tokens ÷ occupied or reserved slots</span></div>
+      </section>
+
+      <main class="sb-main">
+        <div class="sb-section-head">
+          <div><h2>Engine-step trace</h2><p>Each card is one GPU iteration. Height shows how much of the token budget did useful work.</p></div>
+          <div class="sb-legend">
+            <span class="sb-key"><i class="sb-swatch" style="background:var(--sb-prefill)"></i>Prefill</span>
+            <span class="sb-key"><i class="sb-swatch" style="background:var(--sb-decode)"></i>Decode</span>
+            <span class="sb-key"><i class="sb-swatch" style="background:var(--sb-idle)"></i>Unused budget</span>
+          </div>
+        </div>
+        <div class="sb-step-strip" id="sb-step-strip" aria-label="Engine step timeline"></div>
+
+        <div class="sb-focus-grid">
+          <section class="sb-panel">
+            <div class="sb-engine-head"><div><h3 id="sb-engine-title">Inside engine step 1</h3><p class="sb-panel-sub" id="sb-engine-sub"></p></div><span class="sb-engine-time" id="sb-engine-time"></span></div>
+            <div class="sb-flow">
+              <div class="sb-flow-box"><div class="sb-flow-label">Waiting queue <span class="sb-flow-count" id="sb-waiting-count">0</span></div><div class="sb-chip-list" id="sb-waiting"></div></div>
+              <div class="sb-arrow">→</div>
+              <div class="sb-flow-box is-gpu"><div class="sb-flow-label">GPU token budget <span class="sb-flow-count" id="sb-budget-count">0 / 16</span></div><div class="sb-budget-bar" id="sb-budget-bar"></div><div class="sb-work-list" id="sb-work-list"></div></div>
+              <div class="sb-arrow">→</div>
+              <div class="sb-flow-box"><div class="sb-flow-label">Streaming / done <span class="sb-flow-count" id="sb-stream-count">0</span></div><div class="sb-chip-list" id="sb-streaming"></div></div>
+            </div>
+          </section>
+
+          <section class="sb-panel sb-sweep-wrap">
+            <h3>Chunk-size operating curve</h3>
+            <p class="sb-panel-sub">Same traffic, scheduler, budget, and cache. Click a point to apply its chunk size.</p>
+            <svg id="sb-sweep" viewBox="0 0 310 160" role="img" aria-label="Throughput versus p95 TTFT across prefill chunk sizes"></svg>
+            <div class="sb-sweep-note"><span>smaller<br>fairer slices</span><span>← chunk size →</span><span>larger<br>fewer launches</span></div>
+          </section>
+        </div>
+      </main>
+
+      <div class="sb-stepper">
+        <div class="sb-playset">
+          <button class="sb-icon-btn" id="sb-prev" type="button" aria-label="Previous step">◀</button>
+          <button class="sb-icon-btn" id="sb-play" type="button" aria-label="Play animation">▶</button>
+          <button class="sb-icon-btn" id="sb-next" type="button" aria-label="Next step">▶|</button>
+        </div>
+        <input id="sb-scrub" type="range" min="0" max="1" step="1" value="0" aria-label="Engine step">
+        <div class="sb-time" id="sb-time">step 1 / 1</div>
+      </div>
+
+      <div class="sb-bottom">
+        <section class="sb-panel">
+          <h3>Physical KV-cache blocks</h3>
+          <p class="sb-panel-sub" id="sb-kv-note">Paged allocation maps logical request blocks onto any free physical block.</p>
+          <div class="sb-kv-summary" id="sb-kv-summary"></div>
+          <div class="sb-block-pool" id="sb-block-pool"></div>
+          <div class="sb-block-table-list" id="sb-block-tables"></div>
+        </section>
+        <section class="sb-panel">
+          <h3>Request lifecycle</h3>
+          <p class="sb-panel-sub">Queue → prefill → first token → iterative decode → release. The outline follows the selected step.</p>
+          <div class="sb-lifecycle-wrap"><div class="sb-lifecycle" id="sb-lifecycle"></div></div>
+        </section>
+      </div>
+
+      <div class="sb-footnote"><strong>How to read the numbers.</strong> This is a deterministic teaching model, not a GPU benchmark. Prefill becomes more efficient at larger token batches; every engine step has launch/scheduling overhead; decode is protected first; paged KV grows on demand while “reserved” KV claims each request’s maximum length up front. Use it to reason about mechanisms and trends, then measure the real engine on target hardware.</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const COLORS = ["#00a387", "#7c3aed", "#e27120", "#1687d9", "#d64b78", "#6e9b2f", "#b05cc6", "#b88713", "#287b72", "#ca5549"];
+      const BLOCK_COUNT = 40;
+      const WORKLOADS = {
+        mixed: [
+          [0, 10, 8], [0, 22, 5], [3, 6, 12], [7, 30, 4], [11, 14, 9],
+          [15, 4, 7], [20, 26, 5], [25, 8, 10], [31, 18, 6], [38, 5, 8]
+        ],
+        burst: [
+          [0, 8, 8], [0, 14, 6], [0, 20, 5], [0, 6, 10], [1, 24, 4],
+          [1, 10, 7], [2, 18, 6], [2, 5, 10], [3, 28, 4], [3, 12, 8]
+        ],
+        long: [
+          [0, 42, 5], [2, 8, 10], [5, 36, 4], [8, 12, 8], [12, 48, 4],
+          [17, 6, 10], [22, 32, 5], [28, 10, 8]
+        ]
+      };
+
+      const root = document.getElementById("sb-lab");
+      const q = selector => root.querySelector(selector);
+      const qa = selector => [...root.querySelectorAll(selector)];
+      const els = {
+        budget: q("#sb-budget"), chunk: q("#sb-chunk"), blockSize: q("#sb-block-size"),
+        budgetValue: q("#sb-budget-value"), chunkValue: q("#sb-chunk-value"), blockSizeValue: q("#sb-block-size-value"),
+        storyTitle: q("#sb-story-title"), storyText: q("#sb-story-text"), throughput: q("#sb-throughput"),
+        ttft50: q("#sb-ttft50"), ttft95: q("#sb-ttft95"), kvEfficiency: q("#sb-kv-efficiency"),
+        throughputDelta: q("#sb-throughput-delta"), ttft50Delta: q("#sb-ttft50-delta"), ttft95Delta: q("#sb-ttft95-delta"), kvDelta: q("#sb-kv-delta"),
+        stepStrip: q("#sb-step-strip"), engineTitle: q("#sb-engine-title"), engineSub: q("#sb-engine-sub"), engineTime: q("#sb-engine-time"),
+        waitingCount: q("#sb-waiting-count"), waiting: q("#sb-waiting"), budgetCount: q("#sb-budget-count"), budgetBar: q("#sb-budget-bar"), workList: q("#sb-work-list"),
+        streamCount: q("#sb-stream-count"), streaming: q("#sb-streaming"), sweep: q("#sb-sweep"), scrub: q("#sb-scrub"),
+        prev: q("#sb-prev"), play: q("#sb-play"), next: q("#sb-next"), time: q("#sb-time"),
+        kvNote: q("#sb-kv-note"), kvSummary: q("#sb-kv-summary"), blockPool: q("#sb-block-pool"), blockTables: q("#sb-block-tables"), lifecycle: q("#sb-lifecycle")
+      };
+
+      let state = { batching: "continuous", allocator: "paged", workload: "mixed", budget: 16, chunk: 8, blockSize: 4, step: 0, timer: null, result: null };
+
+      function getPreferredTheme() {
+        const saved = localStorage.getItem("sb-theme");
+        if (saved) return saved;
+        try {
+          const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+          if (scheme === "slate") return "dark";
+          if (scheme === "default") return "light";
+        } catch (e) { /* standalone page */ }
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        q("#sb-theme-icon").textContent = theme === "dark" ? "☀" : "☾";
+        q("#sb-theme-text").textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+      }
+
+      let currentTheme = getPreferredTheme();
+      applyTheme(currentTheme);
+      q("#sb-theme-btn").addEventListener("click", () => {
+        currentTheme = currentTheme === "dark" ? "light" : "dark";
+        localStorage.setItem("sb-theme", currentTheme);
+        applyTheme(currentTheme);
+      });
+
+      try {
+        const observer = new MutationObserver(() => {
+          const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+          if (scheme === "slate") applyTheme("dark");
+          if (scheme === "default") applyTheme("light");
+        });
+        observer.observe(window.parent.document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
+      } catch (e) { /* cross-origin parent */ }
+
+      function percentile(values, p) {
+        if (!values.length) return 0;
+        const xs = [...values].sort((a, b) => a - b);
+        const i = (xs.length - 1) * p;
+        const lo = Math.floor(i), hi = Math.ceil(i);
+        return xs[lo] + (xs[hi] - xs[lo]) * (i - lo);
+      }
+
+      function cloneRequests(workload) {
+        return WORKLOADS[workload].map((r, i) => ({
+          id: String.fromCharCode(65 + i), color: COLORS[i % COLORS.length], arrival: r[0], prompt: r[1], output: r[2],
+          promptDone: 0, generated: 0, phase: "future", blocks: [], stored: 0, admitted: null,
+          firstToken: null, finished: null, statusByStep: []
+        }));
+      }
+
+      function findRun(blocks, length) {
+        let start = 0, run = 0;
+        for (let i = 0; i < blocks.length; i++) {
+          if (blocks[i] === null) { if (!run) start = i; run++; if (run >= length) return start; }
+          else run = 0;
+        }
+        return -1;
+      }
+
+      function simulate(config) {
+        const requests = cloneRequests(config.workload);
+        const blocks = Array(BLOCK_COUNT).fill(null);
+        let waiting = [], active = [], done = [], snapshots = [], time = 0, step = 0, peakUsed = 0, efficiencyArea = 0, allocatedArea = 0;
+        const maxSteps = 220;
+
+        function claim(req, count, contiguousStart = null) {
+          if (count <= 0) return true;
+          const free = [];
+          if (contiguousStart !== null) {
+            for (let i = contiguousStart; i < contiguousStart + count; i++) free.push(i);
+          } else {
+            for (let i = 0; i < blocks.length && free.length < count; i++) if (blocks[i] === null) free.push(i);
+          }
+          if (free.length < count) return false;
+          free.forEach(i => { blocks[i] = req.id; req.blocks.push(i); });
+          return true;
+        }
+
+        function admit(req) {
+          if (config.allocator === "contiguous") {
+            const need = Math.ceil((req.prompt + req.output) / config.blockSize);
+            const start = findRun(blocks, need);
+            if (start < 0) return false;
+            claim(req, need, start);
+          }
+          req.phase = "prefill";
+          req.admitted = time;
+          active.push(req);
+          return true;
+        }
+
+        function ensureCapacity(req, wanted) {
+          if (config.allocator === "contiguous") return wanted;
+          const capacity = req.blocks.length * config.blockSize;
+          const freeSlots = capacity - req.stored;
+          const missing = Math.max(0, wanted - freeSlots);
+          const blocksNeeded = Math.ceil(missing / config.blockSize);
+          const freeCount = blocks.reduce((n, x) => n + (x === null ? 1 : 0), 0);
+          const canClaim = Math.min(blocksNeeded, freeCount);
+          claim(req, canClaim);
+          return Math.min(wanted, freeSlots + canClaim * config.blockSize);
+        }
+
+        function release(req) {
+          req.blocks.forEach(i => { blocks[i] = null; });
+          req.blocks = [];
+        }
+
+        function enqueueArrivals() {
+          requests.forEach(req => {
+            if (req.phase === "future" && req.arrival <= time + 1e-8) {
+              req.phase = "waiting";
+              waiting.push(req);
+            }
+          });
+        }
+
+        function admitRequests() {
+          if (config.batching === "static" && active.length) return;
+          const limit = config.batching === "static" ? 4 : 8;
+          for (let i = 0; i < waiting.length && active.length < limit;) {
+            const req = waiting[i];
+            if (admit(req)) waiting.splice(i, 1);
+            else i++;
+          }
+        }
+
+        while (done.length < requests.length && step < maxSteps) {
+          enqueueArrivals();
+          admitRequests();
+
+          if (!active.length) {
+            const next = requests.filter(r => r.phase === "future").sort((a, b) => a.arrival - b.arrival)[0];
+            if (!next) break;
+            time = Math.max(time, next.arrival);
+            enqueueArrivals();
+            admitRequests();
+          }
+
+          let remaining = config.budget;
+          const work = [];
+          const decoders = active.filter(r => r.phase === "decode");
+          for (const req of decoders) {
+            if (remaining < 1) break;
+            const allowed = ensureCapacity(req, 1);
+            if (allowed < 1) continue;
+            work.push({ id: req.id, color: req.color, kind: "decode", tokens: 1 });
+            remaining--;
+          }
+
+          const prefills = active.filter(r => r.phase === "prefill");
+          // A request contributes at most one chunk per engine step. This is the
+          // fairness/launch-granularity knob that the chunk-size sweep exposes.
+          for (const req of prefills) {
+            if (remaining <= 0 || req.promptDone >= req.prompt) continue;
+            const wanted = Math.min(config.chunk, req.prompt - req.promptDone, remaining);
+            const allowed = ensureCapacity(req, wanted);
+            if (allowed <= 0) continue;
+            work.push({ id: req.id, color: req.color, kind: "prefill", tokens: allowed });
+            remaining -= allowed;
+          }
+
+          const prefillTokens = work.filter(w => w.kind === "prefill").reduce((n, w) => n + w.tokens, 0);
+          const decodeTokens = work.filter(w => w.kind === "decode").reduce((n, w) => n + w.tokens, 0);
+          const prefillRate = 2.35 + 0.16 * Math.sqrt(Math.max(prefillTokens, 1));
+          const duration = 0.62 + (prefillTokens ? 0.55 + prefillTokens / prefillRate : 0) + (decodeTokens ? 0.34 + decodeTokens * 0.26 : 0);
+          const endTime = time + duration;
+          const firstThisStep = [];
+          const finishedThisStep = [];
+
+          work.forEach(item => {
+            const req = requests.find(r => r.id === item.id);
+            req.stored += item.tokens;
+            if (item.kind === "prefill") {
+              req.promptDone += item.tokens;
+              if (req.promptDone >= req.prompt && req.firstToken === null) {
+                req.generated = 1;
+                req.firstToken = endTime;
+                firstThisStep.push(req.id);
+                req.phase = req.generated >= req.output ? "done" : "decode";
+              }
+            } else {
+              req.generated++;
+              if (req.generated >= req.output) req.phase = "done";
+            }
+          });
+
+          active.filter(r => r.phase === "done").forEach(req => {
+            req.finished = endTime;
+            finishedThisStep.push(req.id);
+            release(req);
+            done.push(req);
+          });
+          active = active.filter(r => r.phase !== "done");
+
+          const usedBlocks = blocks.filter(Boolean).length;
+          const liveTokens = active.reduce((n, r) => n + r.stored, 0);
+          const occupiedSlots = active.reduce((n, r) => n + r.blocks.length * config.blockSize, 0);
+          peakUsed = Math.max(peakUsed, usedBlocks);
+          efficiencyArea += liveTokens;
+          allocatedArea += occupiedSlots;
+
+          requests.forEach(req => {
+            let phase = req.phase;
+            if (req.phase === "future") phase = "future";
+            else if (req.phase === "waiting") phase = "waiting";
+            else if (done.includes(req)) phase = "done";
+            req.statusByStep.push(phase);
+          });
+
+          snapshots.push({
+            index: step, start: time, end: endTime, duration, work: work.map(x => ({ ...x })), prefillTokens, decodeTokens,
+            idle: remaining, firstThisStep, finishedThisStep,
+            waiting: waiting.map(r => r.id), active: active.map(r => ({ id: r.id, color: r.color, phase: r.phase, promptDone: r.promptDone, prompt: r.prompt, generated: r.generated, output: r.output, stored: r.stored, blocks: [...r.blocks] })),
+            done: done.map(r => r.id), blocks: [...blocks], reqBlocks: Object.fromEntries(requests.map(r => [r.id, [...r.blocks]])),
+            reqStored: Object.fromEntries(requests.map(r => [r.id, r.stored]))
+          });
+          time = endTime;
+          step++;
+        }
+
+        const ttfts = requests.filter(r => r.firstToken !== null).map(r => r.firstToken - r.arrival);
+        const totalOutput = requests.reduce((n, r) => n + r.generated, 0);
+        const elapsed = Math.max(time, 1e-6);
+        return {
+          requests, snapshots, totalTime: time, peakUsed,
+          metrics: {
+            throughput: totalOutput / elapsed * 1000,
+            ttft50: percentile(ttfts, .5), ttft95: percentile(ttfts, .95),
+            kvEfficiency: allocatedArea ? efficiencyArea / allocatedArea : 1,
+            gpuFill: snapshots.length ? snapshots.reduce((n, s) => n + (config.budget - s.idle) / config.budget, 0) / snapshots.length : 0
+          }
+        };
+      }
+
+      function requestMap() { return new Map(state.result.requests.map(r => [r.id, r])); }
+      function chip(id, suffix = "") {
+        const req = requestMap().get(id);
+        return `<span class="sb-req-chip" style="--req:${req.color}" title="Request ${id}: ${req.prompt} prompt + ${req.output} output tokens"><i></i>${id}${suffix}</span>`;
+      }
+
+      function formatMs(value) { return `${value.toFixed(value >= 100 ? 0 : 1)}ms`; }
+      function formatDelta(el, current, baseline, lowerIsBetter = false, suffix = "%") {
+        if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) { el.textContent = ""; return; }
+        const pct = (current / baseline - 1) * 100;
+        if (Math.abs(pct) < .5) { el.textContent = "baseline"; el.classList.remove("is-worse"); return; }
+        const good = lowerIsBetter ? pct < 0 : pct > 0;
+        el.textContent = `${pct > 0 ? "+" : ""}${pct.toFixed(0)}${suffix}`;
+        el.classList.toggle("is-worse", !good);
+      }
+
+      function updateStory() {
+        const batch = state.batching === "continuous"
+          ? "the active batch is rebuilt every iteration, so completed requests are replaced immediately"
+          : "a fixed cohort runs to completion before queued requests can enter, leaving capacity stranded near the tail";
+        const cache = state.allocator === "paged"
+          ? "KV blocks are claimed only as sequences grow and may live anywhere in the pool"
+          : "each admitted request reserves one contiguous maximum-length region up front";
+        els.storyTitle.textContent = `${state.batching === "continuous" ? "Continuous" : "Static"} + ${state.allocator === "paged" ? "paged" : "reserved"}:`;
+        els.storyText.textContent = `${batch}; ${cache}. Decode tokens get first claim on each ${state.budget}-token step.`;
+      }
+
+      function renderMetrics() {
+        const m = state.result.metrics;
+        els.throughput.textContent = `${Math.round(m.throughput)}`;
+        els.ttft50.textContent = formatMs(m.ttft50);
+        els.ttft95.textContent = formatMs(m.ttft95);
+        els.kvEfficiency.textContent = `${Math.round(m.kvEfficiency * 100)}%`;
+        const baseline = simulate({ ...state, batching: "static", allocator: "contiguous" }).metrics;
+        formatDelta(els.throughputDelta, m.throughput, baseline.throughput);
+        formatDelta(els.ttft50Delta, m.ttft50, baseline.ttft50, true);
+        formatDelta(els.ttft95Delta, m.ttft95, baseline.ttft95, true);
+        formatDelta(els.kvDelta, m.kvEfficiency, baseline.kvEfficiency);
+      }
+
+      function renderStepStrip() {
+        els.stepStrip.innerHTML = state.result.snapshots.map((s, i) => {
+          const used = state.budget - s.idle;
+          const pHeight = Math.max(3, s.prefillTokens / state.budget * 43);
+          const dHeight = Math.max(3, s.decodeTokens / state.budget * 43);
+          const idleHeight = Math.max(3, s.idle / state.budget * 43);
+          return `<button type="button" class="sb-step ${i === state.step ? "is-selected" : ""}" data-step="${i}" aria-label="Engine step ${i + 1}, ${used} scheduled tokens"><span class="sb-step-label"><span>${i + 1}</span><span>${used}/${state.budget}</span></span><span class="sb-step-stack">${s.prefillTokens ? `<i class="sb-step-prefill" style="height:${pHeight}px;flex:${s.prefillTokens}"></i>` : ""}${s.decodeTokens ? `<i class="sb-step-decode" style="height:${dHeight}px;flex:${s.decodeTokens}"></i>` : ""}${s.idle ? `<i class="sb-step-idle" style="height:${idleHeight}px;flex:${s.idle}"></i>` : ""}</span></button>`;
+        }).join("");
+      }
+
+      function renderFocus() {
+        const snap = state.result.snapshots[state.step];
+        if (!snap) return;
+        const used = state.budget - snap.idle;
+        els.engineTitle.textContent = `Inside engine step ${state.step + 1}`;
+        const events = [];
+        if (snap.firstThisStep.length) events.push(`first token: ${snap.firstThisStep.join(", ")}`);
+        if (snap.finishedThisStep.length) events.push(`released: ${snap.finishedThisStep.join(", ")}`);
+        els.engineSub.textContent = events.length ? events.join(" · ") : "Decode first, then use the remainder for prompt chunks.";
+        els.engineTime.textContent = `${snap.start.toFixed(1)} → ${snap.end.toFixed(1)} ms`;
+        els.waitingCount.textContent = snap.waiting.length;
+        els.waiting.innerHTML = snap.waiting.length ? snap.waiting.map(id => chip(id)).join("") : '<span class="sb-empty">queue empty</span>';
+        els.budgetCount.textContent = `${used} / ${state.budget}`;
+        els.budgetBar.innerHTML = snap.work.map(w => `<span class="sb-budget-slice" data-kind="${w.kind}" style="width:${w.tokens / state.budget * 100}%;--req:${w.color}" title="Request ${w.id}: ${w.tokens} ${w.kind} token${w.tokens === 1 ? "" : "s"}">${w.tokens >= 3 ? `${w.id}·${w.tokens}` : w.id}</span>`).join("") + (snap.idle ? `<span class="sb-budget-idle" style="width:${snap.idle / state.budget * 100}%">${snap.idle}</span>` : "");
+        els.workList.innerHTML = snap.work.length ? snap.work.map(w => `<div class="sb-work-row"><span class="sb-phase-pill ${w.kind}">${w.kind === "prefill" ? "PRE" : "DEC"}</span><span><strong>Request ${w.id}</strong> ${w.kind === "prefill" ? "advances its prompt" : "streams its next token"}</span><code>${w.tokens} tok</code></div>`).join("") : '<span class="sb-empty">No work fits: the KV pool is blocked.</span>';
+        const streamIds = [...new Set([...snap.active.filter(r => r.phase === "decode").map(r => r.id), ...snap.finishedThisStep])];
+        els.streamCount.textContent = streamIds.length;
+        els.streaming.innerHTML = streamIds.length ? streamIds.map(id => chip(id, snap.finishedThisStep.includes(id) ? "✓" : "↗")).join("") : '<span class="sb-empty">no token streamed yet</span>';
+        els.time.textContent = `step ${state.step + 1} / ${state.result.snapshots.length}`;
+        els.scrub.value = state.step;
+        qa(".sb-step").forEach((node, i) => node.classList.toggle("is-selected", i === state.step));
+        const selected = els.stepStrip.querySelector(".is-selected");
+        if (selected) selected.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        renderKV(snap);
+        renderLifecycle();
+      }
+
+      function renderKV(snap) {
+        const reqs = requestMap();
+        const occupied = snap.blocks.filter(Boolean).length;
+        const liveTokens = snap.active.reduce((n, r) => n + r.stored, 0);
+        const slots = snap.active.reduce((n, r) => n + r.blocks.length * state.blockSize, 0);
+        const waste = Math.max(0, slots - liveTokens);
+        els.kvNote.textContent = state.allocator === "paged"
+          ? "Block tables translate each request’s logical sequence into non-contiguous physical KV blocks."
+          : "Maximum-length contiguous reservations make addresses simple, but unused future slots cannot serve another request.";
+        els.kvSummary.innerHTML = `<span><strong>${occupied}</strong> / ${BLOCK_COUNT} blocks occupied</span><span><strong>${liveTokens}</strong> live tokens</span><span><strong>${waste}</strong> reserved / tail slots</span>`;
+        const logicalIndex = {};
+        Object.entries(snap.reqBlocks).forEach(([id, ids]) => ids.forEach((blockId, i) => { logicalIndex[`${id}:${blockId}`] = i; }));
+        els.blockPool.innerHTML = snap.blocks.map((id, i) => {
+          if (!id) return `<div class="sb-block" title="Physical block ${i}: free"><span>${i}</span></div>`;
+          const req = reqs.get(id), li = logicalIndex[`${id}:${i}`] || 0, stored = snap.reqStored[id] || 0;
+          const fill = Math.max(0, Math.min(state.blockSize, stored - li * state.blockSize));
+          return `<div class="sb-block is-used" style="--req:${req.color}" title="Physical block ${i} → request ${id}, logical block ${li}; ${fill}/${state.blockSize} live token slots"><i class="sb-block-fill" style="height:${fill / state.blockSize * 100}%"></i><span>${i}·${id}</span></div>`;
+        }).join("");
+        const activeWithBlocks = snap.active.filter(r => r.blocks.length);
+        els.blockTables.innerHTML = activeWithBlocks.length ? activeWithBlocks.map(r => {
+          const req = reqs.get(r.id);
+          return `<div class="sb-block-table" style="--req:${req.color}"><strong>${r.id}</strong><div class="sb-block-ids">${r.blocks.map((id, i) => `<span class="sb-block-id" title="logical ${i} → physical ${id}">${i}→${id}</span>`).join("")}</div><span>${r.stored} tok</span></div>`;
+        }).join("") : '<span class="sb-empty">No live block tables at this step.</span>';
+      }
+
+      function renderLifecycle() {
+        const reqs = state.result.requests;
+        const shownSteps = state.result.snapshots.length;
+        els.lifecycle.style.setProperty("--steps", shownSteps);
+        els.lifecycle.innerHTML = reqs.map(req => {
+          const cells = req.statusByStep.map((phase, i) => `<span class="sb-life-cell ${i === state.step ? "is-current" : ""}" data-phase="${phase}" style="--req:${req.color}" title="Request ${req.id}, step ${i + 1}: ${phase}"></span>`).join("");
+          return `<div class="sb-life-row"><span class="sb-life-label" style="color:${req.color}">${req.id} ${req.prompt}→${req.output}</span>${cells}</div>`;
+        }).join("");
+      }
+
+      function renderSweep() {
+        const allChunks = Array.from({ length: state.budget / 2 }, (_, i) => (i + 1) * 2);
+        const chunks = allChunks.length <= 8 ? allChunks : [...new Set(Array.from({ length: 8 }, (_, i) => allChunks[Math.round(i * (allChunks.length - 1) / 7)]))];
+        if (!chunks.includes(state.chunk)) chunks.push(state.chunk);
+        chunks.sort((a, b) => a - b);
+        const rawPoints = chunks.map(chunk => ({ chunk, chunkMax: chunk, ...simulate({ ...state, chunk }).metrics }));
+        // Once a chunk saturates the step token budget, larger values can be
+        // operationally identical. Collapse those points instead of drawing
+        // unreadable labels on top of one another.
+        const points = [];
+        rawPoints.forEach(point => {
+          const same = points.find(p => Math.abs(p.throughput - point.throughput) < .05 && Math.abs(p.ttft95 - point.ttft95) < .05);
+          if (same) same.chunkMax = point.chunk;
+          else points.push(point);
+        });
+        const xs = points.map(p => p.ttft95), ys = points.map(p => p.throughput);
+        const xMin = Math.min(...xs) * .94, xMax = Math.max(...xs) * 1.06;
+        const yMin = Math.min(...ys) * .94, yMax = Math.max(...ys) * 1.06;
+        const px = x => 42 + (x - xMin) / Math.max(xMax - xMin, 1e-6) * 252;
+        const py = y => 128 - (y - yMin) / Math.max(yMax - yMin, 1e-6) * 100;
+        const path = points.map((p, i) => `${i ? "L" : "M"}${px(p.ttft95).toFixed(1)},${py(p.throughput).toFixed(1)}`).join(" ");
+        let svg = '<line class="sb-chart-grid" x1="42" y1="28" x2="294" y2="28"></line><line class="sb-chart-grid" x1="42" y1="78" x2="294" y2="78"></line><line class="sb-chart-axis" x1="42" y1="128" x2="294" y2="128"></line><line class="sb-chart-axis" x1="42" y1="28" x2="42" y2="128"></line>';
+        svg += `<path class="sb-chart-path" d="${path}"></path>`;
+        svg += `<text class="sb-chart-text" x="42" y="143">${xMin.toFixed(0)}ms</text><text class="sb-chart-text" x="294" y="143" text-anchor="end">${xMax.toFixed(0)}ms</text><text class="sb-chart-text" x="36" y="31" text-anchor="end">${yMax.toFixed(0)}</text><text class="sb-chart-text" x="36" y="128" text-anchor="end">${yMin.toFixed(0)}</text><text class="sb-chart-label" x="168" y="157" text-anchor="middle">p95 TTFT →</text><text class="sb-chart-label" x="8" y="78" text-anchor="middle" transform="rotate(-90 8 78)">output tok/s →</text>`;
+        svg += points.map(p => {
+          const current = state.chunk >= p.chunk && state.chunk <= p.chunkMax;
+          const label = p.chunkMax > p.chunk ? `${p.chunk}+` : String(p.chunk);
+          return `<g><circle class="sb-chart-dot ${current ? "is-current" : ""}" data-chunk="${p.chunk}" cx="${px(p.ttft95)}" cy="${py(p.throughput)}" r="${current ? 5 : 3.5}"><title>chunk ${label}: ${p.throughput.toFixed(0)} tok/s, p95 TTFT ${p.ttft95.toFixed(1)} ms</title></circle><text class="sb-chart-text" x="${px(p.ttft95)}" y="${py(p.throughput) - 7}" text-anchor="middle">${label}</text></g>`;
+        }).join("");
+        els.sweep.innerHTML = svg;
+      }
+
+      function stop() {
+        if (state.timer) clearInterval(state.timer);
+        state.timer = null;
+        els.play.textContent = "▶";
+        els.play.setAttribute("aria-label", "Play animation");
+      }
+
+      function rebuild() {
+        stop();
+        // A per-request chunk cannot exceed the whole engine-step budget.
+        els.chunk.max = state.budget;
+        if (state.chunk > state.budget) {
+          state.chunk = state.budget;
+          els.chunk.value = state.chunk;
+        }
+        state.result = simulate(state);
+        state.step = 0;
+        els.budgetValue.textContent = state.budget;
+        els.chunkValue.textContent = state.chunk;
+        els.blockSizeValue.textContent = state.blockSize;
+        els.scrub.max = Math.max(0, state.result.snapshots.length - 1);
+        updateStory();
+        renderMetrics();
+        renderStepStrip();
+        renderSweep();
+        renderFocus();
+      }
+
+      qa("[data-batching]").forEach(btn => btn.addEventListener("click", () => {
+        state.batching = btn.dataset.batching;
+        qa("[data-batching]").forEach(x => x.setAttribute("aria-pressed", String(x === btn)));
+        rebuild();
+      }));
+      qa("[data-allocator]").forEach(btn => btn.addEventListener("click", () => {
+        state.allocator = btn.dataset.allocator;
+        qa("[data-allocator]").forEach(x => x.setAttribute("aria-pressed", String(x === btn)));
+        rebuild();
+      }));
+      qa("[data-workload]").forEach(btn => btn.addEventListener("click", () => {
+        state.workload = btn.dataset.workload;
+        qa("[data-workload]").forEach(x => x.setAttribute("aria-pressed", String(x === btn)));
+        rebuild();
+      }));
+      els.budget.addEventListener("input", () => { state.budget = +els.budget.value; rebuild(); });
+      els.chunk.addEventListener("input", () => { state.chunk = +els.chunk.value; rebuild(); });
+      els.blockSize.addEventListener("input", () => { state.blockSize = +els.blockSize.value; rebuild(); });
+      els.scrub.addEventListener("input", () => { stop(); state.step = +els.scrub.value; renderFocus(); });
+      els.prev.addEventListener("click", () => { stop(); state.step = Math.max(0, state.step - 1); renderFocus(); });
+      els.next.addEventListener("click", () => { stop(); state.step = Math.min(state.result.snapshots.length - 1, state.step + 1); renderFocus(); });
+      els.play.addEventListener("click", () => {
+        if (state.timer) { stop(); return; }
+        if (state.step >= state.result.snapshots.length - 1) state.step = 0;
+        els.play.textContent = "⏸";
+        els.play.setAttribute("aria-label", "Pause animation");
+        state.timer = setInterval(() => {
+          state.step++;
+          if (state.step >= state.result.snapshots.length - 1) { state.step = state.result.snapshots.length - 1; stop(); }
+          renderFocus();
+        }, 520);
+      });
+      els.stepStrip.addEventListener("click", event => {
+        const node = event.target.closest(".sb-step");
+        if (!node) return;
+        stop(); state.step = +node.dataset.step; renderFocus();
+      });
+      els.sweep.addEventListener("click", event => {
+        const point = event.target.closest("[data-chunk]");
+        if (!point) return;
+        state.chunk = +point.dataset.chunk;
+        els.chunk.value = state.chunk;
+        rebuild();
+      });
+
+      rebuild();
+    })();
+  </script>
+</body>
+
+</html>

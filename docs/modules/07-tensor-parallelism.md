@@ -249,7 +249,7 @@ an 8-GPU NVLink node:
 
 Using the course batch and sequence length, estimate the payload and optimistic
 time of one activation all-reduce. Compare it with the adjacent matrix
-multiplication time from Module 6's roofline model.
+multiplication time from Module 4's roofline model.
 
 ## Exit ticket
 

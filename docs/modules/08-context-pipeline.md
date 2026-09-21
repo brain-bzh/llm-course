@@ -114,6 +114,15 @@ physical device (e.g. device 0 runs layers 1–4 and 17–20). This shrinks the
 idle bubble by a factor of $v$ at the cost of $v \times$ more point-to-point
 communication across stage boundaries.
 
+### Interactive pipeline schedule simulator
+
+To explore how these pipeline schedules behave under different numbers of stages ($p$) and micro-batches ($m$), launch the dedicated interactive simulator:
+
+!!! tip "Interactive Visualization Lab"
+    Experiment with Naive, GPipe / AFAB, 1F1B, and Interleaved 1F1B schedules in a visual step-by-step simulator. Inspect dynamic bubble ratios $r = (p-1)/m$, track activation memory accumulation across GPUs, and watch peer-to-peer tensor transfers along stage boundaries.
+
+    [:material-play-circle-outline: Launch Pipeline Parallelism Simulator](../demos/pipeline-parallelism.html){ .md-button .md-button--primary target="_blank" }
+
 ---
 
 ## Expert Parallelism (EP)
@@ -316,4 +325,5 @@ Draw 1F1B timelines for $P=4, m=16$:
 ---
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/08-context-pipeline.pdf){ .md-button target="_blank" }
+[:material-play-circle-outline: Interactive Simulator](../demos/pipeline-parallelism.html){ .md-button target="_blank" }
 [:material-code-tags: Practical Companion Guide](../companion/08-context-pipeline.md){ .md-button .md-button--primary }

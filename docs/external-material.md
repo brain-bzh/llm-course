@@ -1,8 +1,6 @@
 # External material
 
-This page collects the references behind the course. It is a working shelf, not
-a mandatory reading list: each module will point students toward the smallest
-useful subset.
+This page collects the references behind the course. We thank the many authors of the papers, codebases and videos that are listed below.
 
 ## Course spine
 
@@ -17,6 +15,8 @@ useful subset.
 - **[Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language-models.pdf)**
   — The GPT-2 technical report and the target architecture for the first part
   of the course.
+
+### GPT-2 from scratch
 
 <div class="video-embed">
   <iframe
@@ -113,6 +113,8 @@ _Sessions 7–10._
 - **[Efficient Large-Scale Language Model Training on GPU Clusters](https://arxiv.org/abs/2104.04473)**
   — How data, tensor and pipeline parallelism compose at scale.
 
+We recomend watching those videos to get a better understanding of distributed training:
+
 ### Picotron tutorial playlist
 
 <div class="video-embed">
@@ -154,7 +156,7 @@ _Sessions 7–10._
 
 ## Efficient inference and serving
 
-_Sessions 11 and 12._
+_Sessions 25–28 (Modules 9 and 10)._
 
 - **[KV Cache Explained Intuitively](https://medium.com/@saad.ahmed1926q/kv-cache-explained-intuitively-2b425a36dfc7)**
   — A visual introduction to repeated autoregressive work, prefill and cached
@@ -173,35 +175,34 @@ _Sessions 11 and 12._
 - **[Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)**
   — A visual derivation of ragged batching, chunked prefill and dynamic
   scheduling from attention and KV caching.
+- **[nano-vllm](https://github.com/GeeeekExplorer/nano-vllm)**
+  — A lightweight, educational re-implementation of vLLM's scheduler, block tables,
+  and PagedAttention mechanism in clean, readable Python.
 - **[vLLM documentation](https://docs.vllm.ai/)** — The serving engine used to
   study continuous batching, chunked prefill, prefix caching and production
   metrics.
 
-## Beyond dense Transformers
+## Frontier architectures and efficient generation
 
-_Session 13._
+_Session 30 (Module 11)._
 
-- **[Switch Transformers](https://arxiv.org/abs/2101.03961)** — Sparse
-  mixture-of-experts routing and its computation/communication trade-offs.
-- **[Mamba](https://arxiv.org/abs/2312.00752)** — Selective state-space models
-  as an alternative sequence-modeling backbone.
-- **[Large Language Diffusion Models](https://arxiv.org/abs/2502.09992)** — A
-  masked diffusion formulation of language modeling.
+- **[Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192)**
+  — Foundational draft-and-verify paradigm and proof of provably unbiased rejection sampling.
+- **[DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437)**
+  — Multi-Head Latent Attention (MLA) for low-rank KV-cache compression, fine-grained DeepSeekMoE with isolated shared experts, auxiliary-loss-free load balancing, and Multi-Token Prediction (MTP).
+- **[Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)**
+  — Selective state-space models, input-dependent conditioning, and hardware-aware associative scan.
+- **[Transformers are SSMs: Generalized Models and State Space Duality](https://arxiv.org/abs/2405.21060)**
+  — Mamba-2 and theoretical unification of structured masked attention and state-space duality.
+- **[Linear Transformers with Learnable Kernel Functions (Delta Net)](https://arxiv.org/abs/2102.11174)**
+  — Applying the classical delta rule to associative recurrent memory to prevent catastrophic saturation.
+- **[Large Language Diffusion Models](https://arxiv.org/abs/2502.09992)**
+  — Masked diffusion formulation of non-autoregressive language modeling.
+- **[Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)**
+  — Direct patch projection and unified tokenization without frozen vision encoders.
+- **[Switch Transformers](https://arxiv.org/abs/2101.03961)**
+  — Sparse mixture-of-experts routing and its computation/communication trade-offs.
 
-## Further additions
+## Acknowledgements
 
-Use this section for material added during course preparation. Prefer a short
-note saying which module the resource supports and what students should learn
-from it.
-
-### Videos and lectures
-
-- _To add._
-
-### Papers and articles
-
-- _To add._
-
-### Implementations and tools
-
-- _To add._
+This course draws inspiration from the **[MVA Training Large Models Course](https://training-large-models-course.github.io)** by Edouard Oyallon.

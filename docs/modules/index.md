@@ -113,7 +113,7 @@ and the physical outer-to-inner hierarchy ($\text{PP} \to \text{DP} \to \text{FS
 
 **Prove:** every proposed strategy fits device memory and minimizes cross-network communication latency bottlenecks.
 
-[Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" }
+[Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/pipeline-parallelism.html){ target="_blank" }
 
 ## 9. KV-cached decoding
 
@@ -132,12 +132,11 @@ from per-token decode.
 **Understand:** continuous batching, paged KV caches, chunked prefill, prefix
 caching and scheduling.
 
-**Implement:** serve the course checkpoint with an existing serving engine.
+**Explore:** inspect continuous batching, block-level KV cache allocation, and scheduler dynamics via live vLLM demonstrations and the educational [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) architecture.
 
-**Prove:** measure time to first token, inter-token latency, throughput and
-memory under declared workloads.
+**Observe:** measure time to first token (TTFT), inter-token latency (ITL), throughput saturation, and queue delays under open-loop and closed-loop workloads.
 
-[Open the module page →](10-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-serving.pdf){ target="_blank" }
+[Open the module page →](10-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-serving.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/continuous-batching.html){ target="_blank" }
 
 ## 11. Frontier architectures and efficient generation
 
@@ -151,4 +150,3 @@ and quadratic context bottlenecks.
 **Prove:** evaluate cache compression ratios, speculative speedup curves, and recurrent state update mechanics.
 
 [Open the module page →](11-frontier-architectures.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-frontier-architectures.pdf){ target="_blank" }
-

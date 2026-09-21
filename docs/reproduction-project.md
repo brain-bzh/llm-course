@@ -71,6 +71,17 @@ mechanism under study. Valid approaches include:
 - checking a theoretical implication through a toy derivation and numerical
   experiment.
 
+### In-class reproduction studios
+
+To ensure teams make steady progress and receive hands-on mentoring under
+instructor guidance, four dedicated **Reproduction Project Studio** sessions
+are embedded directly into the second half of the course (see [schedule](schedule.md)):
+
+- **Studio 1 (Session 17):** Codebase setup, baseline verification, and dataset pipeline sanity checks.
+- **Studio 2 (Session 24):** Scaling runs, cluster job troubleshooting, and experimental failure triage.
+- **Studio 3 (Session 27):** Claim verification, ablation synthesis, and figure generation.
+- **Studio 4 (Session 29):** Presentation timing rehearsals, slide polish, and technical defense dry runs.
+
 ### Deliverables
 
 1. **Code repository** with setup instructions, configurations and commands

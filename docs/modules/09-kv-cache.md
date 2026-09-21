@@ -188,7 +188,7 @@ so weight reuse is limited. Increasing the batch of concurrent sequences
 increases reuse and throughput, but also consumes more KV memory and may worsen
 latency.
 
-This is the serving trade-off developed in Module 11:
+This is the serving trade-off developed in Module 10:
 
 ```text
 larger active batch

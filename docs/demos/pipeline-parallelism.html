@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pipeline Parallelism Simulator · Training and Scaling Language Models</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --pp-bg: #f8fafc;
+      --pp-panel: #ffffff;
+      --pp-shell: #edf5f9;
+      --pp-ink: #0f172a;
+      --pp-heading: #164666;
+      --pp-muted: #52697a;
+      --pp-line: #cce2ee;
+      --pp-line-subtle: #e2e8f0;
+      --pp-idle: #e2e8f0;
+      --pp-forward: #008294;
+      --pp-forward-text: #ffffff;
+      --pp-backward: #c2410c;
+      --pp-backward-text: #ffffff;
+      --pp-comm: #7c3aed;
+      --pp-memory: #d97706;
+      --pp-primary: #164666;
+      --pp-accent: #009fb0;
+      --pp-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --pp-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --pp-radius: 12px;
+      --pp-shadow: 0 4px 20px -2px rgba(22, 70, 102, 0.08);
+    }
+
+    [data-theme="dark"],
+    :root.dark {
+      --pp-bg: #0c1722;
+      --pp-panel: #142533;
+      --pp-shell: #0f1d29;
+      --pp-ink: #f1f5f9;
+      --pp-heading: #f8fafc;
+      --pp-muted: #8ba2b5;
+      --pp-line: #234057;
+      --pp-line-subtle: #1a2f40;
+      --pp-idle: #1c2e3d;
+      --pp-forward: #009fb0;
+      --pp-forward-text: #041f27;
+      --pp-backward: #fb923c;
+      --pp-backward-text: #270d04;
+      --pp-comm: #c084fc;
+      --pp-memory: #fbbf24;
+      --pp-primary: #38b2d6;
+      --pp-accent: #38b2d6;
+      --pp-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --pp-bg: #0c1722;
+        --pp-panel: #142533;
+        --pp-shell: #0f1d29;
+        --pp-ink: #f1f5f9;
+        --pp-heading: #f8fafc;
+        --pp-muted: #8ba2b5;
+        --pp-line: #234057;
+        --pp-line-subtle: #1a2f40;
+        --pp-idle: #1c2e3d;
+        --pp-forward: #009fb0;
+        --pp-forward-text: #041f27;
+        --pp-backward: #fb923c;
+        --pp-backward-text: #270d04;
+        --pp-comm: #c084fc;
+        --pp-memory: #fbbf24;
+        --pp-primary: #38b2d6;
+        --pp-accent: #38b2d6;
+        --pp-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--pp-bg);
+      color: var(--pp-ink);
+      font-family: var(--pp-font);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    #pp-lab {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .pp-nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 0 4px;
+      font-size: 12px;
+    }
+
+    .pp-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: var(--pp-muted);
+    }
+
+    .pp-breadcrumb a {
+      color: var(--pp-accent);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: opacity 0.15s;
+    }
+
+    .pp-breadcrumb a:hover {
+      opacity: 0.8;
+      text-decoration: underline;
+    }
+
+    .pp-theme-toggle {
+      background: var(--pp-panel);
+      border: 1px solid var(--pp-line);
+      color: var(--pp-ink);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .pp-theme-toggle:hover {
+      border-color: var(--pp-accent);
+    }
+
+    .pp-shell {
+      background: var(--pp-panel);
+      border: 1px solid var(--pp-line);
+      border-radius: var(--pp-radius);
+      box-shadow: var(--pp-shadow);
+      overflow: hidden;
+    }
+
+    .pp-head {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--pp-line);
+      background: var(--pp-shell);
+    }
+
+    .pp-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--pp-accent);
+      margin-bottom: 4px;
+    }
+
+    h1.pp-title {
+      font-size: 20px;
+      font-weight: 750;
+      line-height: 1.25;
+      margin: 0 0 6px;
+      letter-spacing: -0.02em;
+      color: var(--pp-heading);
+    }
+
+    .pp-sub {
+      color: var(--pp-muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .pp-controls {
+      display: grid;
+      grid-template-columns: 1.6fr 0.8fr 0.8fr 0.8fr;
+      gap: 16px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--pp-line);
+      background: var(--pp-panel);
+    }
+
+    .pp-control label,
+    .pp-control-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--pp-muted);
+      margin-bottom: 8px;
+    }
+
+    .pp-control label span {
+      color: var(--pp-heading);
+      font-family: var(--pp-mono);
+      font-weight: 600;
+    }
+
+    .pp-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    .pp-tab,
+    .pp-icon-btn {
+      border: 1px solid var(--pp-line);
+      background: var(--pp-shell);
+      color: var(--pp-ink);
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+
+    .pp-tab:hover,
+    .pp-icon-btn:hover {
+      border-color: var(--pp-accent);
+    }
+
+    .pp-tab[aria-pressed="true"] {
+      background: var(--pp-primary);
+      color: #ffffff;
+      border-color: var(--pp-primary);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    [data-theme="dark"] .pp-tab[aria-pressed="true"],
+    :root.dark .pp-tab[aria-pressed="true"] {
+      background: var(--pp-accent);
+      color: #0c1722;
+      border-color: var(--pp-accent);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--pp-accent);
+      cursor: pointer;
+    }
+
+    .pp-story {
+      min-height: 44px;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--pp-line);
+      background: var(--pp-shell);
+    }
+
+    .pp-story strong {
+      font-size: 12px;
+      white-space: nowrap;
+      color: var(--pp-heading);
+    }
+
+    .pp-story span {
+      font-size: 12px;
+      color: var(--pp-muted);
+      line-height: 1.4;
+    }
+
+    .pp-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--pp-line);
+      background: var(--pp-panel);
+    }
+
+    .pp-metric {
+      padding: 14px 22px;
+      border-right: 1px solid var(--pp-line);
+    }
+
+    .pp-metric:last-child {
+      border-right: 0;
+    }
+
+    .pp-metric-name {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pp-muted);
+      font-weight: 700;
+    }
+
+    .pp-metric-value {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--pp-mono);
+      font-weight: 700;
+      color: var(--pp-heading);
+    }
+
+    .pp-metric-note {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--pp-muted);
+    }
+
+    .pp-main {
+      padding: 18px 22px 10px;
+    }
+
+    .pp-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      margin: 0 4px 12px;
+      font-size: 11px;
+      color: var(--pp-muted);
+      font-weight: 500;
+    }
+
+    .pp-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pp-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .pp-viz-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 210px;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .pp-timeline-wrap {
+      min-width: 0;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      border: 1px solid var(--pp-line-subtle);
+      border-radius: 8px;
+      background: var(--pp-shell);
+    }
+
+    .pp-timeline {
+      min-width: 660px;
+      position: relative;
+    }
+
+    .pp-axis {
+      height: 24px;
+      margin-left: 112px;
+      position: relative;
+      border-bottom: 1px solid var(--pp-line);
+    }
+
+    .pp-tick {
+      position: absolute;
+      bottom: 4px;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: var(--pp-muted);
+      font-variant-numeric: tabular-nums;
+      font-family: var(--pp-mono);
+    }
+
+    .pp-lane {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      min-height: 48px;
+      border-bottom: 1px solid var(--pp-line-subtle);
+    }
+
+    .pp-lane:last-child {
+      border-bottom: 0;
+    }
+
+    .pp-lane-label {
+      padding: 8px 10px 0 6px;
+      color: var(--pp-muted);
+      border-right: 1px solid var(--pp-line);
+      background: var(--pp-panel);
+    }
+
+    .pp-lane-label strong {
+      display: block;
+      font-size: 12px;
+      color: var(--pp-heading);
+    }
+
+    .pp-lane-label span {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      line-height: 1.25;
+      font-family: var(--pp-mono);
+    }
+
+    .pp-track {
+      position: relative;
+      min-height: 48px;
+      background-image: linear-gradient(to right, var(--pp-line-subtle) 1px, transparent 1px);
+      background-size: var(--pp-grid, 40px) 100%;
+    }
+
+    .pp-task {
+      position: absolute;
+      top: 6px;
+      height: 36px;
+      min-width: 12px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: -0.01em;
+      font-family: var(--pp-mono);
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      transition: opacity 0.15s, filter 0.15s, transform 0.15s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .pp-task[data-kind="F"] {
+      background: var(--pp-forward);
+      color: var(--pp-forward-text);
+    }
+
+    .pp-task[data-kind="B"] {
+      background: var(--pp-backward);
+      color: var(--pp-backward-text);
+    }
+
+    .pp-task.is-future {
+      opacity: 0.22;
+      filter: saturate(0.3);
+    }
+
+    .pp-task.is-now {
+      outline: 2px solid var(--pp-ink);
+      outline-offset: 1px;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+      z-index: 2;
+    }
+
+    .pp-cursor {
+      position: absolute;
+      top: 24px;
+      bottom: 0;
+      width: 2px;
+      background: var(--pp-ink);
+      pointer-events: none;
+      opacity: 0.85;
+      z-index: 4;
+    }
+
+    .pp-cursor::before {
+      content: "";
+      position: absolute;
+      top: -5px;
+      left: -4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--pp-accent);
+      border: 2px solid var(--pp-panel);
+    }
+
+    .pp-formulas {
+      border: 1px solid var(--pp-line);
+      background: var(--pp-shell);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pp-formulas h3 {
+      margin: 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pp-muted);
+      font-weight: 750;
+    }
+
+    .pp-formula-definition {
+      font-size: 11px;
+      color: var(--pp-muted);
+      line-height: 1.35;
+      margin-bottom: 2px;
+      font-style: italic;
+    }
+
+    .pp-formula-row {
+      padding: 7px 9px;
+      border: 1px solid var(--pp-line-subtle);
+      border-radius: 6px;
+      background: var(--pp-panel);
+      transition: all 0.15s;
+    }
+
+    .pp-formula-row.is-selected {
+      border-color: var(--pp-accent);
+      background: color-mix(in srgb, var(--pp-accent) 8%, var(--pp-panel));
+      box-shadow: 0 0 0 1px var(--pp-accent);
+    }
+
+    .pp-formula-name {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--pp-muted);
+    }
+
+    .pp-formula-expression {
+      display: block;
+      font-family: var(--pp-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--pp-heading);
+      margin: 2px 0 1px;
+    }
+
+    .pp-formula-evaluated {
+      display: block;
+      font-family: var(--pp-mono);
+      font-size: 10px;
+      color: var(--pp-accent);
+      font-weight: 600;
+    }
+
+    .pp-stepper {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 24px;
+      border-top: 1px solid var(--pp-line);
+      border-bottom: 1px solid var(--pp-line);
+      background: var(--pp-shell);
+    }
+
+    .pp-playset {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pp-icon-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+    }
+
+    #pp-scrub {
+      flex: 1;
+    }
+
+    .pp-time {
+      font-family: var(--pp-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--pp-heading);
+      min-width: 90px;
+      text-align: right;
+    }
+
+    .pp-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--pp-panel);
+    }
+
+    .pp-panel {
+      padding: 16px 22px;
+    }
+
+    .pp-panel+.pp-panel {
+      border-left: 1px solid var(--pp-line);
+    }
+
+    .pp-panel h3 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pp-heading);
+      font-weight: 750;
+    }
+
+    .pp-panel-sub {
+      color: var(--pp-muted);
+      font-size: 11px;
+      min-height: 16px;
+      line-height: 1.35;
+    }
+
+    .pp-memory-list {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .pp-memory-row {
+      display: grid;
+      grid-template-columns: 48px 1fr 36px;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+    }
+
+    .pp-memory-row strong {
+      color: var(--pp-heading);
+      font-size: 11px;
+    }
+
+    .pp-bar {
+      height: 14px;
+      background: var(--pp-idle);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .pp-bar>span {
+      display: block;
+      height: 100%;
+      background: var(--pp-memory);
+      transition: width 0.2s ease;
+      border-radius: 3px;
+    }
+
+    .pp-memory-row span:last-child {
+      font-family: var(--pp-mono);
+      font-weight: 600;
+      text-align: right;
+      color: var(--pp-muted);
+    }
+
+    .pp-network {
+      margin-top: 10px;
+      height: 120px;
+      position: relative;
+    }
+
+    .pp-network svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .pp-gpu-node {
+      position: absolute;
+      top: 44px;
+      width: 52px;
+      height: 38px;
+      transform: translateX(-50%);
+      border: 1px solid var(--pp-line);
+      border-radius: 8px;
+      background: var(--pp-shell);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 750;
+      color: var(--pp-heading);
+      z-index: 2;
+      transition: all 0.2s;
+    }
+
+    .pp-gpu-node.is-active {
+      border-color: var(--pp-accent);
+      background: var(--pp-panel);
+      color: var(--pp-accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--pp-accent) 25%, transparent);
+    }
+
+    .pp-comm-path {
+      fill: none;
+      stroke: var(--pp-comm);
+      stroke-width: 2.5;
+      stroke-dasharray: 6 4;
+      animation: pp-dash 0.7s linear infinite;
+    }
+
+    .pp-no-comm {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      color: var(--pp-muted);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    @keyframes pp-dash {
+      to {
+        stroke-dashoffset: -10;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 8px;
+      }
+
+      .pp-controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .pp-controls .pp-control:first-child {
+        grid-column: 1 / -1;
+      }
+
+      .pp-controls .pp-control:last-child {
+        grid-column: 1 / -1;
+      }
+
+      .pp-story {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .pp-bottom {
+        grid-template-columns: 1fr;
+      }
+
+      .pp-panel+.pp-panel {
+        border-left: 0;
+        border-top: 1px solid var(--pp-line);
+      }
+
+      .pp-metric {
+        padding: 10px 14px;
+      }
+
+      .pp-metric-value {
+        font-size: 18px;
+      }
+
+      .pp-viz-row {
+        grid-template-columns: 1fr;
+      }
+
+      .pp-formulas {
+        border-left: 0;
+        border-top: 1px solid var(--pp-line);
+        padding: 12px 14px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="pp-lab">
+    <div class="pp-nav-bar">
+      <div class="pp-breadcrumb">
+        <span>LLM Course</span>
+        <span>›</span>
+        <a href="../modules/08-context-pipeline/">Module 8: Context, Pipeline &amp; Expert Parallelism</a>
+        <span>›</span>
+        <span>Pipeline Lab</span>
+      </div>
+      <button type="button" class="pp-theme-toggle" id="pp-theme-btn" aria-label="Toggle theme">
+        <span id="pp-theme-icon">◐</span>
+        <span id="pp-theme-text">Toggle Theme</span>
+      </button>
+    </div>
+
+    <div class="pp-shell">
+      <div class="pp-head">
+        <div class="pp-badge">Interactive System Simulator</div>
+        <h1 class="pp-title">Pipeline Parallelism Schedule Simulator</h1>
+        <p class="pp-sub">A 24-layer Transformer partitioned across sequential pipeline stages (<em>p</em>). Compare
+          schedule mechanics, bubble ratios (<em>r</em>), peak activation residency, and boundary tensor transfers under
+          different workload micro-batching (<em>m</em>) configurations.</p>
+      </div>
+
+      <div class="pp-controls">
+        <div class="pp-control">
+          <div class="pp-control-title">Schedule Policy</div>
+          <div class="pp-tabs" role="group" aria-label="Pipeline schedule">
+            <button class="pp-tab" data-schedule="naive" aria-pressed="false">Naive</button>
+            <button class="pp-tab" data-schedule="afab" aria-pressed="false">GPipe / AFAB</button>
+            <button class="pp-tab" data-schedule="1f1b" aria-pressed="true">1F1B</button>
+            <button class="pp-tab" data-schedule="interleaved" aria-pressed="false">Interleaved 1F1B</button>
+          </div>
+        </div>
+        <div class="pp-control">
+          <label for="pp-stages">Stages (<em>p</em>) <span id="pp-stages-value">4</span></label>
+          <input id="pp-stages" type="range" min="2" max="6" step="1" value="4">
+        </div>
+        <div class="pp-control">
+          <label for="pp-micro">Micro-batches (<em>m</em>) <span id="pp-micro-value">8</span></label>
+          <input id="pp-micro" type="range" min="1" max="12" step="1" value="8">
+        </div>
+        <div class="pp-control">
+          <label for="pp-backward">Backward / Forward <span id="pp-backward-value">2×</span></label>
+          <input id="pp-backward" type="range" min="1" max="3" step="0.5" value="2">
+        </div>
+      </div>
+
+      <div class="pp-story"><strong id="pp-story-title">1F1B:</strong> <span id="pp-story-text"></span></div>
+
+      <div class="pp-metrics" aria-live="polite">
+        <div class="pp-metric"><span class="pp-metric-name">GPU Utilization</span><span class="pp-metric-value"
+            id="pp-util">—</span><span class="pp-metric-note">useful compute ÷ total timeline capacity</span></div>
+        <div class="pp-metric"><span class="pp-metric-name">Peak Activations / GPU</span><span class="pp-metric-value"
+            id="pp-peak">—</span><span class="pp-metric-note">maximum concurrent stored micro-batches</span></div>
+        <div class="pp-metric"><span class="pp-metric-name">Boundary Transfers</span><span class="pp-metric-value"
+            id="pp-transfers">—</span><span class="pp-metric-note">total activations forward + gradients back</span>
+        </div>
+      </div>
+
+      <div class="pp-main">
+        <div class="pp-legend">
+          <span class="pp-key"><i class="pp-swatch" style="background:var(--pp-forward)"></i>Forward (<em>F</em>, stores
+            activations)</span>
+          <span class="pp-key"><i class="pp-swatch" style="background:var(--pp-backward)"></i>Backward (<em>B</em>,
+            releases activations)</span>
+          <span class="pp-key"><i class="pp-swatch" style="background:var(--pp-idle)"></i>Bubble (idle GPU)</span>
+          <span class="pp-key"><i class="pp-swatch" style="background:var(--pp-comm)"></i>Boundary Communication</span>
+          <span class="pp-key" id="pp-duration-note" style="font-family:var(--pp-mono)">Duration: F = 1, B = 2</span>
+        </div>
+        <div class="pp-viz-row">
+          <div class="pp-timeline-wrap">
+            <div class="pp-timeline" id="pp-timeline" aria-label="GPU execution timeline"></div>
+          </div>
+          <aside class="pp-formulas" aria-label="Pipeline bubble ratio formulas">
+            <h3>Bubble Ratio (<em>r</em>)</h3>
+            <div class="pp-formula-definition"><em>r</em> = idle bubble time ÷ ideal compute time</div>
+            <div class="pp-formula-row" data-formula-schedule="naive">
+              <span class="pp-formula-name">Naive</span><span class="pp-formula-expression">r = p − 1</span><span
+                class="pp-formula-evaluated"></span>
+            </div>
+            <div class="pp-formula-row" data-formula-schedule="afab">
+              <span class="pp-formula-name">GPipe / AFAB</span><span class="pp-formula-expression">r = (p − 1) /
+                m</span><span class="pp-formula-evaluated"></span>
+            </div>
+            <div class="pp-formula-row" data-formula-schedule="1f1b">
+              <span class="pp-formula-name">1F1B</span><span class="pp-formula-expression">r = (p − 1) / m</span><span
+                class="pp-formula-evaluated"></span>
+            </div>
+            <div class="pp-formula-row" data-formula-schedule="interleaved">
+              <span class="pp-formula-name">Interleaved 1F1B</span><span class="pp-formula-expression">r = (p − 1) /
+                (v·m)</span><span class="pp-formula-evaluated"></span>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="pp-stepper">
+        <div class="pp-playset">
+          <button class="pp-icon-btn" id="pp-prev" type="button" aria-label="Previous step">◀</button>
+          <button class="pp-icon-btn" id="pp-play" type="button" aria-label="Play animation">▶</button>
+          <button class="pp-icon-btn" id="pp-next" type="button" aria-label="Next step">▶|</button>
+        </div>
+        <input id="pp-scrub" type="range" min="0" max="1" step="1" value="0" aria-label="Timeline step">
+        <div class="pp-time" id="pp-time">step 0 / 0</div>
+      </div>
+
+      <div class="pp-bottom">
+        <div class="pp-panel">
+          <h3>Activation Memory Residency</h3>
+          <div class="pp-panel-sub" id="pp-memory-note">Forward creates saved activations; backward releases them.</div>
+          <div class="pp-memory-list" id="pp-memory-list"></div>
+        </div>
+        <div class="pp-panel">
+          <h3>Inter-Stage Tensor Transfers</h3>
+          <div class="pp-panel-sub" id="pp-comm-note">Only neighboring pipeline stages exchange boundary tensors.</div>
+          <div class="pp-network" id="pp-network"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // Theme synchronization
+      const toggleBtn = document.getElementById("pp-theme-btn");
+      const themeIcon = document.getElementById("pp-theme-icon");
+      const themeText = document.getElementById("pp-theme-text");
+
+      function getPreferredTheme() {
+        const saved = localStorage.getItem("pp-theme");
+        if (saved) return saved;
+        try {
+          if (window.parent && window.parent.document && window.parent.document.body) {
+            const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+            if (scheme === "slate") return "dark";
+            if (scheme === "default") return "light";
+          }
+        } catch (e) { }
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      function applyTheme(theme) {
+        if (theme === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+          if (themeIcon) themeIcon.textContent = "☀";
+          if (themeText) themeText.textContent = "Light Mode";
+        } else {
+          document.documentElement.setAttribute("data-theme", "light");
+          if (themeIcon) themeIcon.textContent = "☾";
+          if (themeText) themeText.textContent = "Dark Mode";
+        }
+      }
+
+      let currentTheme = getPreferredTheme();
+      applyTheme(currentTheme);
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+          currentTheme = currentTheme === "dark" ? "light" : "dark";
+          localStorage.setItem("pp-theme", currentTheme);
+          applyTheme(currentTheme);
+        });
+      }
+
+      // Observe parent MkDocs theme changes when embedded in iframe
+      try {
+        if (window.parent && window.parent.document && window.parent.document.body) {
+          const observer = new MutationObserver(() => {
+            const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+            if (scheme === "slate") applyTheme("dark");
+            else if (scheme === "default") applyTheme("light");
+          });
+          observer.observe(window.parent.document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
+        }
+      } catch (e) { }
+
+      // Main Simulation
+      const root = document.getElementById("pp-lab");
+      const els = {
+        tabs: [...root.querySelectorAll(".pp-tab")],
+        stages: root.querySelector("#pp-stages"),
+        micro: root.querySelector("#pp-micro"),
+        backward: root.querySelector("#pp-backward"),
+        stagesValue: root.querySelector("#pp-stages-value"),
+        microValue: root.querySelector("#pp-micro-value"),
+        backwardValue: root.querySelector("#pp-backward-value"),
+        durationNote: root.querySelector("#pp-duration-note"),
+        storyTitle: root.querySelector("#pp-story-title"),
+        storyText: root.querySelector("#pp-story-text"),
+        util: root.querySelector("#pp-util"),
+        peak: root.querySelector("#pp-peak"),
+        transfers: root.querySelector("#pp-transfers"),
+        timeline: root.querySelector("#pp-timeline"),
+        scrub: root.querySelector("#pp-scrub"),
+        time: root.querySelector("#pp-time"),
+        prev: root.querySelector("#pp-prev"),
+        play: root.querySelector("#pp-play"),
+        next: root.querySelector("#pp-next"),
+        memoryList: root.querySelector("#pp-memory-list"),
+        memoryNote: root.querySelector("#pp-memory-note"),
+        network: root.querySelector("#pp-network"),
+        commNote: root.querySelector("#pp-comm-note")
+      };
+      els.formulaRows = [...root.querySelectorAll(".pp-formula-row")];
+
+      const stories = {
+        naive: ["Naive Serial:", "One full batch walks sequentially through the stages, then its gradients walk back. Almost every GPU sits idle almost all the time (utilization ~1/p)."],
+        afab: ["GPipe / AFAB (All-Forward-All-Backward):", "Micro-batches fill the pipeline, but all forward passes finish before any backward pass begins—causing saved activations to pile up linearly with m."],
+        "1f1b": ["1F1B (One-Forward-One-Backward):", "After warm-up, each GPU strictly alternates one forward and one backward pass. Bubble ratio matches AFAB (r = (p-1)/m), but peak activation residency is capped at p instead of m."],
+        interleaved: ["Interleaved 1F1B:", "Each physical GPU hosts v virtual model stages (e.g. v=2). Micro-batches loop through the cluster multiple times: idle bubble shrinks by v, but boundary network transfers double."]
+      };
+
+      let state = { schedule: "1f1b", p: 4, m: 8, backwardRatio: 2, step: 0, timer: null, data: null };
+      const key = (kind, s, mb) => `${kind}:${s}:${mb}`;
+
+      function buildTasks(p, m, v, backwardRatio) {
+        const logical = p * v;
+        const tasks = [];
+        for (let mb = 0; mb < m; mb++) {
+          for (let s = 0; s < logical; s++) {
+            tasks.push({ id: key("F", s, mb), kind: "F", s, mb, gpu: s % p, dur: 1 / v, deps: s ? [key("F", s - 1, mb)] : [] });
+            tasks.push({ id: key("B", s, mb), kind: "B", s, mb, gpu: s % p, dur: backwardRatio / v, deps: [key("F", s, mb), ...(s < logical - 1 ? [key("B", s + 1, mb)] : [])] });
+          }
+        }
+        return tasks;
+      }
+
+      function fixedOrder(p, m, mode) {
+        const queues = Array.from({ length: p }, () => []);
+        for (let s = 0; s < p; s++) {
+          if (mode === "afab" || mode === "naive") {
+            for (let mb = 0; mb < m; mb++) queues[s].push(key("F", s, mb));
+            for (let mb = 0; mb < m; mb++) queues[s].push(key("B", s, mb));
+          } else {
+            const warm = Math.min(p - s - 1, m);
+            for (let mb = 0; mb < warm; mb++) queues[s].push(key("F", s, mb));
+            for (let i = 0; i < m - warm; i++) {
+              queues[s].push(key("F", s, warm + i));
+              queues[s].push(key("B", s, i));
+            }
+            for (let mb = m - warm; mb < m; mb++) queues[s].push(key("B", s, mb));
+          }
+        }
+        return queues;
+      }
+
+      function scheduleFixed(p, m, mode, backwardRatio) {
+        const v = 1, quantum = 0.5 / v;
+        const tasks = buildTasks(p, m, v, backwardRatio);
+        const byId = new Map(tasks.map(t => [t.id, t]));
+        const queues = fixedOrder(p, m, mode);
+        const index = Array(p).fill(0), ends = new Map(), placed = [], busy = Array(p).fill(0);
+        let t = 0, guard = 0;
+        while (placed.length < tasks.length && guard++ < 10000) {
+          let progress = false;
+          for (let gpu = 0; gpu < p; gpu++) {
+            if (busy[gpu] > t || index[gpu] >= queues[gpu].length) continue;
+            const task = byId.get(queues[gpu][index[gpu]]);
+            if (task.deps.every(d => ends.has(d) && ends.get(d) <= t)) {
+              task.start = t; task.end = t + task.dur; placed.push(task); ends.set(task.id, task.end);
+              busy[gpu] = task.end; index[gpu]++; progress = true;
+            }
+          }
+          t = +(t + quantum).toFixed(6);
+          if (!progress && t > 500) break;
+        }
+        return placed;
+      }
+
+      function scheduleInterleaved(p, m, backwardRatio) {
+        const v = 2, tasks = buildTasks(p, m, v, backwardRatio), pending = new Map(tasks.map(t => [t.id, t]));
+        const ends = new Map(), placed = [], busy = Array(p).fill(0), quantum = 0.5 / v;
+        let t = 0, guard = 0;
+        while (pending.size && guard++ < 30000) {
+          for (let gpu = 0; gpu < p; gpu++) {
+            if (busy[gpu] > t + 1e-8) continue;
+            const ready = [...pending.values()].filter(task => task.gpu === gpu && task.deps.every(d => ends.has(d) && ends.get(d) <= t + 1e-8));
+            ready.sort((a, b) => {
+              if (a.kind !== b.kind) return a.kind === "B" ? -1 : 1;
+              if (a.kind === "F") return (b.s - a.s) || (a.mb - b.mb);
+              return (a.s - b.s) || (a.mb - b.mb);
+            });
+            if (ready.length) {
+              const task = ready[0]; task.start = t; task.end = t + task.dur;
+              pending.delete(task.id); ends.set(task.id, task.end); busy[gpu] = task.end; placed.push(task);
+            }
+          }
+          t = +(t + quantum).toFixed(6);
+        }
+        return placed;
+      }
+
+      function makeData() {
+        const p = state.p, shownM = state.schedule === "naive" ? 1 : state.m;
+        const v = state.schedule === "interleaved" ? 2 : 1;
+        const tasks = state.schedule === "interleaved" ? scheduleInterleaved(p, shownM, state.backwardRatio) : scheduleFixed(p, shownM, state.schedule, state.backwardRatio);
+        const maxT = Math.max(...tasks.map(t => t.end));
+        const quantum = 0.5 / v;
+        const transfers = 2 * shownM * (p * v - 1);
+        const compute = tasks.reduce((sum, t) => sum + t.dur, 0);
+        const utilization = compute / (p * maxT);
+        let peak = 0;
+        for (let ti = 0; ti <= maxT + 1e-8; ti += quantum) {
+          const mem = memoryAt(tasks, ti, p, v);
+          peak = Math.max(peak, ...mem);
+        }
+        return { tasks, maxT, quantum, v, shownM, transfers, utilization, peak };
+      }
+
+      function formatRatio(value) {
+        return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+      }
+
+      function updateFormulas() {
+        const values = {
+          naive: state.p - 1,
+          afab: (state.p - 1) / state.m,
+          "1f1b": (state.p - 1) / state.m,
+          interleaved: (state.p - 1) / (2 * state.m)
+        };
+        els.formulaRows.forEach(row => {
+          const schedule = row.dataset.formulaSchedule;
+          row.classList.toggle("is-selected", schedule === state.schedule);
+          row.querySelector(".pp-formula-evaluated").textContent = `current: ${formatRatio(values[schedule])}`;
+        });
+      }
+
+      function memoryAt(tasks, time, p, v) {
+        const fEnds = new Map(), bEnds = new Map();
+        tasks.forEach(t => (t.kind === "F" ? fEnds : bEnds).set(`${t.s}:${t.mb}`, t.end));
+        const mem = Array(p).fill(0);
+        fEnds.forEach((fEnd, id) => {
+          const [s] = id.split(":").map(Number), bEnd = bEnds.get(id);
+          if (fEnd <= time + 1e-8 && (!bEnd || bEnd > time + 1e-8)) mem[s % p] += 1 / v;
+        });
+        return mem;
+      }
+
+      function communicationsAt(tasks, time, p, v) {
+        const logical = p * v, out = [];
+        tasks.forEach(t => {
+          if (Math.abs(t.end - time) > 1e-8) return;
+          if (t.kind === "F" && t.s < logical - 1) out.push({ from: t.gpu, to: (t.s + 1) % p, kind: "activations", mb: t.mb });
+          if (t.kind === "B" && t.s > 0) out.push({ from: t.gpu, to: (t.s - 1 + p) % p, kind: "gradients", mb: t.mb });
+        });
+        return out;
+      }
+
+      function layerRange(stage, logicalStages) {
+        const first = Math.floor(stage * 24 / logicalStages);
+        const last = Math.floor((stage + 1) * 24 / logicalStages) - 1;
+        return first === last ? `L${first}` : `L${first}–${last}`;
+      }
+
+      function taskLabel(t, width) {
+        const range = layerRange(t.s, state.p * state.data.v);
+        return width > 58 ? `${t.kind}${t.mb + 1} · ${range}` : `${t.kind}${t.mb + 1}`;
+      }
+
+      function renderTimeline() {
+        const d = state.data, width = Math.max(700, d.maxT * 39 + 112), plotWidth = width - 112;
+        els.timeline.style.width = `${width}px`;
+        let html = '<div class="pp-axis">';
+        const tickEvery = d.maxT > 26 ? 4 : d.maxT > 14 ? 2 : 1;
+        for (let t = 0; t <= d.maxT + 1e-8; t += tickEvery) html += `<span class="pp-tick" style="left:${(t / d.maxT) * 100}%">${Number.isInteger(t) ? t : t.toFixed(1)}</span>`;
+        html += "</div>";
+        for (let gpu = 0; gpu < state.p; gpu++) {
+          const owned = Array.from({ length: state.p * d.v }, (_, s) => s).filter(s => s % state.p === gpu).map(s => layerRange(s, state.p * d.v));
+          html += `<div class="pp-lane"><div class="pp-lane-label"><strong>GPU ${gpu}</strong><span>${owned.join(" · ")}</span></div><div class="pp-track" style="--pp-grid:${plotWidth / d.maxT}px">`;
+          d.tasks.filter(t => t.gpu === gpu).forEach(t => {
+            const left = t.start / d.maxT * 100, w = t.dur / d.maxT * 100, px = t.dur / d.maxT * plotWidth;
+            html += `<button type="button" class="pp-task" data-start="${t.start}" data-end="${t.end}" data-kind="${t.kind}" title="${t.kind === "F" ? "Forward" : "Backward"} · micro-batch ${t.mb + 1} · ${layerRange(t.s, state.p * d.v)}${d.v > 1 ? ` · virtual chunk ${Math.floor(t.s / state.p) + 1}` : ""}" style="left:${left}%;width:calc(${w}% - 2px)">${taskLabel(t, px)}</button>`;
+          });
+          html += "</div></div>";
+        }
+        html += '<div class="pp-cursor" id="pp-cursor"></div>';
+        els.timeline.innerHTML = html;
+      }
+
+      function renderMemory(time) {
+        const mem = memoryAt(state.data.tasks, time, state.p, state.data.v);
+        const ceiling = Math.max(state.data.peak, 1);
+        els.memoryList.innerHTML = mem.map((x, gpu) => `<div class="pp-memory-row"><strong>GPU ${gpu}</strong><div class="pp-bar"><span style="width:${x / ceiling * 100}%"></span></div><span>${Number.isInteger(x) ? x : x.toFixed(1)}</span></div>`).join("");
+        els.memoryNote.textContent = mem.some(x => x > 0) ? "Bars count stored forward activation micro-batches awaiting backward pass." : "No stored activations at this instant.";
+      }
+
+      function renderNetwork(time) {
+        const comms = communicationsAt(state.data.tasks, time, state.p, state.data.v);
+        const active = new Set(state.data.tasks.filter(t => t.start <= time + 1e-8 && t.end > time + 1e-8).map(t => t.gpu));
+        const xs = Array.from({ length: state.p }, (_, i) => 8 + (84 * (state.p === 1 ? 0 : i / (state.p - 1))));
+        let html = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="pp-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--pp-comm)"></path></marker></defs>';
+        comms.forEach((c, i) => {
+          const x1 = xs[c.from], x2 = xs[c.to], bend = 20 + (i % 3) * 8;
+          html += `<path class="pp-comm-path" marker-end="url(#pp-arrow)" d="M ${x1} 51 Q ${(x1 + x2) / 2} ${bend} ${x2} 51"></path>`;
+        });
+        html += "</svg>";
+        xs.forEach((x, gpu) => html += `<div class="pp-gpu-node ${active.has(gpu) ? "is-active" : ""}" style="left:${x}%">GPU ${gpu}</div>`);
+        if (!comms.length) html += '<div class="pp-no-comm">No boundary transfer completes at this step.</div>';
+        els.network.innerHTML = html;
+        if (comms.length) {
+          const acts = comms.filter(c => c.kind === "activations").length, grads = comms.length - acts;
+          els.commNote.textContent = `${acts} activation send${acts === 1 ? "" : "s"}, ${grads} gradient send${grads === 1 ? "" : "s"} completing now.`;
+        } else els.commNote.textContent = "Compute executes locally; no peer-to-peer boundary transfer active at this instant.";
+      }
+
+      function updateStep() {
+        const d = state.data, time = state.step * d.quantum;
+        els.scrub.value = String(state.step);
+        els.time.textContent = `time ${time.toFixed(d.v > 1 ? 1 : 0)} / ${d.maxT}`;
+        const cursor = els.timeline.querySelector("#pp-cursor");
+        if (cursor) cursor.style.left = `calc(112px + (100% - 112px) * ${Math.min(time / d.maxT, 1)})`;
+        els.timeline.querySelectorAll(".pp-task").forEach(node => {
+          const start = +node.dataset.start, end = +node.dataset.end;
+          node.classList.toggle("is-future", start >= time - 1e-8);
+          node.classList.toggle("is-now", start <= time + 1e-8 && end > time + 1e-8);
+        });
+        renderMemory(time); renderNetwork(time);
+      }
+
+      function stop() {
+        if (state.timer) clearInterval(state.timer);
+        state.timer = null;
+        els.play.textContent = "▶";
+        els.play.setAttribute("aria-label", "Play animation");
+      }
+
+      function rebuild() {
+        stop();
+        if (state.schedule === "naive") { els.micro.disabled = true; } else { els.micro.disabled = false; }
+        state.data = makeData(); state.step = 0;
+        const maxStep = Math.round(state.data.maxT / state.data.quantum);
+        els.scrub.max = String(maxStep); els.scrub.value = "0";
+        els.stagesValue.textContent = state.p; els.microValue.textContent = state.schedule === "naive" ? "1 (fixed)" : state.m;
+        els.backwardValue.textContent = `${state.backwardRatio}×`; els.durationNote.textContent = `Duration: F = 1, B = ${state.backwardRatio}`;
+        const story = stories[state.schedule]; els.storyTitle.textContent = story[0]; els.storyText.textContent = story[1];
+        els.util.textContent = `${Math.round(state.data.utilization * 100)}%`;
+        els.peak.textContent = Number.isInteger(state.data.peak) ? state.data.peak : state.data.peak.toFixed(1);
+        els.transfers.textContent = state.data.transfers;
+        updateFormulas(); renderTimeline(); updateStep();
+      }
+
+      els.tabs.forEach(tab => tab.addEventListener("click", () => {
+        state.schedule = tab.dataset.schedule;
+        els.tabs.forEach(x => x.setAttribute("aria-pressed", String(x === tab)));
+        rebuild();
+      }));
+      els.stages.addEventListener("input", () => { state.p = +els.stages.value; rebuild(); });
+      els.micro.addEventListener("input", () => { state.m = +els.micro.value; rebuild(); });
+      els.backward.addEventListener("input", () => { state.backwardRatio = +els.backward.value; rebuild(); });
+      els.scrub.addEventListener("input", () => { stop(); state.step = +els.scrub.value; updateStep(); });
+      els.prev.addEventListener("click", () => { stop(); state.step = Math.max(0, state.step - 1); updateStep(); });
+      els.next.addEventListener("click", () => { stop(); state.step = Math.min(+els.scrub.max, state.step + 1); updateStep(); });
+      els.play.addEventListener("click", () => {
+        if (state.timer) { stop(); return; }
+        els.play.textContent = "⏸"; els.play.setAttribute("aria-label", "Pause animation");
+        if (state.step >= +els.scrub.max) state.step = 0;
+        state.timer = setInterval(() => {
+          state.step++;
+          if (state.step > +els.scrub.max) { stop(); state.step = +els.scrub.max; }
+          updateStep();
+        }, 420);
+      });
+
+      // Handle clicking directly on tasks in the timeline
+      els.timeline.addEventListener("click", (e) => {
+        const task = e.target.closest(".pp-task");
+        if (!task) return;
+        stop();
+        const start = +task.dataset.start;
+        state.step = Math.round(start / state.data.quantum);
+        updateStep();
+      });
+
+      rebuild();
+    })();
+  </script>
+</body>
+
+</html>

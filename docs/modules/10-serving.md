@@ -5,17 +5,18 @@
 Move from one correct cached request to a system that admits, schedules and
 retires many requests under finite compute, KV memory and latency budgets.
 
-The module uses two complementary explanations:
+The module builds on three complementary explanations and references:
 
 - [Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)
   derives the mechanism from attention masks, KV caching, chunked prefill and
   ragged batches;
 - [Inside vLLM: Anatomy of a High-Throughput LLM Inference System](https://vllm.ai/blog/2025-09-05-anatomy-of-vllm)
   maps those ideas onto a real engine, scheduler, cache manager and serving
-  stack.
+  stack;
+- [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm)
+  provides a lightweight, educational re-implementation of vLLM's core architecture—continuous batching, block tables, and PagedAttention—in clean, readable Python without production C++/CUDA complexity.
 
-The goal is not to memorize one engine's class names. It is to understand the
-state machine and resource trade-offs shared by modern LLM serving systems.
+The goal is not to memorize one engine's class names or spend hours configuring a heavy serving harness. It is to understand the state machine and resource trade-offs shared by modern LLM serving systems through conceptual analysis, code inspection, and live instructor-led demonstrations.
 
 ## Learning goals
 
@@ -150,6 +151,19 @@ Attention metadata ensures each query reads only its own visible KV context.
   <figcaption>Continuous batching turns vacated capacity into useful work at the next engine step.</figcaption>
 </figure>
 
+### Interactive serving simulator
+
+To explore how scheduler and cache-allocation choices interact, launch the
+dedicated continuous-batching and PagedAttention simulator:
+
+!!! tip "Interactive Visualization Lab"
+    Compare static and continuous batching, reserved and paged KV allocation,
+    and mixed, bursty, or long-prompt traffic. Change the token budget, prefill
+    chunk size, and KV block size while tracking throughput, TTFT, request
+    lifecycles, and physical block tables step by step.
+
+    [:material-play-circle-outline: Launch Continuous Batching & PagedAttention Simulator](../demos/continuous-batching.html){ .md-button .md-button--primary target="_blank" }
+
 ## Schedule tokens, not request count
 
 A request count hides enormous variation: one request may contribute one decode
@@ -228,7 +242,7 @@ block table while reading K/V.
 - too-small blocks increase metadata/lookup overhead;
 - too-large blocks waste more tail capacity.
 
-Use Module 10's formula to convert free blocks into token and request capacity.
+Use Module 9's formula to convert free blocks into token and request capacity.
 
 ## Prefix caching
 
@@ -373,6 +387,8 @@ allocation, chunking or request replacement.
 
 ## In-class investigation
 
+Because implementing a production-grade inference server from scratch requires significant systems boilerplate and merely spinning up a pre-built vLLM container provides limited educational value, Module 10 is structured as an interactive theory session and live instructor-led demonstration. Students dissect the underlying algorithms through interactive tracing and live benchmark analysis, reserving project studio bandwidth for the [Reproduction project](../reproduction-project.md).
+
 ### Part A — schedule by hand
 
 Given four requests with prompt/output lengths and a 12-token step budget:
@@ -391,17 +407,16 @@ For a fixed block count and block size, trace allocation for requests that
 arrive and finish at different lengths. Compare contiguous maximum-length
 reservation with paged allocation, including partial-tail waste.
 
-### Part C — serving report
+### Part C — live engine demonstration & code walkthrough
 
-Produce four plots:
+During Session 28, the instructor conducts a live demonstration using both a production engine (vLLM) and an educational implementation ([nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) / [`minilm/serving_sim.py`](../companion/10-serving.md)):
 
-1. throughput versus offered load;
-2. p50/p95/p99 TTFT versus offered load;
-3. p50/p95/p99 TPOT or ITL versus offered load;
-4. KV utilization and queue depth over time.
+1. **Architecture inspection:** walk through `nano-vllm`'s request queue, `Scheduler`, and block-table memory allocation logic to see how continuous batching and PagedAttention execute in pure Python.
+2. **Saturation curves:** run an open-loop load generator against vLLM while progressively increasing arrival rates to observe the hockey-stick transition where queueing explodes and p99 latency collapses.
+3. **Chunked prefill & decode protection:** demonstrate how unchunked long-prompt prefills cause decode stalls (ITL spikes), and how chunked prefill restores predictable token pacing.
+4. **Prefix caching:** observe TTFT reduction and cache-hit metrics when requests share long common prefixes (e.g., system prompts or few-shot exemplars).
 
-Mark the saturation point and the highest configuration that satisfies the
-declared latency objective.
+Students are encouraged to follow along or inspect the simulation scripts locally, but no separate benchmark implementation is required.
 
 ## Exit ticket
 
@@ -414,9 +429,7 @@ declared latency objective.
 
 ## Expected output
 
-A serving report that declares the workload and SLO, explains the scheduler and
-cache configuration, reports latency distributions and throughput under load,
-and connects every major result to queue, token, block or GPU evidence.
+A solid conceptual model of serving architectures verified through the exit ticket questions, understanding how the request lifecycle and memory allocator map to code in [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm), and the ability to interpret serving benchmark curves (TTFT vs throughput, ITL distributions, and goodput under SLOs). There is no mandatory coding deliverable for this module.
 
 ## References
 
@@ -426,13 +439,14 @@ and connects every major result to queue, token, block or GPU evidence.
   — visual derivation of KV caching, chunked prefill and ragged scheduling;
 - [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180)
   — the memory-allocation and scheduling analysis behind vLLM;
+- [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm)
+  — lightweight, readable educational implementation of vLLM's scheduler, block tables, and PagedAttention mechanism;
 - [vLLM documentation](https://docs.vllm.ai/)
-  — current configuration and benchmark interfaces.
+  — current configuration and benchmark interfaces;
 - Edouard Oyallon, *Training and Deploying Large-Scale Models*, MVA Lecture 6
   (2026) — speculative decoding and its acceptance-rate/verification-cost trade-off.
 
 ---
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/10-serving.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/10-serving.md){ .md-button .md-button--primary }
-
+[:material-code-tags: Practical Companion Guide](../companion/10-serving.md){ .md-button }

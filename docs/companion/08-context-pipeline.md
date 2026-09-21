@@ -2,9 +2,10 @@
 
 This lab accompanies [Module 8: Context, pipeline, and expert parallelism](../modules/08-context-pipeline.md).
 
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
+!!! tip "Practical Lab & Simulator Resources"
+    To explore multidimensional and pipeline parallelism concepts:
 
+    - **Interactive simulator:** [Pipeline Parallelism Schedule Simulator](../demos/pipeline-parallelism.html){ target="_blank" } — interactive schedule comparison (Naive, AFAB, 1F1B, Interleaved), bubble ratios, memory bars, and boundary communication graph.
     - **Lab script:** [`scripts/08_parallelism_sizing.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/08_parallelism_sizing.py)
     - **Reference module:** [`minilm/parallelism_calc.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/parallelism_calc.py)
     - **Unit tests:** `tests/test_module_08_parallelism.py` *(TODO)*
