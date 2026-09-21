@@ -5,9 +5,9 @@ This lab accompanies [Module 2: Training-loop anatomy and baseline GPT](../modul
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab scripts:** [`companion/scripts/02_training_step.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/02_training_step.py) · [`companion/scripts/02_train_baseline.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/02_train_baseline.py)
-    - **Reference modules:** [`companion/minilm/optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/optim.py) · [`companion/minilm/train.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/train.py) · [`companion/minilm/generate.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/generate.py)
-    - **Unit tests:** [`companion/tests/test_module_02_optim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_02_optim.py)
+    - **Lab scripts:** [`scripts/02_training_step.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/02_training_step.py) · [`scripts/02_train_baseline.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/02_train_baseline.py)
+    - **Reference modules:** [`minilm/optim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/optim.py) · [`minilm/train.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/train.py) · [`minilm/generate.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/generate.py)
+    - **Unit tests:** [`tests/test_module_02_optim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_02_optim.py)
 
 ---
 

@@ -5,9 +5,9 @@ This lab accompanies [Module 4: Single-GPU performance](../modules/04-single-gpu
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/04_single_gpu_perf.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/04_single_gpu_perf.py)
-    - **Reference module:** [`companion/minilm/profile_utils.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/profile_utils.py)
-    - **Unit tests:** `companion/tests/test_module_04_profile.py` *(TODO)*
+    - **Lab script:** [`scripts/04_single_gpu_perf.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/04_single_gpu_perf.py)
+    - **Reference module:** [`minilm/profile_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/profile_utils.py)
+    - **Unit tests:** `tests/test_module_04_profile.py` *(TODO)*
 
 ---
 

@@ -5,9 +5,9 @@ This lab accompanies [Module 5: Distributed data parallelism](../modules/05-ddp.
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/05_train_ddp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/05_train_ddp.py)
-    - **Reference module:** [`companion/minilm/distributed.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/distributed.py)
-    - **Unit tests:** `companion/tests/test_module_05_ddp.py` *(TODO)*
+    - **Lab script:** [`scripts/05_train_ddp.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/05_train_ddp.py)
+    - **Reference module:** [`minilm/distributed.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/distributed.py)
+    - **Unit tests:** `tests/test_module_05_ddp.py` *(TODO)*
 
 ---
 

@@ -5,9 +5,9 @@ This lab accompanies [Module 1: Transformer from first principles](../modules/01
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/01_inspect_and_mha.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_inspect_and_mha.py) · [`companion/scripts/01_overfit.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/01_overfit.py)
-    - **Reference module:** [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
-    - **Unit tests:** [`companion/tests/test_module_01_model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_01_model.py)
+    - **Lab script:** [`scripts/01_inspect_and_mha.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_inspect_and_mha.py) · [`scripts/01_overfit.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_overfit.py)
+    - **Reference module:** [`minilm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/model.py)
+    - **Unit tests:** [`tests/test_module_01_model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_01_model.py)
 
 ---
 

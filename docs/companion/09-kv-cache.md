@@ -5,9 +5,9 @@ This lab accompanies [Module 9: KV-cached decoding](../modules/09-kv-cache.md).
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/09_kv_cache_bench.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/09_kv_cache_bench.py)
-    - **Reference modules:** [`companion/minilm/kv_cache.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/kv_cache.py) · [`companion/minilm/model.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/model.py)
-    - **Unit tests:** [`companion/tests/test_module_09_kv_cache.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_09_kv_cache.py)
+    - **Lab script:** [`scripts/09_kv_cache_bench.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/09_kv_cache_bench.py)
+    - **Reference modules:** [`minilm/kv_cache.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/kv_cache.py) · [`minilm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/model.py)
+    - **Unit tests:** [`tests/test_module_09_kv_cache.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_09_kv_cache.py)
 
 ---
 

@@ -8,11 +8,12 @@ While the [Module material](../modules/index.md) defines the theoretical concept
 
 ## The Companion Codebase
 
-All practical modules are backed by the minimalist, self-contained companion repository located in the [`companion/`](https://github.com/jonathanlys01/llm-course/tree/main/companion) subdirectory of the course repository.
+All practical modules are backed by the minimalist, self-contained companion repository hosted publicly at [**`brain-bzh/llm-course-companion`**](https://github.com/brain-bzh/llm-course-companion).
 
 ```bash
-# Navigate to companion repository
-cd companion
+# Clone the companion repository
+git clone https://github.com/brain-bzh/llm-course-companion.git
+cd llm-course-companion
 
 # Synchronize dependencies with uv
 uv sync

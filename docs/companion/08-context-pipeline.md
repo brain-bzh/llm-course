@@ -5,9 +5,9 @@ This lab accompanies [Module 8: Context, pipeline, and expert parallelism](../mo
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/08_parallelism_sizing.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/08_parallelism_sizing.py)
-    - **Reference module:** [`companion/minilm/parallelism_calc.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/parallelism_calc.py)
-    - **Unit tests:** `companion/tests/test_module_08_parallelism.py` *(TODO)*
+    - **Lab script:** [`scripts/08_parallelism_sizing.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/08_parallelism_sizing.py)
+    - **Reference module:** [`minilm/parallelism_calc.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/parallelism_calc.py)
+    - **Unit tests:** `tests/test_module_08_parallelism.py` *(TODO)*
 
 ---
 

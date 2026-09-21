@@ -5,9 +5,9 @@ This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/10_serving_benchmark.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/10_serving_benchmark.py)
-    - **Reference module:** [`companion/minilm/serving_sim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/serving_sim.py)
-    - **Unit tests:** `companion/tests/test_module_10_serving.py` *(TODO)*
+    - **Lab script:** [`scripts/10_serving_benchmark.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/10_serving_benchmark.py)
+    - **Reference module:** [`minilm/serving_sim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/serving_sim.py)
+    - **Unit tests:** `tests/test_module_10_serving.py` *(TODO)*
 
 ---
 

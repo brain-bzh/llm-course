@@ -5,9 +5,9 @@ This lab accompanies [Module 3: Pretraining data pipeline](../modules/03-data-pi
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/03_prepare_dataset.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/03_prepare_dataset.py)
-    - **Reference modules:** [`companion/minilm/tokenizer.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tokenizer.py) · [`companion/minilm/data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/data.py)
-    - **Unit tests:** [`companion/tests/test_module_03_data.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_03_data.py)
+    - **Lab script:** [`scripts/03_prepare_dataset.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/03_prepare_dataset.py)
+    - **Reference modules:** [`minilm/tokenizer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/tokenizer.py) · [`minilm/data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/data.py)
+    - **Unit tests:** [`tests/test_module_03_data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_03_data.py)
 
 ---
 

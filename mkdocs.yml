@@ -1,6 +1,6 @@
 site_name: Training and Scaling Language Models
 site_description: From first principles to efficient serving
-site_url: https://jonathanlys01.github.io/llm-course/
+site_url: https://brain-bzh.github.io/llm-course/
 
 theme:
   name: material

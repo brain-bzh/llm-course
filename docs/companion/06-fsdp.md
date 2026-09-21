@@ -5,9 +5,9 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/06_fsdp_experiment.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/06_fsdp_experiment.py)
-    - **Reference module:** [`companion/minilm/fsdp_utils.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/fsdp_utils.py)
-    - **Unit tests:** `companion/tests/test_module_06_fsdp.py` *(TODO)*
+    - **Lab script:** [`scripts/06_fsdp_experiment.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_fsdp_experiment.py)
+    - **Reference module:** [`minilm/fsdp_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/fsdp_utils.py)
+    - **Unit tests:** `tests/test_module_06_fsdp.py` *(TODO)*
 
 ---
 
