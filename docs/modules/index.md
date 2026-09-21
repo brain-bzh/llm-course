@@ -1,6 +1,6 @@
 # Modules
 
-These pages are the conceptual spine of the course: 13 modules, each covering
+These pages are the conceptual spine of the course: 11 modules, each covering
 one mechanism end to end. A module is not tied to a single 1h15 session — the
 [schedule](../schedule.md) shows exactly which sessions cover which module, and
 sessions range from two to five per module depending on how much theory and
@@ -30,56 +30,32 @@ behind a high-level model library.
 
 [Open the module page →](01-transformer.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/01-transformer.pdf){ target="_blank" }
 
-## 2. Training-loop anatomy
+## 2. Training-loop anatomy and baseline GPT
 
-**Understand:** cross-entropy, backward propagation, AdamW, schedules, gradient
-accumulation, clipping and mixed precision.
+**Understand:** cross-entropy, autograd DAGs, AdamW, parameter grouping, learning-rate
+schedules, gradient accumulation, clipping, mixed precision, initialization ($1/\sqrt{2L}$),
+validation curves, and baseline checkpointing.
 
-**Implement:** a complete training/evaluation/checkpoint loop.
+**Implement:** a complete training/evaluation/checkpoint loop and launch the first end-to-end baseline GPT.
 
-**Prove:** accumulation matches the intended effective batch and optimizer-step
-count; checkpoints resume deterministically enough for the stated setup.
+**Prove:** accumulation matches the intended effective batch; checkpoints resume
+deterministically; validation loss behaves coherently and the model generates fluent samples.
 
 [Open the module page →](02-training-loop.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/02-training-loop.pdf){ target="_blank" }
 
-## 3. BPE and the data pipeline
+## 3. Pretraining data pipeline
 
-**Understand:** vocabulary construction, document boundaries, packing,
-shuffling, splits, streaming and loader throughput.
+**Understand:** raw web extraction (WARC vs WET), heuristic compute-conservation filtering,
+vocabulary construction via byte-level BPE, document boundaries, packing,
+binary sharding and zero-copy streaming without GPU starvation.
 
-**Implement:** tokenizer training and packed dataset production from raw text.
+**Implement:** fast heuristic filters, BPE tokenizer training from scratch, and packed memory-mapped binary dataset shards.
 
-**Prove:** boundaries and splits are valid, samples are reproducible and the
-loader does not starve the accelerator.
+**Prove:** filters discard noise without boundary corruption, tokenizer achieves lossless roundtrip fidelity, and the binary loader feeds GPUs at line rate.
 
 [Open the module page →](03-data-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/03-data-pipeline.pdf){ target="_blank" }
 
-## 4. Train a small GPT
-
-**Understand:** initialization, validation loss, sampling, checkpoint selection
-and common failure signatures.
-
-**Implement:** the first end-to-end baseline run.
-
-**Prove:** training beats trivial baselines, validation behaves coherently and
-the checkpoint can generate samples.
-
-[Open the module page →](04-small-gpt.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/04-small-gpt.pdf){ target="_blank" }
-
-## 5. Data selection
-
-**Understand:** filtering, deduplication, quality, loss, diversity, mixtures and
-contamination.
-
-**Implement:** random, heuristic and quality/diversity selection under a fixed
-token budget.
-
-**Prove:** comparisons use the same model, token budget, optimizer recipe and
-evaluation protocol.
-
-[Open the module page →](05-data-selection.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/05-data-selection.pdf){ target="_blank" }
-
-## 6. Single-GPU performance
+## 4. Single-GPU performance
 
 **Understand:** FLOPs, memory decomposition, arithmetic intensity, profiler
 traces, MFU, SDPA/FlashAttention, compilation and fused operations.
@@ -89,9 +65,9 @@ traces, MFU, SDPA/FlashAttention, compilation and fused operations.
 **Prove:** report both throughput and peak memory, and isolate changes instead
 of enabling every optimization simultaneously.
 
-[Open the module page →](06-single-gpu.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/06-single-gpu.pdf){ target="_blank" }
+[Open the module page →](04-single-gpu.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/04-single-gpu.pdf){ target="_blank" }
 
-## 7. Distributed data parallelism
+## 5. Distributed data parallelism
 
 **Understand:** all-reduce, process-per-GPU execution, distributed sampling,
 global batches and communication overlap.
@@ -101,9 +77,9 @@ global batches and communication overlap.
 **Prove:** parameters remain synchronized, samples are covered exactly as
 intended and token accounting is global rather than rank-local.
 
-[Open the module page →](07-ddp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/07-ddp.pdf){ target="_blank" }
+[Open the module page →](05-ddp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/05-ddp.pdf){ target="_blank" }
 
-## 8. FSDP and ZeRO
+## 6. FSDP and ZeRO
 
 **Understand:** which states are sharded, when all-gather and reduce-scatter
 occur, and how checkpointing changes.
@@ -113,9 +89,9 @@ occur, and how checkpointing changes.
 **Prove:** memory savings and throughput costs are measured, and the produced
 checkpoint can be restored.
 
-[Open the module page →](08-fsdp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-fsdp.pdf){ target="_blank" }
+[Open the module page →](06-fsdp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/06-fsdp.pdf){ target="_blank" }
 
-## 9. Tensor and sequence parallelism
+## 7. Tensor and sequence parallelism
 
 **Understand:** column- and row-parallel linear layers, attention/MLP sharding
 and collective placement.
@@ -125,22 +101,21 @@ and collective placement.
 **Prove:** its forward results and parameter gradients match the unsharded
 reference within the expected numerical tolerance.
 
-[Open the module page →](09-tensor-parallelism.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/09-tensor-parallelism.pdf){ target="_blank" }
+[Open the module page →](07-tensor-parallelism.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/07-tensor-parallelism.pdf){ target="_blank" }
 
-## 10. Context and pipeline parallelism
+## 8. Context, pipeline, and expert parallelism
 
-**Understand:** sequence-length pressure, pipeline bubbles, microbatches,
-topology and multidimensional composition.
+**Understand:** ring attention with online softmax, AFAB vs 1F1B pipeline schedules,
+expert routing and All-to-All communication, multidimensional composition ($G = P \times D \times F \times E_P \times T_P \times C$),
+and the physical outer-to-inner hierarchy ($\text{PP} \to \text{DP} \to \text{FSDP} \to \text{EP} \to \text{TP}$).
 
-**Practice:** solve memory and communication cases rather than building a
-production framework.
+**Practice:** solve multidimensional memory and network communication cases across multi-node topologies.
 
-**Prove:** every proposed strategy fits memory and identifies its dominant
-communication and utilization costs.
+**Prove:** every proposed strategy fits device memory and minimizes cross-network communication latency bottlenecks.
 
-[Open the module page →](10-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-context-pipeline.pdf){ target="_blank" }
+[Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" }
 
-## 11. KV-cached decoding
+## 9. KV-cached decoding
 
 **Understand:** prefill versus decode, cache shape and size, MHA/MQA/GQA and why
 decode is often bandwidth-bound.
@@ -150,9 +125,9 @@ decode is often bandwidth-bound.
 **Prove:** cached and uncached logits agree and the benchmark separates prefill
 from per-token decode.
 
-[Open the module page →](11-kv-cache.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-kv-cache.pdf){ target="_blank" }
+[Open the module page →](09-kv-cache.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/09-kv-cache.pdf){ target="_blank" }
 
-## 12. Serving systems
+## 10. Serving systems
 
 **Understand:** continuous batching, paged KV caches, chunked prefill, prefix
 caching and scheduling.
@@ -162,17 +137,18 @@ caching and scheduling.
 **Prove:** measure time to first token, inter-token latency, throughput and
 memory under declared workloads.
 
-[Open the module page →](12-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/12-serving.pdf){ target="_blank" }
+[Open the module page →](10-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-serving.pdf){ target="_blank" }
 
-## 13. Beyond the dense autoregressive Transformer
+## 11. Frontier architectures and efficient generation
 
-**Understand:** the pressures that motivate MoE, longer-context mechanisms,
-state-space models, multimodality and diffusion-style language models.
+**Understand:** speculative decoding and rejection sampling, diffusion models for text,
+DeepSeek breakthroughs (Multi-Head Latent Attention, DeepSeekMoE, MTP), encoder-free
+native multimodal architectures, and linear attention/SSMs (Mamba-2, Gated Delta Networks, KDA).
 
-**Practice:** compare architectures against the bottlenecks established during
-the course.
+**Practice:** evaluate how architectural innovations break the memory-bandwidth wall
+and quadratic context bottlenecks.
 
-**Prove:** claims are tied to concrete changes in compute, memory, data or
-inference behavior rather than novelty alone.
+**Prove:** evaluate cache compression ratios, speculative speedup curves, and recurrent state update mechanics.
 
-[Open the module page →](13-beyond-transformers.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/13-beyond-transformers.pdf){ target="_blank" }
+[Open the module page →](11-frontier-architectures.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-frontier-architectures.pdf){ target="_blank" }
+

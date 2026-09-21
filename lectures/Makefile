@@ -1,6 +1,6 @@
-# Makefile for Training Language Models Lectures
+# Makefile for Training and Scaling Language Models Lectures
 # Usage:
-#   make all            - Compile all 13 lectures (twice for TOC references)
+#   make all            - Compile all 11 lectures (twice for TOC references)
 #   make session-01     - Compile only session 01
 #   make clean          - Remove LaTeX auxiliary files
 #   make distclean      - Remove LaTeX auxiliary files and compiled PDFs
@@ -8,16 +8,14 @@
 SESSIONS = 01-transformer \
            02-training-loop \
            03-data-pipeline \
-           04-small-gpt \
-           05-data-selection \
-           06-single-gpu \
-           07-ddp \
-           08-fsdp \
-           09-tensor-parallelism \
-           10-context-pipeline \
-           11-kv-cache \
-           12-serving \
-           13-beyond-transformers
+           04-single-gpu \
+           05-ddp \
+           06-fsdp \
+           07-tensor-parallelism \
+           08-context-pipeline \
+           09-kv-cache \
+           10-serving \
+           11-frontier-architectures
 
 PDFS = $(foreach s,$(SESSIONS),$(s)/$(s).pdf)
 

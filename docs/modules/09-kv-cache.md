@@ -1,4 +1,4 @@
-# Module 11 — KV-cached decoding
+# Module 9 — KV-cached decoding
 
 ## Purpose
 
@@ -188,7 +188,7 @@ so weight reuse is limited. Increasing the batch of concurrent sequences
 increases reuse and throughput, but also consumes more KV memory and may worsen
 latency.
 
-This is the serving trade-off developed in Module 12:
+This is the serving trade-off developed in Module 11:
 
 ```text
 larger active batch
@@ -366,6 +366,6 @@ cached-versus-uncached throughput across context lengths.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/11-kv-cache.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/11-kv-cache.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/09-kv-cache.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/09-kv-cache.md){ .md-button .md-button--primary }
 

@@ -1,4 +1,4 @@
-# Module 7 — Distributed data parallelism
+# Module 5 — Distributed data parallelism
 
 ## Purpose
 
@@ -333,6 +333,6 @@ scaling report supported by a profiler trace.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/07-ddp.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/07-ddp.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/05-ddp.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/05-ddp.md){ .md-button .md-button--primary }
 

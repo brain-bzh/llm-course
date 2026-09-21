@@ -35,7 +35,7 @@ The course contains **40 contact hours**, organized as **32 sessions of
 1h15**. Sessions are grouped into **8 blocks**, spread across several teaching
 days. The exact number of days depends on the institutional calendar and can
 change without changing the course itself — what stays fixed is the 32
-sessions and the 13 technical modules they cover (see the
+sessions and the 12 technical modules they cover (see the
 [schedule](docs/schedule.md) and [modules](docs/modules/index.md) pages for the
 session-by-session and module-by-module breakdown).
 

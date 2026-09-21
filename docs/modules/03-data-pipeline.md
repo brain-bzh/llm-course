@@ -1,39 +1,94 @@
-# Module 3 — BPE and the data pipeline
+# Module 3 — The pretraining data pipeline
 
 ## Purpose
 
-Trace how raw text documents become the exact numerical token tensors ingested
-by the model.
+Trace how raw web snapshots become clean, high-throughput numerical token tensors
+ingested by the model without accelerator starvation.
 
 Before a language model can perform self-attention or compute cross-entropy loss,
-unstructured human text must be transformed into discrete integers. The choice of
-tokenization algorithm determines the model's vocabulary, its handling of unknown
-characters, its multilingual efficiency, and the sequence length $T$ that dictates
-the quadratic cost of attention. Once tokenized, millions of documents must be
-packed, indexed, and streamed to GPUs at gigabytes per second without CPU bottlenecks.
+unstructured human text must be extracted from the web, filtered to remove noise,
+transformed into discrete token integers, packed, and streamed to GPUs at gigabytes
+per second. Every stage in this pipeline is a systems decision: bad extraction wastes
+VRAM on HTML boilerplate, sloppy filtering burns expensive GPU FLOPs training on junk,
+and naive file I/O leaves multi-million-dollar clusters idling waiting for data.
 
-This module covers the mathematics and systems engineering of the pretraining
-data pipeline, from building a Byte-Pair Encoding (BPE) tokenizer from scratch to
-zero-copy memory-mapped binary dataset sharding.
+This module covers the complete pretraining data pipeline: from raw Common Crawl
+WARC extraction and high-throughput heuristic filtering, to building a Byte-Pair
+Encoding (BPE) tokenizer from scratch and zero-copy memory-mapped binary dataset sharding.
 
 ## Key ideas
 
-- the tokenization trade-off: characters versus words versus subword units;
-- byte-level Byte Pair Encoding (BPE) and the elimination of out-of-vocabulary (`<unk>`) tokens;
-- pre-tokenization regex splitting to prevent semantic boundary pollution;
-- vocabulary size trade-offs: compression ratio versus embedding parameter footprint;
-- document boundaries, special delimiter tokens (`<|endoftext|>`), and padding waste;
-- contiguous sequence packing and cross-document attention;
-- binary sharding with `np.memmap` for zero-copy, high-throughput batch streaming.
+- **extraction is already selection:** why main-text extraction (e.g. `trafilatura`) beats generic WET dumps;
+- **heuristic filtering as compute conservation:** discarding repeated lines, boilerplate, and low-quality tokens before training;
+- **the tokenization trade-off:** characters versus words versus subwords;
+- **byte-level BPE:** eliminating out-of-vocabulary (`<unk>`) tokens with a 256-byte base vocabulary;
+- **pre-tokenization regex splitting:** preventing semantic boundary pollution across punctuation and numbers;
+- **vocabulary size trade-offs:** compression ratio (bits per byte) versus embedding table memory footprint;
+- **contiguous sequence packing:** eliminating batch padding waste with `<|endoftext|>` delimiters;
+- **zero-copy binary sharding with `np.memmap`:** feeding GPUs at line rate via the Linux page cache.
 
 <figure markdown="span">
   ![End-to-end training data ingestion pipeline: raw text documents, regex pre-tokenization, BPE subword merges, document packing with end-of-text tokens, binary memory-mapped shards, and shifted next-token batching.](../assets/figures/bpe-data-pipeline.svg){ loading=lazy }
-  <figcaption>The pretraining data pipeline: from raw text to contiguous memory-mapped training batches.</figcaption>
+  <figcaption>The pretraining data pipeline: from raw web archives to contiguous memory-mapped training batches.</figcaption>
 </figure>
 
 ---
 
-## The tokenization dilemma
+## Stage 1 — Raw web extraction: extraction is selection
+
+Web-scale pretraining datasets (like Common Crawl) provide raw HTML archives stored
+as WARC (Web ARChive) files, as well as generic text extractions known as WET files.
+Relying on generic WET text is tempting because it saves CPU compute during preprocessing,
+but it introduces massive systems inefficiency during training.
+
+### WARC vs WET: the boilerplate tax
+
+In the [FineWeb](https://arxiv.org/abs/2406.17557) ablations, training on generic WET
+extracts resulted in worse models despite containing ~25% more tokens than text extracted
+directly from WARC files using high-precision DOM extractors such as `trafilatura`.
+The extra 25% was almost entirely:
+- navigation menus and header bars;
+- cookie banners and legal disclaimers;
+- advertisement boilerplate and tracking text.
+
+When boilerplate text enters the training set, it consumes:
+1. **Embedding parameters and sequence positions:** quadratic attention FLOPs $O(T^2)$
+   are spent attending to repeated copyright notices.
+2. **Optimizer updates:** gradients update weights to predict useless web chrome
+   rather than transferable reasoning or knowledge.
+
+**The systems takeaway:** extraction defines what becomes training text. Spending
+CPU cycles upfront on precise DOM extraction saves orders of magnitude more GPU FLOPs
+downstream.
+
+---
+
+## Stage 2 — High-throughput heuristic filtering
+
+Once raw main text is extracted, it contains corrupt documents, machine-generated spam,
+and uninformative fragments. In high-performance training, every token ingested by the GPU
+costs real hardware time. Filtering is therefore a **compute conservation tool**.
+
+### Quality heuristics at scale
+
+Instead of running heavy neural classifiers over petabytes of text, production pipelines
+apply high-throughput rule-based filters that CPU worker pools can execute at hundreds of
+thousands of documents per second:
+
+| Filter Rule | Failure Mode Targeted | Hardware / Training Consequence |
+| :--- | :--- | :--- |
+| **Document length** (e.g. $< 50$ or $> 100\text{k}$ chars) | Empty pages, error logs, infinite scroll dumps | Prevents batch imbalance and degenerate gradient spikes. |
+| **Alphanumeric ratio** (e.g. $< 60\%$ alnum chars) | Binary dumps, encrypted strings, ASCII art | Avoids wasting vocabulary capacity and sequence length on garbage. |
+| **Line-level repetition** (e.g. $> 10\%$ in dup lines) | Scraping artifacts, repeated sidebars, spam loops | Prevents memorization and excessive gradient norms on repetitive tokens. |
+| **Terminal punctuation** (e.g. $< 12\%$ lines end in punctuation) | Navigation lists, keyword stuffing, incomplete sentences | Ensures the model learns coherent syntactic structure and causal flow. |
+| **FastText language ID** (e.g. English score $< 0.65$) | Foreign-language crawl noise (unless multilingual target) | Concentrates tokenizer capacity on the intended target distribution. |
+
+Filtering reduces raw crawl data by $20\%\text{--}40\%$, directly compressing the
+required pretraining FLOP budget for an equivalent downstream target loss.
+
+---
+
+## Stage 3 — The tokenization dilemma
 
 Neural networks cannot directly process variable-length character strings; they
 require vectors retrieved from a parameter embedding table
@@ -304,23 +359,25 @@ Memory mapping provides decisive systems advantages:
 
 ## Practical task
 
-Construct and verify the complete tokenizer and data pipeline:
+Construct and verify the complete end-to-end data pipeline:
 
-1. **BPE from scratch:** Implement the greedy pair-counting and merging algorithm
+1. **Document hygiene:** Implement fast rule-based filters (minimum length, alphanumeric ratio, and repetition limits) to prune low-information documents.
+2. **BPE from scratch:** Implement the greedy pair-counting and merging algorithm
    starting from raw UTF-8 bytes up to a custom vocabulary size.
-2. **Special token handling:** Ensure `<|endoftext|>` is properly registered as a
+3. **Special token handling:** Ensure `<|endoftext|>` is properly registered as a
    distinct token ID and preserved during encoding.
-3. **Compression profiling:** Compare the token count against raw byte length on
+4. **Compression profiling:** Compare the token count against raw byte length on
    sample sentences and calculate the compression ratio.
-4. **Document packing:** Pack multiple text documents into a contiguous binary shard
+5. **Document packing:** Pack multiple text documents into a contiguous binary shard
    delimited by `<|endoftext|>`.
-5. **Batch slicing and invariant verification:** Memory-map the binary shard, sample
+6. **Batch slicing and invariant verification:** Memory-map the binary shard, sample
    batches $(X, Y)$, and programmatically verify the next-token target shift:
    `assert (Y[:, :-1] == X[:, 1:]).all()`.
 
 ## Expected output
 
 A self-contained data pipeline demonstrating:
+- high-throughput heuristic filtering discarding synthetic boilerplate and empty documents;
 - an educational BPE tokenizer that trains merge rules from scratch and decodes back to text losslessly;
 - measured token compression ratios ($\text{bytes} / \text{tokens} > 1.5$);
 - packed `uint16` binary dataset shards on disk;

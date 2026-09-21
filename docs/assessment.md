@@ -45,7 +45,7 @@ on it directly:
 
 - a training loop that learns and resumes from a checkpoint;
 - a valid held-out evaluation that does not overlap the selected training data;
-- at least one controlled data-selection comparison;
+- a validated data ingestion and tokenization pipeline;
 - one measured training-performance improvement;
 - a correct distributed or sharded-training experiment;
 - a KV-cache equivalence test;
@@ -57,7 +57,7 @@ on it directly:
 - GPU utilization presented as equivalent to model FLOP utilization;
 - faster training obtained by silently changing model, sequence length or token
   budget;
-- a data-selection result evaluated on contaminated or overlapping data;
+- training-data metrics evaluated on contaminated or overlapping validation data;
 - a distributed run whose rank-local metrics are reported as global values;
 - cached generation that is faster but does not reproduce uncached logits;
 - throughput numbers without batch, prompt and generation-length distributions;

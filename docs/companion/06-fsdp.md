@@ -1,13 +1,13 @@
-# Module 8 Lab — FSDP and ZeRO
+# Module 6 Lab — FSDP and ZeRO
 
-This lab accompanies [Module 8: FSDP and ZeRO](../modules/08-fsdp.md).
+This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/08_fsdp_experiment.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/08_fsdp_experiment.py)
+    - **Lab script:** [`companion/scripts/06_fsdp_experiment.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/06_fsdp_experiment.py)
     - **Reference module:** [`companion/minilm/fsdp_utils.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/fsdp_utils.py)
-    - **Unit tests:** `companion/tests/test_module_08_fsdp.py` *(TODO)*
+    - **Unit tests:** `companion/tests/test_module_06_fsdp.py` *(TODO)*
 
 ---
 
@@ -25,5 +25,5 @@ Run the FSDP memory and communication scaling experiment:
 
 ```bash
 cd companion
-uv run python scripts/08_fsdp_experiment.py
+uv run python scripts/06_fsdp_experiment.py
 ```

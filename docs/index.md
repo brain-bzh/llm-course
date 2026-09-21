@@ -1,4 +1,4 @@
-# Training Language Models
+# Training and Scaling Language Models
 
 ## From first principles to efficient serving
 
@@ -8,8 +8,8 @@ and distributed, and finish by serving the resulting model efficiently.
 
 The course follows one question throughout:
 
-> **Given limited data and compute, where are we wasting resources, and how can
-> we prove that an improvement is real?**
+> **Given finite compute, memory bandwidth, and interconnect limits: where is our
+> system bottlenecked, and how do we prove an optimization actually scales?**
 
 ## Course at a glance
 
@@ -25,7 +25,7 @@ The course follows one question throughout:
 
 <div class="course-card" markdown>
 
-### 13 modules
+### 11 modules
 
 Every concept becomes code or a controlled measurement.
 
@@ -47,7 +47,7 @@ By the end of the course, students should be able to:
 
 - trace the path from raw documents to next-token loss;
 - implement and debug a small decoder-only Transformer and training loop;
-- construct controlled data-selection experiments under a fixed token budget;
+- build a zero-copy data ingestion pipeline from raw web extraction to memory-mapped tokens;
 - measure memory, throughput and model FLOP utilization before optimizing;
 - explain and test DDP, FSDP and a minimal tensor-parallel layer;
 - choose a parallelization strategy from model size, sequence length and

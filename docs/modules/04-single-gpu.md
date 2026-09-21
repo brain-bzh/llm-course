@@ -1,4 +1,4 @@
-# Module 6 — Single-GPU performance
+# Module 4 — Single-GPU performance
 
 ## Purpose
 
@@ -357,6 +357,6 @@ single-GPU configuration.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/06-single-gpu.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/06-single-gpu.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/04-single-gpu.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/04-single-gpu.md){ .md-button .md-button--primary }
 

@@ -1,4 +1,4 @@
-# Module 12 — Serving systems
+# Module 10 — Serving systems
 
 ## Purpose
 
@@ -228,7 +228,7 @@ block table while reading K/V.
 - too-small blocks increase metadata/lookup overhead;
 - too-large blocks waste more tail capacity.
 
-Use Module 11's formula to convert free blocks into token and request capacity.
+Use Module 10's formula to convert free blocks into token and request capacity.
 
 ## Prefix caching
 
@@ -433,6 +433,6 @@ and connects every major result to queue, token, block or GPU evidence.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/12-serving.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/12-serving.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/10-serving.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/10-serving.md){ .md-button .md-button--primary }
 

@@ -1,13 +1,13 @@
-# Module 7 Lab — Distributed Data Parallelism
+# Module 5 Lab — Distributed Data Parallelism
 
-This lab accompanies [Module 7: Distributed data parallelism](../modules/07-ddp.md).
+This lab accompanies [Module 5: Distributed data parallelism](../modules/05-ddp.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/07_train_ddp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/07_train_ddp.py)
+    - **Lab script:** [`companion/scripts/05_train_ddp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/05_train_ddp.py)
     - **Reference module:** [`companion/minilm/distributed.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/distributed.py)
-    - **Unit tests:** `companion/tests/test_module_07_ddp.py` *(TODO)*
+    - **Unit tests:** `companion/tests/test_module_05_ddp.py` *(TODO)*
 
 ---
 
@@ -25,5 +25,5 @@ Launch the DDP distributed training simulation:
 
 ```bash
 cd companion
-uv run python scripts/07_train_ddp.py
+uv run python scripts/05_train_ddp.py
 ```

@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 290" role="img" aria-labelledby="title desc">
+  <title id="title">Sequential Recurrence vs Parallel Attention</title>
+  <desc id="desc">Recurrent models process tokens sequentially through a chain of hidden states, whereas Transformers process all tokens simultaneously using parallel causal attention.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1.5 L8 5 L0 8.5 z" fill="#68798a"/>
+    </marker>
+    <marker id="arr-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1.5 L8 5 L0 8.5 z" fill="#007f86"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1.5 L8 5 L0 8.5 z" fill="#e06c75"/>
+    </marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .panel { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; rx: 14; }
+      .core { fill: #10233f; stroke: #10233f; stroke-width: 1.5; rx: 8; }
+      .accent { fill: #e2f4f4; stroke: #007f86; stroke-width: 2; rx: 8; }
+      .node { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 6; }
+      .flow { fill: none; stroke: #68798a; stroke-width: 2; marker-end: url(#arr); }
+      .flow-t { fill: none; stroke: #007f86; stroke-width: 2; marker-end: url(#arr-teal); }
+      .flow-r { fill: none; stroke: #e06c75; stroke-width: 2; marker-end: url(#arr-red); }
+      .title { fill: #10233f; font-size: 16px; font-weight: 750; }
+      .sub { fill: #64748b; font-size: 12px; font-weight: 500; }
+      .lbl { fill: #10233f; font-size: 13px; font-weight: 650; text-anchor: middle; }
+      .inv { fill: #ffffff; font-size: 13px; font-weight: 700; text-anchor: middle; }
+      .tag-warn { fill: #fee2e2; stroke: #f87171; stroke-width: 1; rx: 5; }
+      .tag-good { fill: #e2f4f4; stroke: #007f86; stroke-width: 1; rx: 5; }
+      .t-warn { fill: #dc2626; font-size: 11px; font-weight: 700; text-anchor: middle; }
+      .t-good { fill: #007f86; font-size: 11px; font-weight: 700; text-anchor: middle; }
+      @media (prefers-color-scheme: dark) {
+        .panel { fill: #131d2a; stroke: #2c4052; }
+        .core { fill: #2c4052; stroke: #54d2d8; }
+        .accent { fill: #173b40; stroke: #54d2d8; }
+        .node { fill: #182534; stroke: #334b63; }
+        .title { fill: #f3f7fa; }
+        .sub { fill: #94a3b8; }
+        .lbl { fill: #f3f7fa; }
+        .tag-warn { fill: #381a20; stroke: #f87171; }
+        .tag-good { fill: #173b40; stroke: #54d2d8; }
+        .t-warn { fill: #fca5a5; }
+        .t-good { fill: #54d2d8; }
+      }
+    </style>
+  </defs>
+
+  <!-- Left: Recurrent -->
+  <rect class="panel" x="18" y="16" width="342" height="258"/>
+  <text class="title" x="36" y="44">Recurrent (RNN / LSTM)</text>
+  <text class="sub" x="36" y="63">Sequential state passing: O(T) steps</text>
+
+  <!-- Tokens row -->
+  <rect class="node" x="36" y="84" width="48" height="30"/><text class="lbl" x="60" y="104">x₁</text>
+  <rect class="node" x="108" y="84" width="48" height="30"/><text class="lbl" x="132" y="104">x₂</text>
+  <rect class="node" x="180" y="84" width="48" height="30"/><text class="lbl" x="204" y="104">x₃</text>
+  <text class="lbl" x="254" y="103">⋯</text>
+  <rect class="node" x="282" y="84" width="48" height="30"/><text class="lbl" x="306" y="104">x_T</text>
+
+  <!-- Vertical flows to h -->
+  <path class="flow" d="M60 114 V134"/>
+  <path class="flow" d="M132 114 V134"/>
+  <path class="flow" d="M204 114 V134"/>
+  <path class="flow" d="M306 114 V134"/>
+
+  <!-- Hidden states row -->
+  <rect class="core" x="36" y="136" width="48" height="34"/><text class="inv" x="60" y="158">h₁</text>
+  <path class="flow-r" d="M84 153 H106"/>
+  <rect class="core" x="108" y="136" width="48" height="34"/><text class="inv" x="132" y="158">h₂</text>
+  <path class="flow-r" d="M156 153 H178"/>
+  <rect class="core" x="180" y="136" width="48" height="34"/><text class="inv" x="204" y="158">h₃</text>
+  <path class="flow-r" d="M228 153 H246"/>
+  <path class="flow-r" d="M262 153 H280"/>
+  <rect class="core" x="282" y="136" width="48" height="34"/><text class="inv" x="306" y="158">h_T</text>
+
+  <!-- Vertical flows to output -->
+  <path class="flow" d="M60 170 V190"/>
+  <path class="flow" d="M132 170 V190"/>
+  <path class="flow" d="M204 170 V190"/>
+  <path class="flow" d="M306 170 V190"/>
+
+  <!-- Outputs row -->
+  <rect class="node" x="36" y="192" width="48" height="30"/><text class="lbl" x="60" y="212">y₁</text>
+  <rect class="node" x="108" y="192" width="48" height="30"/><text class="lbl" x="132" y="212">y₂</text>
+  <rect class="node" x="180" y="192" width="48" height="30"/><text class="lbl" x="204" y="212">y₃</text>
+  <text class="lbl" x="254" y="211">⋯</text>
+  <rect class="node" x="282" y="192" width="48" height="30"/><text class="lbl" x="306" y="212">y_T</text>
+
+  <!-- Tag badge -->
+  <rect class="tag-warn" x="78" y="238" width="220" height="24"/>
+  <text class="t-warn" x="188" y="254">Sequential bottleneck: O(T) latency</text>
+
+  <!-- Right: Transformer -->
+  <rect class="panel" x="380" y="16" width="342" height="258"/>
+  <text class="title" x="398" y="44">Transformer Causal Attention</text>
+  <text class="sub" x="398" y="63">Parallel matrix computation: O(1) ops</text>
+
+  <!-- Inputs block -->
+  <rect class="node" x="408" y="84" width="286" height="32"/>
+  <text class="lbl" x="551" y="105">[ x₁,  x₂,  x₃,  ⋯ ,  x_T ]</text>
+  <path class="flow-t" d="M551 116 V134"/>
+
+  <!-- Attention Block -->
+  <rect class="accent" x="408" y="136" width="286" height="52"/>
+  <text class="inv" x="551" y="162" fill="#007f86">Causal Attention (QKᵀ)</text>
+  <text class="sub" x="551" y="178" text-anchor="middle">direct pairwise routing</text>
+  <path class="flow-t" d="M551 188 V204"/>
+
+  <!-- Outputs block -->
+  <rect class="node" x="408" y="206" width="286" height="32"/>
+  <text class="lbl" x="551" y="227">[ y₁,  y₂,  y₃,  ⋯ ,  y_T ]</text>
+
+  <!-- Tag badge -->
+  <rect class="tag-good" x="441" y="248" width="220" height="24"/>
+  <text class="t-good" x="551" y="264">Parallel training: O(1) path length</text>
+</svg>

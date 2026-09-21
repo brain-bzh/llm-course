@@ -1,6 +1,6 @@
-# Training Language Models
+# Training and Scaling Language Models
 
-Markdown source for the course website **Training Language Models: From First
+Markdown source for the course website **Training and Scaling Language Models: From First
 Principles to Efficient Serving**.
 
 ## Local development

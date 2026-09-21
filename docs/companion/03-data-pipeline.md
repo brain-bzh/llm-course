@@ -1,6 +1,6 @@
-# Module 3 Lab — BPE and the Data Pipeline
+# Module 3 Lab — Pretraining Data Pipeline
 
-This lab accompanies [Module 3: BPE and the data pipeline](../modules/03-data-pipeline.md).
+This lab accompanies [Module 3: Pretraining data pipeline](../modules/03-data-pipeline.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
@@ -13,9 +13,10 @@ This lab accompanies [Module 3: BPE and the data pipeline](../modules/03-data-pi
 
 ## Objectives
 
-1. **Train a Byte-Pair Encoding (BPE) tokenizer**: Train merge rules from raw character bytes and verify lossless round-trip decoding.
-2. **Pack documents contiguously**: Serialize token streams with `<|endoftext|>` delimiters into compact binary `uint16` memory-mapped files.
-3. **Stream high-throughput batches**: Build a loader that samples randomized chunks with zero accelerator starvation.
+1. **Apply heuristic document hygiene**: Filter low-information documents using fast length, alphanumeric ratio, and line repetition rules to conserve GPU FLOPs.
+2. **Train a Byte-Pair Encoding (BPE) tokenizer**: Train merge rules from raw character bytes and verify lossless round-trip decoding.
+3. **Pack documents contiguously**: Serialize token streams with `<|endoftext|>` delimiters into compact binary `uint16` memory-mapped files.
+4. **Stream high-throughput batches**: Build a loader that samples randomized chunks with zero accelerator starvation.
 
 ---
 

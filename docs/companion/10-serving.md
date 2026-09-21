@@ -1,13 +1,13 @@
-# Module 12 Lab — Serving Systems
+# Module 10 Lab — Serving Systems
 
-This lab accompanies [Module 12: Serving systems](../modules/12-serving.md).
+This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/12_serving_benchmark.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/12_serving_benchmark.py)
+    - **Lab script:** [`companion/scripts/10_serving_benchmark.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/10_serving_benchmark.py)
     - **Reference module:** [`companion/minilm/serving_sim.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/serving_sim.py)
-    - **Unit tests:** `companion/tests/test_module_12_serving.py` *(TODO)*
+    - **Unit tests:** `companion/tests/test_module_10_serving.py` *(TODO)*
 
 ---
 
@@ -25,5 +25,5 @@ Run the discrete-event continuous batching simulation:
 
 ```bash
 cd companion
-uv run python scripts/12_serving_benchmark.py
+uv run python scripts/10_serving_benchmark.py
 ```

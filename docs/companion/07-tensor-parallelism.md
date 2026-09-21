@@ -1,13 +1,13 @@
-# Module 9 Lab — Implement & Verify Tensor Parallelism (Gloo)
+# Module 7 Lab — Implement & Verify Tensor Parallelism (Gloo)
 
-This lab accompanies [Module 9: Tensor parallelism](../modules/09-tensor-parallelism.md).
+This lab accompanies [Module 7: Tensor parallelism](../modules/07-tensor-parallelism.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/09_tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/09_tensor_parallel.py)
+    - **Lab script:** [`companion/scripts/07_tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/07_tensor_parallel.py)
     - **Reference module:** [`companion/minilm/tensor_parallel.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/tensor_parallel.py)
-    - **Unit tests:** [`companion/tests/test_module_09_tp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_09_tp.py)
+    - **Unit tests:** [`companion/tests/test_module_07_tp.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/tests/test_module_07_tp.py)
 
 ---
 
@@ -225,7 +225,7 @@ def run_worker(rank: int, world_size: int, shared_x, shared_w1, shared_w2, resul
 ### Expected Output
 
 ```text
-=== Module 9: Tensor Parallelism Toy Layer ===
+=== Module 7: Tensor Parallelism Toy Layer ===
 Column + Row Parallel MLP output shape: [2, 4, 64]
 Max absolute difference vs reference: 0.00e+00
 SUCCESS: Simulated Tensor Parallel MLP is mathematically identical to reference MLP.

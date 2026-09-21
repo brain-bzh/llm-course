@@ -1,13 +1,13 @@
-# Module 6 Lab — Single-GPU Performance and Profiling
+# Module 4 Lab — Single-GPU Performance and Profiling
 
-This lab accompanies [Module 6: Single-GPU performance](../modules/06-single-gpu.md).
+This lab accompanies [Module 4: Single-GPU performance](../modules/04-single-gpu.md).
 
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`companion/scripts/06_single_gpu_perf.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/06_single_gpu_perf.py)
+    - **Lab script:** [`companion/scripts/04_single_gpu_perf.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/scripts/04_single_gpu_perf.py)
     - **Reference module:** [`companion/minilm/profile_utils.py`](https://github.com/jonathanlys01/llm-course/blob/main/companion/minilm/profile_utils.py)
-    - **Unit tests:** `companion/tests/test_module_06_profile.py` *(TODO)*
+    - **Unit tests:** `companion/tests/test_module_04_profile.py` *(TODO)*
 
 ---
 
@@ -25,5 +25,5 @@ Run the single-GPU profiling benchmark:
 
 ```bash
 cd companion
-uv run python scripts/06_single_gpu_perf.py
+uv run python scripts/04_single_gpu_perf.py
 ```

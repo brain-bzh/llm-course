@@ -48,7 +48,7 @@ served model and benchmark report
 | Correctness | Tiny-batch overfit, masking tests and deterministic sample inspection |
 | Data pipeline | Tokenizer statistics, split/boundary checks and loader throughput |
 | Baseline | Configuration, curves, checkpoint and generated samples |
-| Selection | Fixed-budget comparison against random selection |
+| Ingestion | Verified zero-copy streaming pipeline with lossless tokenization |
 | Performance | Before/after profiler evidence, tokens/s and peak memory |
 | Distributed training | Equivalence checks, global accounting and scaling measurements |
 | Inference | Cached/uncached equivalence plus prefill/decode benchmarks |
@@ -59,7 +59,7 @@ served model and benchmark report
 1. Change one material factor at a time unless the experiment explicitly tests
    an interaction.
 2. Keep data, token count, model, optimizer and evaluation fixed when claiming
-   a data-selection improvement.
+   a dataset or preprocessing improvement.
 3. Report failed experiments and negative results when they affect the final
    decision.
 4. Distinguish wall-clock speed, throughput, utilization and theoretical FLOPs.

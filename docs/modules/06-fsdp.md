@@ -1,4 +1,4 @@
-# Module 8 — FSDP and ZeRO
+# Module 6 — FSDP and ZeRO
 
 ## Purpose
 
@@ -330,6 +330,6 @@ checkpoint round trip.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/08-fsdp.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/08-fsdp.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/06-fsdp.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/06-fsdp.md){ .md-button .md-button--primary }
 

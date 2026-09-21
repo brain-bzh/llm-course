@@ -1,4 +1,4 @@
-site_name: Training Language Models
+site_name: Training and Scaling Language Models
 site_description: From first principles to efficient serving
 site_url: https://jonathanlys01.github.io/llm-course/
 
@@ -34,33 +34,29 @@ nav:
   - Modules:
       - Overview: modules/index.md
       - 1. Transformer from first principles: modules/01-transformer.md
-      - 2. Training-loop anatomy: modules/02-training-loop.md
-      - 3. BPE and the data pipeline: modules/03-data-pipeline.md
-      - 4. Train a small GPT: modules/04-small-gpt.md
-      - 5. Data selection: modules/05-data-selection.md
-      - 6. Single-GPU performance: modules/06-single-gpu.md
-      - 7. Distributed data parallelism: modules/07-ddp.md
-      - 8. FSDP and ZeRO: modules/08-fsdp.md
-      - 9. Tensor parallelism: modules/09-tensor-parallelism.md
-      - 10. Context and pipeline parallelism: modules/10-context-pipeline.md
-      - 11. KV-cached decoding: modules/11-kv-cache.md
-      - 12. Serving systems: modules/12-serving.md
-      - 13. Beyond dense Transformers: modules/13-beyond-transformers.md
+      - 2. Training-loop anatomy & baseline GPT: modules/02-training-loop.md
+      - 3. Pretraining data pipeline: modules/03-data-pipeline.md
+      - 4. Single-GPU performance: modules/04-single-gpu.md
+      - 5. Distributed data parallelism: modules/05-ddp.md
+      - 6. FSDP and ZeRO: modules/06-fsdp.md
+      - 7. Tensor parallelism: modules/07-tensor-parallelism.md
+      - 8. Context, pipeline & expert parallelism: modules/08-context-pipeline.md
+      - 9. KV-cached decoding: modules/09-kv-cache.md
+      - 10. Serving systems: modules/10-serving.md
+      - 11. Frontier architectures: modules/11-frontier-architectures.md
   - Companion guide:
       - Overview: companion/index.md
       - 1. Inspect & Naive MHA: companion/01-transformer.md
-      - 2. Training-loop anatomy: companion/02-training-loop.md
-      - 3. BPE and data pipeline: companion/03-data-pipeline.md
-      - 4. Train a small GPT: companion/04-small-gpt.md
-      - 5. Data selection: companion/05-data-selection.md
-      - 6. Single-GPU performance: companion/06-single-gpu.md
-      - 7. Distributed data parallelism: companion/07-ddp.md
-      - 8. FSDP and ZeRO: companion/08-fsdp.md
-      - 9. Tensor parallelism: companion/09-tensor-parallelism.md
-      - 10. Context and pipeline parallelism: companion/10-context-pipeline.md
-      - 11. KV-cached decoding: companion/11-kv-cache.md
-      - 12. Serving systems: companion/12-serving.md
-      - 13. Beyond dense Transformers: companion/13-beyond-transformers.md
+      - 2. Training-loop & baseline GPT: companion/02-training-loop.md
+      - 3. Pretraining data pipeline: companion/03-data-pipeline.md
+      - 4. Single-GPU performance: companion/04-single-gpu.md
+      - 5. Distributed data parallelism: companion/05-ddp.md
+      - 6. FSDP and ZeRO: companion/06-fsdp.md
+      - 7. Tensor parallelism: companion/07-tensor-parallelism.md
+      - 8. Context, pipeline & expert parallelism: companion/08-context-pipeline.md
+      - 9. KV-cached decoding: companion/09-kv-cache.md
+      - 10. Serving systems: companion/10-serving.md
+      - 11. Frontier architectures: companion/11-frontier-architectures.md
   - Continuous project: project.md
   - Reproduction project: reproduction-project.md
   - External material: external-material.md
@@ -96,4 +92,4 @@ extra_javascript:
 extra_css:
   - assets/stylesheets/extra.css
 
-copyright: Training Language Models
+copyright: Training and Scaling Language Models

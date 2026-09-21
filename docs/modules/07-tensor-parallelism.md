@@ -1,4 +1,4 @@
-# Module 9 — Tensor parallelism
+# Module 7 — Tensor parallelism
 
 ## Purpose
 
@@ -278,6 +278,6 @@ reference, plus a trace that makes each layout transition explicit.
 
 ---
 
-[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/09-tensor-parallelism.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/09-tensor-parallelism.md){ .md-button .md-button--primary }
+[:material-file-pdf-box: View Lecture Slides (PDF)](../slides/07-tensor-parallelism.pdf){ .md-button target="_blank" }
+[:material-code-tags: Practical Companion Guide](../companion/07-tensor-parallelism.md){ .md-button .md-button--primary }
 

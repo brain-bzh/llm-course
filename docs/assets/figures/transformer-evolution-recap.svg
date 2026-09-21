@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 470" role="img" aria-labelledby="title desc">
+  <title id="title">Decoder-Only Architecture: Legacy GPT-2 vs Modern LLM</title>
+  <desc id="desc">Side-by-side comparison of the legacy GPT-2 stack against the modern foundation model stack with RMSNorm, RoPE, SwiGLU, and GQA.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1.5 L8 5 L0 8.5 z" fill="#68798a"/>
+    </marker>
+    <marker id="arr-teal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 1.5 L8 5 L0 8.5 z" fill="#007f86"/>
+    </marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .panel { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; rx: 14; }
+      .node { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 6; }
+      .core { fill: #10233f; stroke: #10233f; stroke-width: 1.5; rx: 6; }
+      .accent { fill: #e2f4f4; stroke: #007f86; stroke-width: 1.5; rx: 6; }
+      .flow { fill: none; stroke: #68798a; stroke-width: 1.8; marker-end: url(#arr); }
+      .flow-t { fill: none; stroke: #007f86; stroke-width: 1.8; marker-end: url(#arr-teal); }
+      .title { fill: #10233f; font-size: 15px; font-weight: 750; text-anchor: middle; }
+      .lbl { fill: #10233f; font-size: 11.5px; font-weight: 650; text-anchor: middle; }
+      .lbl-inv { fill: #ffffff; font-size: 11.5px; font-weight: 700; text-anchor: middle; }
+      .lbl-t { fill: #007f86; font-size: 11.5px; font-weight: 750; text-anchor: middle; }
+      .repeat { fill: #526071; font-size: 11px; font-weight: 650; }
+      @media (prefers-color-scheme: dark) {
+        .panel { fill: #131d2a; stroke: #2c4052; }
+        .node { fill: #182534; stroke: #334b63; }
+        .core { fill: #2c4052; stroke: #54d2d8; }
+        .accent { fill: #173b40; stroke: #54d2d8; }
+        .title { fill: #f3f7fa; }
+        .lbl { fill: #f3f7fa; }
+        .lbl-t { fill: #54d2d8; }
+        .repeat { fill: #94a3b8; }
+      }
+    </style>
+  </defs>
+
+  <!-- Left Column: Legacy GPT-2 -->
+  <rect class="panel" x="18" y="16" width="324" height="438"/>
+  <text class="title" x="180" y="44">Legacy GPT-2 (2019)</text>
+
+  <!-- 1. Tokens -->
+  <rect class="node" x="72" y="60" width="216" height="26"/><text class="lbl" x="180" y="77">Token IDs (B × T)</text>
+  <path class="flow" d="M180 86 V100"/>
+
+  <!-- 2. Embedding + Pos -->
+  <rect class="node" x="52" y="100" width="256" height="30"/><text class="lbl" x="180" y="120">Token + Absolute Pos (W_E + W_pe)</text>
+  <path class="flow" d="M180 130 V144"/>
+
+  <!-- Repeated Block Box -->
+  <rect x="42" y="144" width="276" height="204" fill="none" stroke="#94a3b8" stroke-dasharray="3,3" stroke-width="1.2" rx="8"/>
+  <text class="repeat" x="54" y="160">× N blocks</text>
+
+  <!-- 3. Pre-LayerNorm -->
+  <rect class="node" x="72" y="166" width="216" height="26"/><text class="lbl" x="180" y="183">LayerNorm (with bias)</text>
+  <path class="flow" d="M180 192 V204"/>
+
+  <!-- 4. MHA -->
+  <rect class="core" x="72" y="204" width="216" height="28"/><text class="lbl-inv" x="180" y="222">Multi-Head Attention (MHA)</text>
+  <path class="flow" d="M180 232 V244"/>
+
+  <!-- 5. Add & Norm -->
+  <rect class="node" x="72" y="244" width="216" height="26"/><text class="lbl" x="180" y="261">Add (+) → LayerNorm</text>
+  <path class="flow" d="M180 270 V282"/>
+
+  <!-- 6. MLP -->
+  <rect class="core" x="72" y="282" width="216" height="28"/><text class="lbl-inv" x="180" y="300">MLP: GeLU (4d expansion)</text>
+  <path class="flow" d="M180 310 V322"/>
+
+  <!-- 7. Add -->
+  <rect class="node" x="108" y="322" width="144" height="22"/><text class="lbl" x="180" y="337">Add (+)</text>
+
+  <path class="flow" d="M180 348 V364"/>
+
+  <!-- 8. Final LayerNorm -->
+  <rect class="node" x="72" y="364" width="216" height="26"/><text class="lbl" x="180" y="381">Final LayerNorm</text>
+  <path class="flow" d="M180 390 V404"/>
+
+  <!-- 9. Tied Head -->
+  <rect class="node" x="52" y="404" width="256" height="30"/><text class="lbl" x="180" y="424">Tied LM Head (W_vocab = W_Eᵀ)</text>
+
+
+  <!-- Right Column: Modern LLM -->
+  <rect class="panel" x="358" y="16" width="324" height="438"/>
+  <text class="title" x="520" y="44">Modern LLM (2023+)</text>
+
+  <!-- 1. Tokens -->
+  <rect class="node" x="412" y="60" width="216" height="26"/><text class="lbl" x="520" y="77">Token IDs (B × T)</text>
+  <path class="flow-t" d="M520 86 V100"/>
+
+  <!-- 2. Untied Embedding -->
+  <rect class="accent" x="392" y="100" width="256" height="30"/><text class="lbl-t" x="520" y="120">Untied Token Embedding (W_E)</text>
+  <path class="flow-t" d="M520 130 V144"/>
+
+  <!-- Repeated Block Box -->
+  <rect x="382" y="144" width="276" height="204" fill="none" stroke="#007f86" stroke-dasharray="3,3" stroke-width="1.2" rx="8"/>
+  <text class="repeat" x="394" y="160" fill="#007f86">× N blocks</text>
+
+  <!-- 3. Pre-RMSNorm -->
+  <rect class="accent" x="412" y="166" width="216" height="26"/><text class="lbl-t" x="520" y="183">Pre-RMSNorm (no bias)</text>
+  <path class="flow-t" d="M520 192 V204"/>
+
+  <!-- 4. GQA + RoPE -->
+  <rect class="accent" x="412" y="204" width="216" height="28"/><text class="lbl-t" x="520" y="222">GQA + Rotary Position (RoPE)</text>
+  <path class="flow-t" d="M520 232 V244"/>
+
+  <!-- 5. Add & RMSNorm -->
+  <rect class="accent" x="412" y="244" width="216" height="26"/><text class="lbl-t" x="520" y="261">Add (+) → RMSNorm</text>
+  <path class="flow-t" d="M520 270 V282"/>
+
+  <!-- 6. SwiGLU MLP -->
+  <rect class="accent" x="412" y="282" width="216" height="28"/><text class="lbl-t" x="520" y="300">SwiGLU MLP (8/3 d expansion)</text>
+  <path class="flow-t" d="M520 310 V322"/>
+
+  <!-- 7. Add -->
+  <rect class="node" x="448" y="322" width="144" height="22"/><text class="lbl" x="520" y="337">Add (+)</text>
+
+  <path class="flow-t" d="M520 348 V364"/>
+
+  <!-- 8. Final RMSNorm -->
+  <rect class="accent" x="412" y="364" width="216" height="26"/><text class="lbl-t" x="520" y="381">Final RMSNorm</text>
+  <path class="flow-t" d="M520 390 V404"/>
+
+  <!-- 9. Untied Head -->
+  <rect class="accent" x="392" y="404" width="256" height="30"/><text class="lbl-t" x="520" y="424">Untied LM Head (W_vocab ≠ W_E)</text>
+</svg>
