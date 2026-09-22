@@ -409,7 +409,7 @@ reservation with paged allocation, including partial-tail waste.
 
 ### Part C — live engine demonstration & code walkthrough
 
-During Session 28, the instructor conducts a live demonstration using both a production engine (vLLM) and an educational implementation ([nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) / [`minilm/serving_sim.py`](../companion/10-serving.md)):
+During Session 28, the instructor conducts a live demonstration using both a production engine (vLLM) and an educational implementation ([nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) / [`nanolm/serving_sim.py`](../companion/10-serving.md)):
 
 1. **Architecture inspection:** walk through `nano-vllm`'s request queue, `Scheduler`, and block-table memory allocation logic to see how continuous batching and PagedAttention execute in pure Python.
 2. **Saturation curves:** run an open-loop load generator against vLLM while progressively increasing arrival rates to observe the hockey-stick transition where queueing explodes and p99 latency collapses.

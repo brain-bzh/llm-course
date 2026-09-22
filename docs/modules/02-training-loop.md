@@ -455,20 +455,22 @@ Never select a checkpoint because one single sample looks charming. Select stric
 
 1. **Parameter grouping:** Implement `configure_optimizers` and verify that 2D weight matrices receive weight decay while 1D biases and normalization vectors receive $0.0$.
 2. **Complete step execution:** Build the step function combining gradient accumulation, AMP autocasting, unscaling, gradient norm clipping, and the cosine schedule.
-3. **Baseline run:** Launch an end-to-end baseline training run on the course dataset, logging train loss, validation loss, learning rate, and gradient norm.
-4. **Checkpoint round-trip:** Save a checkpoint mid-run, resume in a fresh process, and verify that step $N+1$ produces the exact expected loss and identical gradient norm.
-5. **Autoregressive sampling:** Generate completions from the baseline checkpoint using temperature and nucleus sampling to confirm generative coherence.
+3. **Tiny-batch overfit:** Initialize a small version of the Session 1 model and drive the loss on one fixed, shifted token batch below $0.1$.
+4. **Checkpoint round-trip:** Save the overfit model and optimizer, restore both into fresh objects, and verify identical logits on the fixed input.
+5. **Optional baseline run:** Move beyond the diagnostic batch to a small corpus, logging train loss, validation loss, learning rate, gradient norm, and fixed-prompt samples.
 
 ---
 
 ## Expected output
 
-A documented baseline checkpoint with:
+A reproducible local overfit checkpoint with:
 - exact parameter partitioning between decayed and non-decayed groups;
-- stable gradient norms under accumulation across micro-batches;
-- training and validation loss curves confirming generalization;
-- verified resume path from saved checkpoints;
-- fixed-prompt samples demonstrating causal generation.
+- final loss below $0.1$ on the fixed shifted batch;
+- stable gradient norms under accumulation;
+- an exact model-and-optimizer restore producing identical logits.
+
+The longer baseline run and qualitative sampling remain an optional extension;
+they are not required to establish that the Session 2 training path works.
 
 ---
 

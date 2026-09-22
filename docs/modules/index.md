@@ -26,7 +26,8 @@ embeddings and the language-model head.
 **Implement:** a minimal decoder-only Transformer without hiding the core logic
 behind a high-level model library.
 
-**Prove:** tensor shapes, causal masking and a tiny-batch overfit test all pass.
+**Prove:** tensor shapes and causal masking pass, then the implementation
+reproduces official GPT-2 logits and a verified next-token log-probability.
 
 [Open the module page →](01-transformer.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/01-transformer.pdf){ target="_blank" }
 
@@ -36,10 +37,12 @@ behind a high-level model library.
 schedules, gradient accumulation, clipping, mixed precision, initialization ($1/\sqrt{2L}$),
 validation curves, and baseline checkpointing.
 
-**Implement:** a complete training/evaluation/checkpoint loop and launch the first end-to-end baseline GPT.
+**Implement:** a complete training/checkpoint loop and use it to fit a small
+NanoLM locally before attempting a longer baseline run.
 
-**Prove:** accumulation matches the intended effective batch; checkpoints resume
-deterministically; validation loss behaves coherently and the model generates fluent samples.
+**Prove:** one fixed shifted batch reaches loss below `0.1`, accumulation matches
+the intended effective batch, and a restored checkpoint produces identical
+logits.
 
 [Open the module page →](02-training-loop.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/02-training-loop.pdf){ target="_blank" }
 

@@ -22,6 +22,9 @@ shows exactly which sessions cover which module.
 
 ## Phase 1 — Build a language model
 
+!!! tip "Course presentation"
+    Download the [Course presentation slides (Lecture 0 PDF)](slides/00-introduction.pdf){ target="_blank" } covering course objectives, schedule, continuous laboratory, reproduction project, and assessment.
+
 ### Block 1 — Model and training loop
 
 **6 sessions · 7h30 · [Module 1: Transformer from first principles](modules/01-transformer.md) ([slides](slides/01-transformer.pdf){ target="_blank" }, sessions 1–4), [Module 2: Training-loop anatomy and baseline GPT](modules/02-training-loop.md) ([slides](slides/02-training-loop.pdf){ target="_blank" }, sessions 5–6)**
@@ -31,13 +34,14 @@ shows exactly which sessions cover which module.
 | 1 | Theory | Next-token prediction objective $P(x_1, \dots, x_T)$, recurrent sequential bottlenecks vs Transformer parallel revolution; Transformer anatomy: token and positional embeddings, causal self-attention, residual stream, normalization (pre-LN/RMSNorm), MLP, and LM head with weight tying | Architecture specification & mathematical formulation |
 | 2 | Practice | PyTorch tensor mechanics & attention primitives: tensor broadcasting, stride/layout, `nn.Module` inspection; implement token and learned positional embeddings, scaled dot-product attention, and causal triangular masking | PyTorch foundations & tested causal attention primitives |
 | 3 | Practice | Multi-Head Attention (MHA) & Transformer sublayers: implement head projection splitting and output projection ($W_O$); build pre-LN LayerNorm / RMSNorm and the MLP block ($4d$ expansion, GELU/SwiGLU, contraction) | Verified Multi-Head Attention and Transformer sublayer modules |
-| 4 | Practice | Assemble minimal GPT & tiny-batch overfit: integrate Transformer blocks, residual highways, and LM head with weight tying; execute full forward pass, verify tensor shape invariants, and drive tiny-batch overfit test to convergence (`loss < 0.1`) | Minimal functional GPT repository & tiny-batch overfit verification |
+| 4 | Practice | Assemble minimal GPT & checkpoint parity: integrate Transformer blocks, residual highways, and a tied LM head; load official GPT-2 weights through the provided converter; reproduce reference logits and a verified next-token log-probability | Student-built GPT implementation reproducing the official GPT-2 forward pass |
 | 5 | Theory | Training-loop anatomy: autograd DAG, operation order & silent failure catalog, cross-entropy loss, AdamW parameter grouping (2D weights vs 1D biases/norms), micro-batch accumulation ($1/A$), gradient norm clipping, warmup & cosine LR scheduling, and mixed precision (AMP) | Training-loop checklist & state transition diagram |
-| 6 | Practice | Implement training step execution, optimizer grouping, evaluation protocol (`model.eval()`, `torch.no_grad()`), logging, and deterministic checkpoint saving/recovery invariants | Minimal trainable GPT repository |
+| 6 | Practice | Implement target shifting, optimizer grouping, backward/update ordering, gradient clipping, and deterministic checkpoint recovery; overfit a small NanoLM on one fixed batch (`loss < 0.1`) | Minimal trainable NanoLM with verified checkpoint round-trip |
 
 !!! success "Exit criterion"
-    The model must overfit a tiny batch. If it cannot, the team does not proceed
-    to larger training.
+    The student implementation must first reproduce GPT-2 inference, then its
+    randomly initialized small configuration must overfit one fixed batch. If
+    either check fails, the team does not proceed to larger training.
 
 !!! note "Assessment milestone"
     Teams begin identifying candidate papers for the mid-course presentation

@@ -6,7 +6,7 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
     To work through the hands-on implementation for this module:
 
     - **Lab script:** [`scripts/06_fsdp_experiment.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_fsdp_experiment.py)
-    - **Reference module:** [`minilm/fsdp_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/fsdp_utils.py)
+    - **Reference module:** [`nanolm/fsdp_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/fsdp_utils.py)
     - **Unit tests:** `tests/test_module_06_fsdp.py` *(TODO)*
 
 ---

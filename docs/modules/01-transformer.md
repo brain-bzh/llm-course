@@ -358,13 +358,16 @@ Implement the smallest readable decoder-only Transformer:
 3. multi-head reshaping and output projection;
 4. a pre-norm residual block with an MLP;
 5. a repeated block stack, final normalization and LM head;
-6. shape, masking and tiny-batch overfitting tests.
+6. shape and masking tests;
+7. an exact forward-pass comparison after loading official GPT-2 weights.
 
 ## Expected output
 
-A model that completes a forward and backward pass, cannot observe future
-tokens, and can overfit a tiny batch. Every intermediate tensor shape should be
-explainable without running the code.
+A model that cannot observe future tokens and reproduces the official GPT-2
+logits after the provided checkpoint converter loads pretrained weights. The
+student should report a verified next-token log-probability for a fixed prompt,
+and every intermediate tensor shape should be explainable without running the
+code. Training the randomly initialized small model is the Module 2 milestone.
 
 ## Where this architecture fits
 
@@ -439,4 +442,3 @@ changed and what memory, optimization or inference trade-off each change targets
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/01-transformer.pdf){ .md-button target="_blank" }
 [:material-code-tags: Practical Companion Guide](../companion/01-transformer.md){ .md-button .md-button--primary }
-

@@ -46,8 +46,8 @@ nav:
       - 11. Frontier architectures: modules/11-frontier-architectures.md
   - Companion guide:
       - Overview: companion/index.md
-      - 1. Inspect & Naive MHA: companion/01-transformer.md
-      - 2. Training-loop & baseline GPT: companion/02-training-loop.md
+      - 1. Build a decoder-only Transformer: companion/01-transformer.md
+      - 2. Make a small NanoLM learn: companion/02-training-loop.md
       - 3. Pretraining data pipeline: companion/03-data-pipeline.md
       - 4. Single-GPU performance: companion/04-single-gpu.md
       - 5. Distributed data parallelism: companion/05-ddp.md

@@ -6,7 +6,7 @@ This lab accompanies [Module 7: Tensor parallelism](../modules/07-tensor-paralle
     To work through the hands-on implementation for this module:
 
     - **Lab script:** [`scripts/07_tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/07_tensor_parallel.py)
-    - **Reference module:** [`minilm/tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/tensor_parallel.py)
+    - **Reference module:** [`nanolm/tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tensor_parallel.py)
     - **Unit tests:** [`tests/test_module_07_tp.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_07_tp.py)
 
 ---

@@ -6,7 +6,7 @@ This lab accompanies [Module 3: Pretraining data pipeline](../modules/03-data-pi
     To work through the hands-on implementation for this module:
 
     - **Lab script:** [`scripts/03_prepare_dataset.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/03_prepare_dataset.py)
-    - **Reference modules:** [`minilm/tokenizer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/tokenizer.py) · [`minilm/data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/data.py)
+    - **Reference modules:** [`nanolm/tokenizer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tokenizer.py) · [`nanolm/data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/data.py)
     - **Unit tests:** [`tests/test_module_03_data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_03_data.py)
 
 ---

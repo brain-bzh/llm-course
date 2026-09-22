@@ -43,7 +43,7 @@ continuous-batching served model and benchmark report
 
 | Milestone | Required evidence |
 | --- | --- |
-| Model & loop correctness | Tiny-batch overfit (`loss < 0.1`), causal masking test, and deterministic sample inspection |
+| Model & loop correctness | GPT-2 logit parity, causal masking, tiny-batch overfit (`loss < 0.1`), and deterministic checkpoint recovery |
 | Data pipeline & ingestion | Tokenizer fidelity/compression, contiguous packing with `<\|endoftext\|>`, zero-copy memmap loader throughput |
 | Baseline checkpoint | Hyperparameter tuple, loss/grad-norm curves, verified resume determinism, and fluent generated samples |
 | Single-GPU performance | Profiler trace comparison, bf16/SDPA/compile speedups, tokens/s, peak VRAM, and MFU calculation |
@@ -81,4 +81,3 @@ the next experiment the team would run with additional compute. It is common
 material for the individual technical defense in the
 [reproduction project](reproduction-project.md), since questions can be drawn
 from either the shared system or the team's paper reproduction.
-

@@ -6,7 +6,7 @@ This lab accompanies [Module 9: KV-cached decoding](../modules/09-kv-cache.md).
     To work through the hands-on implementation for this module:
 
     - **Lab script:** [`scripts/09_kv_cache_bench.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/09_kv_cache_bench.py)
-    - **Reference modules:** [`minilm/kv_cache.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/kv_cache.py) · [`minilm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/model.py)
+    - **Reference modules:** [`nanolm/kv_cache.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/kv_cache.py) · [`nanolm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/model.py)
     - **Unit tests:** [`tests/test_module_09_kv_cache.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_09_kv_cache.py)
 
 ---

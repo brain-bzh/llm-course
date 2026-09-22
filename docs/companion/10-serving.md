@@ -10,7 +10,7 @@ This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 !!! tip "Exploration & Simulation Resources"
     - **Educational reference:** [nano-vllm (GitHub)](https://github.com/GeeeekExplorer/nano-vllm) — lightweight Python implementation of vLLM's PagedAttention and continuous batching scheduler.
     - **Lab simulation script:** [`scripts/10_serving_benchmark.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/10_serving_benchmark.py)
-    - **Reference simulator module:** [`minilm/serving_sim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/serving_sim.py)
+    - **Reference simulator module:** [`nanolm/serving_sim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/serving_sim.py)
 
 ---
 

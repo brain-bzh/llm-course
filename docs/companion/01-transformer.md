@@ -1,245 +1,189 @@
-# Module 1 Lab — Inspect a Transformer & Reimplement Naive MHA
+# Module 1 Lab — Build a decoder-only Transformer
 
 This lab accompanies [Module 1: Transformer from first principles](../modules/01-transformer.md).
-
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
-
-    - **Lab script:** [`scripts/01_inspect_and_mha.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_inspect_and_mha.py) · [`scripts/01_overfit.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_overfit.py)
-    - **Reference module:** [`minilm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/model.py)
-    - **Unit tests:** [`tests/test_module_01_model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_01_model.py)
-
----
-
-## Objective
-
-1. **Inspect a reference Transformer**: Trace parameter names, tensor shapes, and state dictionaries to understand how weights map to conceptual architecture components.
-2. **Reimplement a naive Multi-Head Attention (MHA) layer from scratch**: Write the Query, Key, Value projections, head splitting, causal masking, scaled dot-product attention, and output projection without helper libraries.
-3. **Verify invariants**: Confirm that:
-   - Output tensors maintain the expected shape $(B, T, d_{\text{model}})$.
-   - Causality strictly holds (future tokens cannot alter previous token outputs).
-   - The layer can overfit a tiny batch of data.
-
----
-
-## Part 1 — Inspecting a Reference Transformer
-
-Before implementing individual layers, inspect the complete model structure in Python:
-
-```python
-import torch
-from minilm.model import MiniGPT, GPTConfig
-
-config = GPTConfig(
-    vocab_size=50257,
-    block_size=256,
-    n_layer=4,
-    n_head=4,
-    n_embd=128,
-)
-model = MiniGPT(config)
-```
-
-### Parameter Dictionary Inspection
-
-Run through all parameters in `model.named_parameters()` and observe the naming convention:
-
-```python
-for name, param in model.named_parameters():
-    print(f"{name:<35} | Shape: {str(list(param.shape)):<18} | Count: {param.numel():,}")
-```
-
-Notice the key structural patterns:
-- `transformer.wte.weight`: Token embedding matrix of shape $[V, d_{\text{model}}]$.
-- `transformer.wpe.weight`: Learned position embeddings of shape $[\text{block\_size}, d_{\text{model}}]$.
-- `transformer.h.0.attn.c_attn.weight`: Single packed linear projection for $Q, K, V$, having shape $[3 \cdot d_{\text{model}}, d_{\text{model}}]$.
-- `transformer.h.0.attn.c_proj.weight`: Output projection back to the residual stream, shape $[d_{\text{model}}, d_{\text{model}}]$.
-- `transformer.h.0.mlp.c_fc.weight`: MLP expansion projection, shape $[4 \cdot d_{\text{model}}, d_{\text{model}}]$.
-- `transformer.h.0.mlp.c_proj.weight`: MLP contraction projection, shape $[d_{\text{model}}, 4 \cdot d_{\text{model}}]$.
-- `lm_head.weight`: Shares underlying storage with `transformer.wte.weight` (weight tying).
-
-### Trace a Forward Pass
-
-Pass a batch of synthetic token IDs and verify how shapes transform:
-
-```python
-B, T = 2, 8  # Batch size 2, Sequence length 8
-idx = torch.randint(0, config.vocab_size, (B, T))
-
-# Token IDs -> Embeddings
-tok_emb = model.transformer.wte(idx)                     # [B, T, d_model]
-pos = torch.arange(0, T, dtype=torch.long)
-pos_emb = model.transformer.wpe(pos)                     # [T, d_model]
-x = tok_emb + pos_emb                                    # [B, T, d_model]
-
-print(f"Hidden state shape entering Layer 0: {list(x.shape)}")
-```
-
----
-
-## Part 2 — Reimplementing Naive Multi-Head Attention
-
-Now, implement a naive multi-head attention module step-by-step.
-
-### 1. The Mathematical Flow
-
-Given input representations $X \in \mathbb{R}^{B \times T \times d_{\text{model}}}$:
-
-1. **Linear Projections**:
-
-    $$Q = X W_Q, \quad K = X W_K, \quad V = X W_V$$
-
-    where $W_Q, W_K, W_V \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$.
-
-2. **Reshape & Transpose into Multiple Heads**:
-
-    $$B \times T \times d_{\text{model}} \;\longrightarrow\; B \times n_{\text{head}} \times T \times d_{\text{head}}$$
-
-    where $d_{\text{head}} = d_{\text{model}} / n_{\text{head}}$.
-
-3. **Scaled Dot-Product Attention**:
-
-    $$S = \frac{Q K^T}{\sqrt{d_{\text{head}}}} \in \mathbb{R}^{B \times n_{\text{head}} \times T \times T}$$
-
-4. **Causal Masking**:
-
-    $$S_{i, j} = \begin{cases} S_{i, j} & \text{if } j \le i \\ -\infty & \text{if } j > i \end{cases}$$
-
-5. **Softmax & Value Mixing**:
-
-    $$P = \text{softmax}(S, \text{dim}=-1), \quad O_{\text{heads}} = P V \in \mathbb{R}^{B \times n_{\text{head}} \times T \times d_{\text{head}}}$$
-
-6. **Concatenation & Output Projection**:
-
-    $$O_{\text{heads}} \;\longrightarrow\; O_{\text{concat}} \in \mathbb{R}^{B \times T \times d_{\text{model}}}$$
-
-    $$Y = O_{\text{concat}} W_O$$
-
-### 2. Implementation Template
-
-Here is the naive, fully explicit implementation:
-
-```python
-import math
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class NaiveMultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, n_head: int, block_size: int):
-        super().__init__()
-        assert d_model % n_head == 0, "d_model must be divisible by n_head"
-        self.d_model = d_model
-        self.n_head = n_head
-        self.d_head = d_model // n_head
-
-        # 1. Individual linear projections for Q, K, V
-        self.w_q = nn.Linear(d_model, d_model, bias=False)
-        self.w_k = nn.Linear(d_model, d_model, bias=False)
-        self.w_v = nn.Linear(d_model, d_model, bias=False)
-
-        # 2. Output projection
-        self.w_o = nn.Linear(d_model, d_model, bias=False)
-
-        # 3. Lower-triangular causal mask buffer
-        # Shape: [1, 1, block_size, block_size]
-        mask = torch.tril(torch.ones(block_size, block_size))
-        self.register_buffer("mask", mask.view(1, 1, block_size, block_size))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, C = x.size()
-
-        # Step 1: Linear projections
-        # Shape: [B, T, d_model]
-        q = self.w_q(x)
-        k = self.w_k(x)
-        v = self.w_v(x)
-
-        # Step 2: Split into heads and transpose
-        # Shape: [B, n_head, T, d_head]
-        q = q.view(B, T, self.n_head, self.d_head).transpose(1, 2)
-        k = k.view(B, T, self.n_head, self.d_head).transpose(1, 2)
-        v = v.view(B, T, self.n_head, self.d_head).transpose(1, 2)
-
-        # Step 3: Scaled dot-product scores (QK^T / sqrt(d_head))
-        # Shape: [B, n_head, T, T]
-        scores = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(self.d_head))
-
-        # Step 4: Apply causal mask
-        causal_mask = self.mask[:, :, :T, :T] == 0
-        scores = scores.masked_fill(causal_mask, float("-inf"))
-
-        # Step 5: Softmax and weighted value aggregation
-        attn_weights = F.softmax(scores, dim=-1)
-        out_heads = attn_weights @ v  # [B, n_head, T, d_head]
-
-        # Step 6: Concatenate heads and project output
-        # [B, n_head, T, d_head] -> [B, T, n_head, d_head] -> [B, T, d_model]
-        out_concat = out_heads.transpose(1, 2).contiguous().view(B, T, C)
-        output = self.w_o(out_concat)
-
-        return output
-```
-
----
-
-## Part 3 — Verification & Invariant Checks
-
-Run the automated checks to prove the implementation is correct.
-
-### Check 1: Shape Preservation
-
-```python
-mha = NaiveMultiHeadAttention(d_model=64, n_head=4, block_size=32)
-x = torch.randn(2, 16, 64)
-y = mha(x)
-
-assert y.shape == x.shape, f"Expected shape {x.shape}, got {y.shape}"
-print("✓ Shape check passed:", y.shape)
-```
-
-### Check 2: Causal Masking Invariance Test
-
-A future token must never change the representation or prediction of an earlier token:
-
-```python
-mha.eval()
-seq1 = torch.randn(1, 6, 64)
-seq2 = seq1.clone()
-# Modify the last two tokens of seq2
-seq2[:, 4:, :] = torch.randn(1, 2, 64)
-
-with torch.no_grad():
-    out1 = mha(seq1)
-    out2 = mha(seq2)
-
-# Prefix outputs (positions 0, 1, 2, 3) must be IDENTICAL
-diff_prefix = (out1[:, :4, :] - out2[:, :4, :]).abs().max().item()
-assert diff_prefix < 1e-6, f"Causality leak detected! Difference: {diff_prefix}"
-print(f"✓ Causal invariance verified! Max prefix diff: {diff_prefix:.2e}")
-```
-
-### Check 3: Tiny-Batch Overfitting Test (Exit Criterion)
-
-Verify that when wrapped with a linear classification head, the attention module can overfit a tiny batch of random targets:
+You will implement the model described there: first explicit causal multi-head
+attention, then a Transformer block, and finally a complete decoder-only
+language model.
+
+!!! tip "Files used in this lab"
+    - **Starter:** [`starter/01_transformer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/01_transformer.py)
+    - **Your implementation:** [`nanolm/model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/model.py)
+    - **Progressive tests:** [`tests/test_module_01_model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_01_model.py)
+    - **Provided weight converter:** [`nanolm/gpt2.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/gpt2.py)
+    - **GPT-2 parity check:** [`scripts/01_gpt2_parity.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_gpt2_parity.py)
+
+The repository contains a completed `nanolm/model.py` so that later modules run
+from a fresh clone. For this lab, work on a branch and replace it with the
+starter. Your implementation will then become the model you extend throughout
+the course.
+
+## Set up the exercise
+
+From the root of your companion clone:
 
 ```bash
-uv run python scripts/01_inspect_and_mha.py
+git switch -c session-01-transformer
+cp starter/01_transformer.py nanolm/model.py
+uv run pytest tests/test_module_01_model.py -q
 ```
 
-Expected output:
-```text
-=== Module 1: Inspect Transformer & Naive MHA ===
-[Part 1] Model parameter inventory:
-  transformer.wte.weight              | Shape: [50257, 128]
-  transformer.wpe.weight              | Shape: [256, 128]
-  transformer.h.0.attn.c_attn.weight   | Shape: [384, 128]
-  ...
-[Part 2] Naive MHA Shape check: Passed ([2, 16, 64])
-[Part 3] Causal invariance check: Passed (diff: 0.00e+00)
-[Part 4] Tiny-batch overfit:
-  Step 10 | Loss: 2.2715
-  Step 30 | Loss: 0.0806
-  Step 60 | Loss: 0.0135
-SUCCESS: Module 1 exit criterion satisfied!
+The tests should initially fail with `NotImplementedError`. This is expected:
+the starter defines the required public classes and method signatures, but not
+their implementation.
+
+Do not use `torch.nn.MultiheadAttention` or
+`torch.nn.functional.scaled_dot_product_attention` in this first version. The
+point is to make every projection, reshape, mask, and matrix multiplication
+visible. A later module replaces this explicit implementation with optimized
+attention.
+
+## Step 1 — Implement causal multi-head attention
+
+Implement `CausalSelfAttention` in `nanolm/model.py`.
+
+For an input `x` with shape `B × T × d_model`:
+
+1. Project `x` independently into `Q`, `K`, and `V`.
+2. Reshape each projection to `B × n_head × T × d_head`, where
+   `d_head = d_model / n_head`.
+3. Compute the attention scores:
+
+   $$S = \frac{QK^\top}{\sqrt{d_{\text{head}}}}.$$
+
+4. Before the softmax, replace scores above the causal diagonal with
+   $-\infty$.
+5. Apply the softmax over key positions and multiply by `V`.
+6. Join the heads back into `B × T × d_model` and apply the output projection.
+
+Register the causal mask as a buffer so that it follows the module between
+devices without becoming a trainable parameter.
+
+Keep the projection names from the starter: `w_q`, `w_k`, `w_v`, and `c_proj`.
+The provided checkpoint converter relies on this public structure when it
+splits GPT-2's fused QKV tensor.
+
+Run only the attention tests while iterating:
+
+```bash
+uv run pytest tests/test_module_01_model.py -k attention -q
 ```
+
+Both tests must pass: attention must preserve the input shape, and changing
+future input vectors must not change earlier outputs.
+
+## Step 2 — Build the Transformer block
+
+Implement `MLP` with the following data flow:
+
+```text
+d_model → 4 × d_model → GELU → d_model → dropout
+```
+
+Then implement `TransformerBlock` using the pre-LayerNorm residual convention
+from the module:
+
+```text
+x = x + attention(norm_1(x))
+x = x + mlp(norm_2(x))
+```
+
+The block must preserve `B × T × d_model` exactly.
+Keep the component names `ln_1`, `attn`, `ln_2`, and `mlp`; the GPT-2 converter
+uses those names to place the pretrained tensors.
+
+```bash
+uv run pytest tests/test_module_01_model.py -k transformer_block -q
+```
+
+## Step 3 — Assemble the decoder-only language model
+
+Implement `MiniGPT` from the same components:
+
+```text
+token IDs
+  → token embeddings + learned position embeddings
+  → dropout
+  → repeated Transformer blocks
+  → final LayerNorm
+  → vocabulary projection
+  → logits
+```
+
+Keep these contracts unchanged:
+
+- Input token IDs have shape `B × T` and must satisfy `T <= block_size`.
+- Logits have shape `B × T × vocab_size`.
+- Tie `lm_head.weight` to the token embedding weight.
+- When `targets` are supplied, compute cross-entropy over all positions.
+  The caller provides already-shifted next-token targets.
+- Return `(logits, loss, None)`. The third value is reserved for the KV cache
+  introduced later in the course.
+- Store `wte`, `wpe`, `drop`, `h`, and `ln_f` inside `self.transformer`, and
+  call the output projection `lm_head`. These names form the checkpoint-loading
+  contract.
+
+Run the model-level tests:
+
+```bash
+uv run pytest tests/test_module_01_model.py \
+  -k "model_output or model_is_causal" -q
+```
+
+The causality test changes future token IDs and checks that earlier logits are
+unchanged. Passing a shape test alone is not sufficient.
+
+## Step 4 — Reproduce the official GPT-2 forward pass
+
+First run the complete local Session 1 suite:
+
+```bash
+uv run pytest tests/test_module_01_model.py -q
+```
+
+Then install the optional reference dependency and run the capstone:
+
+```bash
+uv sync --extra gpt2
+uv run --extra gpt2 python scripts/01_gpt2_parity.py
+```
+
+The first run downloads the official GPT-2 124M checkpoint. The provided
+`nanolm/gpt2.py` converter handles two bookkeeping differences that are not the
+focus of this lab:
+
+- GPT-2 stores Q, K, and V in one fused projection, whereas your implementation
+  keeps them separate;
+- Hugging Face GPT-2 uses `Conv1D` tensors whose matrix axes must be transposed
+  when copied into `nn.Linear`.
+
+The script runs `"The capital of Germany is Berlin. The capital of France is"`
+through both models. It compares every output logit, reports the
+log-probability of the one-token continuation `" Paris"`, and prints the five
+most likely next tokens. The maximum absolute logit difference must remain
+within the script's numerical tolerance. On the pinned reference environment,
+`" Paris"` is the top prediction with log-probability approximately `-0.334223`.
+
+If parity fails, inspect the implementation in this order:
+
+1. causal-mask orientation and placement before softmax;
+2. head reshaping and transposition;
+3. residual additions and pre-LayerNorm order;
+4. GELU approximation and LayerNorm epsilon;
+5. component names and projection dimensions expected by the converter.
+
+## Definition of done
+
+You are finished when:
+
+- all six tests in `tests/test_module_01_model.py` pass;
+- NanoLM reproduces the Hugging Face GPT-2 logits within tolerance;
+- you can report and interpret the displayed log-probability of `" Paris"`;
+- you can state the shape of `Q`, `K`, `V`, attention scores, hidden states, and
+  logits without running the code;
+- you can explain why changing a future token cannot alter an earlier logit.
+
+Commit your implementation before moving to the training-loop module. From
+this point onward, the rest of the companion assumes that `nanolm/model.py` is
+your working Transformer implementation. Session 2 will initialize a much
+smaller version from scratch and prove that it can learn by overfitting one
+batch.

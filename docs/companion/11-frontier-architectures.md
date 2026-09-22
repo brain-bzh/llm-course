@@ -9,7 +9,7 @@ This lab accompanies [Module 11: Frontier architectures and efficient generation
 
 !!! tip "Optional Exploration & Reference Resources"
     - **Lab script:** [`scripts/11_frontier_exploration.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/11_frontier_exploration.py)
-    - **Reference module:** [`minilm/moe.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/minilm/moe.py)
+    - **Reference module:** [`nanolm/moe.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/moe.py)
     - **Unit tests:** [`tests/test_module_11_frontier.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_11_frontier.py)
 
 ---
