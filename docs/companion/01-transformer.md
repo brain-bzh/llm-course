@@ -224,7 +224,6 @@ print(f"✓ Causal invariance verified! Max prefix diff: {diff_prefix:.2e}")
 Verify that when wrapped with a linear classification head, the attention module can overfit a tiny batch of random targets:
 
 ```bash
-cd companion
 uv run python scripts/01_inspect_and_mha.py
 ```
 

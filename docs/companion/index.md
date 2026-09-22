@@ -22,6 +22,9 @@ uv sync
 uv run pytest tests/ -v
 ```
 
+All commands in the module guides are run from the root of this companion
+repository.
+
 The companion codebase is built with strictly minimal dependencies:
 - **PyTorch** (`torch`): Tensor operations and neural network modules.
 - **NumPy** (`numpy`): Memory-mapped binary datasets and array packing.

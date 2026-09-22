@@ -28,7 +28,6 @@ This lab accompanies [Module 11: Frontier architectures and efficient generation
 Run the unit tests and the frontier architectures exploration script:
 
 ```bash
-cd companion
 uv run pytest tests/test_module_11_frontier.py -v
 uv run python scripts/11_frontier_exploration.py
 ```

@@ -182,8 +182,7 @@ class ShardedMLP(nn.Module):
 We test our parallel layer against a standard single-process reference layer:
 
 ```bash
-cd companion
-uv run python scripts/09_tensor_parallel.py
+uv run python scripts/07_tensor_parallel.py
 ```
 
 ### Multi-Rank Worker Execution (Gloo CPU)

@@ -24,7 +24,6 @@ This lab accompanies [Module 9: KV-cached decoding](../modules/09-kv-cache.md).
 Run the unit tests and generation speedup benchmark:
 
 ```bash
-cd companion
 uv run pytest tests/test_module_09_kv_cache.py -v
 uv run python scripts/09_kv_cache_bench.py
 ```

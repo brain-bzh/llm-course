@@ -24,6 +24,5 @@ This lab accompanies [Module 5: Distributed data parallelism](../modules/05-ddp.
 Launch the DDP distributed training simulation:
 
 ```bash
-cd companion
 uv run python scripts/05_train_ddp.py
 ```

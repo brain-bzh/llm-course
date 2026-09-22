@@ -26,6 +26,5 @@ This lab accompanies [Module 8: Context, pipeline, and expert parallelism](../mo
 Run the analytical parallelism sizing calculator:
 
 ```bash
-cd companion
 uv run python scripts/08_parallelism_sizing.py
 ```

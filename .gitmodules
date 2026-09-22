@@ -1,0 +1,3 @@
+[submodule "companion"]
+	path = companion
+	url = https://github.com/brain-bzh/llm-course-companion.git

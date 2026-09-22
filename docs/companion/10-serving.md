@@ -27,6 +27,5 @@ This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 Run the discrete-event continuous batching simulation:
 
 ```bash
-cd companion
 uv run python scripts/10_serving_benchmark.py
 ```

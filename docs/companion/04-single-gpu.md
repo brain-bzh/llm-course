@@ -24,6 +24,5 @@ This lab accompanies [Module 4: Single-GPU performance](../modules/04-single-gpu
 Run the single-GPU profiling benchmark:
 
 ```bash
-cd companion
 uv run python scripts/04_single_gpu_perf.py
 ```

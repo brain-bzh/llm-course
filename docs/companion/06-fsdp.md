@@ -24,6 +24,5 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 Run the FSDP memory and communication scaling experiment:
 
 ```bash
-cd companion
 uv run python scripts/06_fsdp_experiment.py
 ```

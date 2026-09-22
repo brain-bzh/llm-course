@@ -26,8 +26,6 @@ This lab accompanies [Module 2: Training-loop anatomy and baseline GPT](../modul
 Run the verification tests and the standalone demonstration scripts:
 
 ```bash
-cd companion
-
 # 1. Verify training step invariants
 uv run pytest tests/test_module_02_optim.py -v
 uv run python scripts/02_training_step.py

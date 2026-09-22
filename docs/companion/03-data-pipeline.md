@@ -25,7 +25,6 @@ This lab accompanies [Module 3: Pretraining data pipeline](../modules/03-data-pi
 Run the dataset preparation test suite and demo script:
 
 ```bash
-cd companion
 uv run pytest tests/test_module_03_data.py -v
 uv run python scripts/03_prepare_dataset.py
 ```
