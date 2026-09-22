@@ -72,7 +72,7 @@ examine the internal state transitions:
    Computes a scalar loss from model predictions and ground-truth targets. For
    causal language models, this is categorical cross-entropy:
    
-   $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} \log p_\theta(x_i \mid x_{<i}).$$
+   $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} \log p_\theta(x_i \mid x_{< i}).$$
    
    The returned tensor is the root of the computation graph (`loss.grad_fn` points to the last node).
 4. **The backward pass (`loss.backward()`):**

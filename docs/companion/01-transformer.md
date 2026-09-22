@@ -11,6 +11,7 @@ language model.
     - **Progressive tests:** [`tests/test_module_01_model.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_01_model.py)
     - **Provided weight converter:** [`nanolm/gpt2.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/gpt2.py)
     - **GPT-2 parity check:** [`scripts/01_gpt2_parity.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/01_gpt2_parity.py)
+    - **Interactive visualization:** [Transformer Explainer](https://poloclub.github.io/transformer-explainer/) (live browser visualization of GPT-2 tensors and attention)
 
 The repository contains a completed `nanolm/model.py` so that later modules run
 from a fresh clone. For this lab, work on a branch and replace it with the

@@ -25,13 +25,13 @@ we will train during the course.
 
 At its theoretical foundation, generative language modeling casts the generation of text as estimating the joint probability distribution over an ordered sequence of discrete tokens:
 
-$$P(x_1, x_2, \dots, x_T) = \prod_{t=1}^T P(x_t \mid x_1, \dots, x_{t-1}) = \prod_{t=1}^T P(x_t \mid x_{<t}).$$
+$$P(x_1, x_2, \dots, x_T) = \prod_{t=1}^T P(x_t \mid x_1, \dots, x_{t-1}) = \prod_{t=1}^T P(x_t \mid x_{< t}).$$
 
-By the chain rule of probability, this high-dimensional joint distribution factorizes exactly into a sequence of conditional distributions. The model's core objective is **next-token prediction (NTP)**: given an observed context of prefix tokens $x_{<t} = (x_1, \dots, x_{t-1})$, compute a probability distribution over the vocabulary $\mathcal{V}$ for the subsequent token $x_t$.
+By the chain rule of probability, this high-dimensional joint distribution factorizes exactly into a sequence of conditional distributions. The model's core objective is **next-token prediction (NTP)**: given an observed context of prefix tokens $x_{< t} = (x_1, \dots, x_{t-1})$, compute a probability distribution over the vocabulary $\mathcal{V}$ for the subsequent token $x_t$.
 
 Training maximizes the log-likelihood of ground-truth sequences sampled from a vast pretraining corpus $\mathcal{D}$, minimizing empirical cross-entropy loss:
 
-$$\mathcal{L}_{\text{NTP}}(\theta) = -\frac{1}{T}\sum_{t=1}^T \log P_\theta(x_t \mid x_{<t}).$$
+$$\mathcal{L}_{\text{NTP}}(\theta) = -\frac{1}{T}\sum_{t=1}^T \log P_\theta(x_t \mid x_{< t}).$$
 
 ### What is a token?
 
@@ -79,9 +79,9 @@ Computing the hidden state $h_t$ strictly requires the prior hidden state $h_{t-
 - **Fixed-capacity compression:** The hidden vector $h_t \in \mathbb{R}^d$ has a fixed dimensionality. Compressing an entire variable-length prefix $x_1, \dots, x_t$ into a single vector inevitably causes catastrophic forgetting of early context.
 - **Vanishing and exploding gradients:** Training recurrent networks over long contexts relies on Backpropagation Through Time (BPTT). Computing the gradient of the loss at step $T$ with respect to the hidden state at step 1 expands through a product of $T-1$ Jacobians ([Pascanu et al., 2013](https://proceedings.mlr.press/v28/pascanu13.html)):
 
-  $$\frac{\partial h_T}{\partial h_1} = \prod_{k=2}^T \frac{\partial h_k}{\partial h_{k-1}} = \prod_{k=2}^T \operatorname{diag}\left(1 - \tanh^2(\cdot)\right) W_{hh}^\top.$$
+$$\frac{\partial h_T}{\partial h_1} = \prod_{k=2}^T \frac{\partial h_k}{\partial h_{k-1}} = \prod_{k=2}^T \operatorname{diag}\left(1 - \tanh^2(\cdot)\right) W_{hh}^\top.$$
 
-  If the largest singular value of $W_{hh}$ is less than 1, gradients decay exponentially toward zero as $T$ grows; if greater than 1, gradients explode. Even LSTMs, which introduce an additive highway for cell state gradients, struggle to maintain effective credit assignment beyond several hundred steps.
+If the largest singular value of $W_{hh}$ is less than 1, gradients decay exponentially toward zero as $T$ grows; if greater than 1, gradients explode. Even LSTMs, which introduce an additive highway for cell state gradients, struggle to maintain effective credit assignment beyond several hundred steps.
 - **Interaction path length:** For information at position $i$ to influence position $j$, it must traverse $O(|j - i|)$ intermediate transformations.
 
 ---
@@ -95,7 +95,7 @@ The Transformer architecture ([Vaswani et al., 2017](https://arxiv.org/abs/1706.
 
 <figure markdown="span">
   ![Comparison of recurrent sequential processing versus Transformer parallel causal attention.](../assets/figures/sequential-vs-parallel-ntp.svg){ loading=lazy }
-  <figcaption>The paradigm shift: Recurrent models suffer from an $O(T)$ sequential compute dependency and gradient decay, whereas causal self-attention computes all interactions concurrently with an $O(1)$ direct path.</figcaption>
+  <figcaption markdown="span">The paradigm shift: Recurrent models suffer from an $O(T)$ sequential compute dependency and gradient decay, whereas causal self-attention computes all interactions concurrently with an $O(1)$ direct path.</figcaption>
 </figure>
 
 ---
@@ -159,7 +159,7 @@ OpenAI's **GPT-2** ([Radford et al., 2019](https://cdn.openai.com/better-languag
 - **Standard Multi-Head Attention (MHA):** $H$ independent query, key, and value heads.
 - **Standard MLP:** A 2-layer projection expanding the hidden dimension by $4\times$ with Gaussian Error Linear Unit (GeLU; [Hendrycks & Gimpel, 2016](https://arxiv.org/abs/1606.08415)) activation:
 
-  $$\operatorname{MLP}(x) = \operatorname{GeLU}(x W_1 + b_1) W_2 + b_2.$$
+$$\operatorname{MLP}(x) = \operatorname{GeLU}(x W_1 + b_1) W_2 + b_2.$$
 
 - **Weight tying:** Tying the weights of the input token embedding and the output language-model projection head ($W_{\text{vocab}} = W_E^\top$; [Press & Wolf, 2017](https://arxiv.org/abs/1608.05859)).
 
@@ -405,8 +405,8 @@ changed and what memory, optimization or inference trade-off each change targets
 
 ## References
 
-- [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)
-  — the main component-by-component reference for this module;
+### Papers
+
 - [Vaswani et al. (2017) — Attention Is All You Need](https://arxiv.org/abs/1706.03762)
   — the seminal paper introducing the Transformer and multi-head attention;
 - [Radford et al. (2019) — Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
@@ -432,9 +432,16 @@ changed and what memory, optimization or inference trade-off each change targets
 - [Press & Wolf (2017) — Using the Output Embedding to Improve Language Models](https://arxiv.org/abs/1608.05859)
   — analysis and evaluation of weight tying;
 - [Xiong et al. (2020) — On Layer Normalization in the Transformer Architecture](https://arxiv.org/abs/2002.04745)
-  — theoretical and empirical study of Pre-LN vs Post-LN gradient stability;
+  — theoretical and empirical study of Pre-LN vs Post-LN gradient stability.
+
+### Blogs and websites
+
+- [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)
+  — line-by-line PyTorch implementation and deconstruction of the original architecture;
+- [Transformer Explainer](https://poloclub.github.io/transformer-explainer/)
+  — interactive visualization of the Transformer architecture, attention maps, and internal activations using GPT-2;
 - [Sebastian Raschka — Chapter 17: Encoder- and Decoder-Style Transformers](https://www.sebastianraschka.com/books/ml-q-and-ai-chapters/ch17/)
-  — context for the three Transformer families;
+  — conceptual overview of the three Transformer families;
 - [Sebastian Raschka's LLM Architecture Gallery](https://sebastianraschka.com/llm-architecture-gallery/)
   — visual comparisons across modern language-model architectures.
 

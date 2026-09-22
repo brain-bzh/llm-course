@@ -63,7 +63,7 @@ from target verification:
 2. **Verification Phase:** The large target model (e.g. 70B) runs a **single parallel forward pass**
    evaluating all $K$ tokens simultaneously:
    
-   $$p_{\text{target}}(x_t \mid x_{<t}) \quad \text{for all } t \in \{1, \dots, K\}.$$
+   $$p_{\text{target}}(x_t \mid x_{< t}) \quad \text{for all } t \in \{1, \dots, K\}.$$
    
    Because evaluating $K$ tokens in parallel converts memory-bound vector-matrix operations
    into compute-bound matrix-matrix multiplications (GEMMs), the target verification takes
@@ -76,7 +76,7 @@ each draft token $x_t$ is evaluated sequentially with rejection sampling:
 
 - Accept $x_t$ with probability:
   
-  $$\min\left(1, \frac{p_{\text{target}}(x_t \mid x_{<t})}{p_{\text{draft}}(x_t \mid x_{<t})}\right).$$
+  $$\min\left(1, \frac{p_{\text{target}}(x_t \mid x_{< t})}{p_{\text{draft}}(x_t \mid x_{< t})}\right).$$
 
 - If $x_t$ is rejected, stop and sample the replacement token from the residual distribution:
   

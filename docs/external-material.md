@@ -33,17 +33,26 @@ This page collects the references behind the course. We thank the many authors o
 
 _Sessions 1, 2 and 4._
 
+### Papers
+
 - **[Attention Is All You Need](https://arxiv.org/abs/1706.03762)** — The
   original Transformer architecture and scaled dot-product attention.
-- **[The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)**
-  — A line-by-line PyTorch implementation of the original encoder-decoder
-  Transformer; especially useful for attention shapes, masking, residual paths
-  and normalization.
 - **[Decoupled Weight Decay Regularization](https://arxiv.org/abs/1711.05101)**
   — The motivation behind AdamW and the distinction between weight decay and an
   L2 penalty under adaptive optimization.
 - **[Mixed Precision Training](https://arxiv.org/abs/1710.03740)** — Master
   weights, reduced-precision computation and loss scaling.
+
+### Blogs and websites
+
+- **[The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/)**
+  — A line-by-line PyTorch implementation of the original encoder-decoder
+  Transformer; especially useful for attention shapes, masking, residual paths
+  and normalization.
+- **[Transformer Explainer](https://poloclub.github.io/transformer-explainer/)**
+  — An interactive visual walkthrough of a live GPT-2 model showing token
+  embeddings, attention heads, LayerNorm, and MLP activations directly in the
+  browser.
 
 ## Tokenization and data
 
