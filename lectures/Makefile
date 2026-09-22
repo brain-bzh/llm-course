@@ -5,7 +5,8 @@
 #   make clean          - Remove LaTeX auxiliary files
 #   make distclean      - Remove LaTeX auxiliary files and compiled PDFs
 
-SESSIONS = 01-transformer \
+SESSIONS = 00-introduction \
+           01-transformer \
            02-training-loop \
            03-data-pipeline \
            04-single-gpu \

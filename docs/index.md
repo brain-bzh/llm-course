@@ -71,5 +71,6 @@ it mid-course, and spends the second half of the course reproducing or
 verifying one of its claims — see the
 [reproduction project](reproduction-project.md).
 
-[View the complete schedule](schedule.md){ .md-button .md-button--primary }
+[Course presentation (PDF)](slides/00-introduction.pdf){ .md-button .md-button--primary target="_blank" }
+[View the complete schedule](schedule.md){ .md-button }
 [Read the project specification](project.md){ .md-button }
