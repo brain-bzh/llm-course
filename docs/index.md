@@ -1,6 +1,20 @@
+<div class="course-hero" markdown>
+
+<p class="course-eyebrow">BRAIN team · IMT Atlantique</p>
+
 # Training and Scaling Language Models
 
-## From first principles to efficient serving
+<p class="course-lead">From first principles to efficient serving.</p>
+
+<ul class="course-pipeline">
+  <li><span>Raw text</span></li>
+  <li><span>Transformer</span></li>
+  <li><span>Single GPU</span></li>
+  <li><span>DDP · FSDP · TP</span></li>
+  <li><span>Serving</span></li>
+</ul>
+
+</div>
 
 An intensive, implementation-led course on the complete language-model
 pipeline, designed by the [BRAIN team](https://www.imt-atlantique.fr/en/research-innovation/teams/brain) for [IMT Atlantique](https://www.imt-atlantique.fr/en).
@@ -48,7 +62,7 @@ By the end of the course, students should be able to:
 
 - trace the path from raw documents to next-token loss;
 - implement and debug a small decoder-only Transformer and training loop;
-- build a zero-copy data ingestion pipeline from raw web extraction to memory-mapped tokens;
+- trace raw-text ingestion and build validated token shards with a memory-mapped loader;
 - measure memory, throughput and model FLOP utilization before optimizing;
 - explain and test DDP, FSDP and a minimal tensor-parallel layer;
 - choose a parallelization strategy from model size, sequence length and
@@ -56,6 +70,18 @@ By the end of the course, students should be able to:
 - implement a KV cache and explain why autoregressive decode is memory-bound;
 - understand a serving system using time to first token, inter-token latency,
   throughput and memory.
+
+## Scope and preparation
+
+This course focuses on pretraining and the systems used to train and serve
+language models. Post-training turns a pretrained model into a task- or
+instruction-following model; SFT, preference optimization, retrieval, and agents
+are outside the implementation scope here.
+
+Students should already be comfortable with Python, matrix multiplication,
+probability and cross-entropy, differentiation, and basic PyTorch training.
+The opening practical sessions reinforce tensor shapes and module composition,
+but do not replace an introductory deep-learning course.
 
 ## Teaching principle
 

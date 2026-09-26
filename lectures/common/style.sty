@@ -1,103 +1,182 @@
+% ==============================================================
+% Course Beamer theme — "ink & signal"
+% Mirrors the website palette (docs/assets/stylesheets/extra.css).
+% Colors come from colors.tex, which the preamble loads first.
+% ==============================================================
 \mode<presentation>
 
-\usepackage{multicol}
+\RequirePackage{multicol}
+\RequirePackage{tikz}
+\RequirePackage[most]{tcolorbox}
 
-\newif\ifbeamer@secheader
-\beamer@secheaderfalse
+% ---- Typography ----
+\RequirePackage[default]{sourcesanspro}
+\RequirePackage[scale=0.88]{sourcecodepro}
+\usefonttheme[onlymath]{serif}
 
-%\DeclareOptionBeamer{secheader}{\beamer@secheadertrue}
-\ProcessOptionsBeamer
+\setbeamerfont{frametitle}{size=\large,series=\bfseries}
+\setbeamerfont{framesubtitle}{size=\footnotesize,series=\mdseries}
+\setbeamerfont{eyebrow}{size=\tiny,series=\bfseries}
+\setbeamerfont{footline}{size=\tiny}
+\setbeamerfont{section title}{size=\LARGE,series=\bfseries}
 
-\useoutertheme[footline=authorinstitutetitle,subsection=false]{smoothbars}
-\makeatletter % [add curpage/total page at the
-% bottom](http://tex.stackexchange.com/questions/100838/beamer-dresden-theme-miniframes-appeareance-and-frame-number-insertion)
-\newcommand{\frameofframes}{/}
-\newcommand{\setframeofframes}[1]{\renewcommand{\frameofframes}{#1}}
-\setbeamertemplate{footline}
-{%
-  \begin{beamercolorbox}[colsep=1.5pt]{upper separation line foot}
-  \end{beamercolorbox}
-  \begin{beamercolorbox}[ht=2.5ex,dp=1.125ex,%
-    leftskip=.3cm,rightskip=.3cm plus1fil]{author in head/foot}%
-    \leavevmode{\usebeamerfont{author in head/foot}\insertshortauthor}%
-    \hfill%
-    {\usebeamerfont{institute in head/foot}\usebeamercolor[fg]{institute in head/foot}\insertshortinstitute}%
-  \end{beamercolorbox}%
-  \begin{beamercolorbox}[ht=2.5ex,dp=1.125ex,%
-    leftskip=.3cm,rightskip=.3cm plus1fil]{title in head/foot}%
-    {\usebeamerfont{title in head/foot}\insertshorttitle}%
-    \hfill%
-    {\usebeamerfont{frame number}\usebeamercolor[fg]{frame number}\insertframenumber~\frameofframes~\inserttotalframenumber}
-  \end{beamercolorbox}%
-  \begin{beamercolorbox}[colsep=1.5pt]{lower separation line foot}
-  \end{beamercolorbox}
-}
-\makeatother
+% ---- Base colors ----
+\setbeamercolor{normal text}{fg=themeink!90}
+\setbeamercolor{structure}{fg=main_color}
+\setbeamercolor{frametitle}{fg=themeink,bg=}
+\setbeamercolor{framesubtitle}{fg=inkmuted}
+\setbeamercolor{eyebrow}{fg=signaldark}
+\setbeamercolor{footline}{fg=inkmuted}
+\setbeamercolor{title}{fg=white}
+\setbeamercolor{subtitle}{fg=accentlight}
+\setbeamercolor{author}{fg=themeink}
+\setbeamercolor{date}{fg=inkmuted}
+\setbeamercolor{institute}{fg=inkmuted}
+\setbeamercolor{item}{fg=themeteal}
+\setbeamercolor{subitem}{fg=inkmuted}
+\setbeamercolor{item projected}{fg=white,bg=themeteal}
+\setbeamercolor{caption name}{fg=accentdark}
+\setbeamercolor{bibliography item}{fg=accentdark}
 
-\useinnertheme{circles}
-
-%\useoutertheme{default}
-%\useinnertheme[shadow=true]{rounded}
-
-\xdefinecolor{main_color}{RGB}{22,70,102}
-\definecolor{primarylight}{RGB}{34,92,132}
-\definecolor{themeteal}{RGB}{0,159,176}
-\definecolor{panelbg}{RGB}{237,245,249}
-\definecolor{panelborder}{RGB}{204,226,238}
-
-\setbeamercolor{footline}{bg=main_color}
-\setbeamercolor{frametitle}{bg=main_color,fg=white}
-\setbeamercolor{title}{bg=main_color,fg=white}
-\setbeamerfont{frametitle}{size=\large}
-%\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{bibliography item}[text]
 \setbeamertemplate{caption}[numbered]
 
-\setbeamercolor{palette primary}{use=structure,fg=white,bg=main_color}
-\setbeamercolor{palette secondary}{use=structure,fg=white,bg=primarylight}
-\setbeamercolor{palette tertiary}{use=structure,fg=white,bg=main_color!90!black}
-\setbeamercolor{palette quaternary}{fg=white,bg=main_color}
-\setbeamercolor{titlelike}{parent=palette primary}
+% ---- Lists: small teal squares, numbered teal discs ----
+\setbeamertemplate{itemize item}{%
+  \raisebox{0.18ex}{\color{themeteal}\rule{0.62ex}{0.62ex}}}
+\setbeamertemplate{itemize subitem}{%
+  \raisebox{0.32ex}{\color{inkmuted}\rule{0.8ex}{0.14ex}}}
+\setbeamertemplate{itemize subsubitem}{\color{inkmuted}\tiny$\circ$}
+\setbeamertemplate{enumerate item}[circle]
+\setbeamertemplate{enumerate subitem}[circle]
+\setbeamertemplate{sections/subsections in toc}[circle]
 
-%% Block colors aligned with website cards
-\setbeamercolor{block title}{bg=main_color,fg=white}
-\setbeamercolor{block title example}{bg=themeteal,fg=white}
-\setbeamercolor{block body}{bg=panelbg}
-\setbeamercolor{block body example}{bg=themeteal!8}
-\setbeamertemplate{blocks}[rounded]
+% ---- Frame title: section eyebrow, title, short coral rule ----
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip
+  \vskip7pt
+  \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.55cm,rightskip=0.55cm plus 1fil]{frametitle}%
+    \ifx\secname\@empty\else
+      {\usebeamerfont{eyebrow}\usebeamercolor[fg]{eyebrow}%
+        \MakeUppercase{\insertsectionhead}\par}%
+      \vskip2pt
+    \fi
+    {\usebeamerfont{frametitle}\strut\insertframetitle\strut\par}%
+    \ifx\beamer@framesubtitle\@empty\else
+      {\usebeamerfont{framesubtitle}\usebeamercolor[fg]{framesubtitle}\insertframesubtitle\par}%
+    \fi
+    \vskip3pt
+    {\color{signal}\rule{0.9cm}{1.2pt}}%
+  \end{beamercolorbox}%
+  \vskip1pt
+}
+\setbeamertemplate{headline}{}
+\setbeamertemplate{sidebar right}{}
 
-\setbeamercolor{upper separation line foot}{bg=themeteal}
-\setbeamercolor{lower separation line foot}{bg=themeteal}
-\setbeamercolor{separation line}{bg=themeteal}
+% ---- Footline: hairline, short title left, logo + page number right ----
+\newcommand{\frameofframes}{/}
+\newcommand{\setframeofframes}[1]{\renewcommand{\frameofframes}{#1}}
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox to \paperwidth{%
+    \hskip0.55cm
+    \vbox{%
+      \hsize=\dimexpr\paperwidth-1.1cm\relax
+      {\color{panelborder}\hrule height 0.4pt}%
+      \vskip3.5pt
+      \hbox to \hsize{%
+        \usebeamerfont{footline}\usebeamercolor[fg]{footline}%
+        \insertshorttitle
+        \hfill
+        \insertlogo
+        \hskip8pt
+        {\usebeamerfont{footline}\bfseries\color{themeteal}\insertframenumber}%
+        {\usebeamerfont{footline}\color{inkmuted}\,\frameofframes\,\inserttotalframenumber}%
+      }%
+      \vskip5pt
+    }%
+    \hss
+  }%
+}
 
-\setbeamercolor{fine separation line}{}
-\setbeamercolor{item projected}{fg=white,bg=main_color}
-\setbeamercolor{palette sidebar primary}{use=normal text,fg=normal text.fg}
-\setbeamercolor{palette sidebar quaternary}{use=structure,fg=structure.fg}
-\setbeamercolor{palette sidebar secondary}{use=structure,fg=structure.fg}
-\setbeamercolor{palette sidebar tertiary}{use=normal text,fg=normal text.fg}
-%\setbeamercolor{palette sidebar quaternary}{fg=white}
-\setbeamercolor{section in sidebar}{fg=brown}
-\setbeamercolor{section in sidebar shaded}{fg=grey}
-\setbeamercolor{sidebar}{bg=main_color}
-\setbeamercolor{sidebar}{parent=palette primary}
-\setbeamercolor{structure}{fg=main_color}
-\setbeamercolor{subsection in sidebar}{fg=brown}
-\setbeamercolor{subsection in sidebar shaded}{fg=grey}
+% ---- Blocks: tinted panel, colored left rule, colored title text ----
+\newtcolorbox{coursebox}[2]{%
+  enhanced, breakable=false,
+  colback=#1!5!white, colframe=#1, coltext=themeink!90,
+  boxrule=0pt, leftrule=2pt, arc=1.5pt, outer arc=1.5pt,
+  left=5pt, right=5pt, top=3pt, bottom=4pt,
+  before skip=5pt, after skip=5pt,
+  fontupper=\small,
+  before upper={%
+    \raggedright
+    \def\@coursetitle{#2}%
+    \ifx\@coursetitle\@empty\else
+      {\normalsize\bfseries\color{#1}#2\par}\vskip2pt
+    \fi}%
+}
+\setbeamertemplate{block begin}{\begin{coursebox}{main_color}{\insertblocktitle}}
+\setbeamertemplate{block end}{\end{coursebox}}
+\setbeamertemplate{block example begin}{\begin{coursebox}{themeteal}{\insertblocktitle}}
+\setbeamertemplate{block example end}{\end{coursebox}}
+\setbeamertemplate{block alerted begin}{\begin{coursebox}{leafred}{\insertblocktitle}}
+\setbeamertemplate{block alerted end}{\end{coursebox}}
 
-\setbeamertemplate{title page}[customized]
-\defbeamertemplate*{title page}{customized}[1][]
-{
-  \begin{center}
-    \begin{beamercolorbox}[wd=\textwidth, sep=10pt, center, rounded=true]{title}
-      {\usebeamerfont{title}\inserttitle\par}
-    \end{beamercolorbox}
-    \bigskip
-    \usebeamerfont{author}\insertauthor\par
-    \bigskip
-    \usebeamerfont{institute}\insertinstitute\par
-    \usebeamerfont{date}\insertdate
-  \end{center}
+% ---- Title page: ink band with signature rule, logos on white ----
+\def\course@titlelogos{}
+\newcommand{\settitlelogos}[1]{\def\course@titlelogos{#1}}
+\def\course@tagline{}
+\newcommand{\settitletagline}[1]{\def\course@tagline{#1}}
+
+\defbeamertemplate*{title page}{course}[1][]{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[themeink] (current page.north west) rectangle
+      ([yshift=-0.56\paperheight]current page.north east);
+    \shade[left color=themeteal,right color=signal]
+      ([yshift=-0.56\paperheight]current page.north west) rectangle
+      ([yshift=-0.56\paperheight-1.4pt]current page.north east);
+    \node[anchor=north west,inner sep=0pt,text width=\paperwidth-2.2cm,align=left]
+      at ([xshift=1.1cm,yshift=-0.9cm]current page.north west)
+      {{\usebeamerfont{eyebrow}\color{signal}\MakeUppercase{\course@tagline}}};
+    \node[anchor=south west,inner sep=0pt,text width=\paperwidth-2.2cm,align=left]
+      at ([xshift=1.1cm,yshift=-0.56\paperheight+0.55cm]current page.north west)
+      {\usebeamerfont{title}\usebeamercolor[fg]{title}\raggedright\inserttitle\par};
+    \node[anchor=north west,inner sep=0pt,align=left]
+      at ([xshift=1.1cm,yshift=-0.56\paperheight-0.55cm]current page.north west)
+      {{\usebeamerfont{author}\usebeamercolor[fg]{author}\bfseries\insertauthor}\\[2pt]
+       {\usebeamerfont{date}\small\usebeamercolor[fg]{date}\insertinstitute\ \textperiodcentered\ \insertdate}};
+    \node[anchor=south east,inner sep=0pt]
+      at ([xshift=-0.9cm,yshift=0.6cm]current page.south east)
+      {\course@titlelogos};
+  \end{tikzpicture}%
+}
+
+% ---- Section divider: ink canvas, big number, all parts listed ----
+\newcommand{\coursesectiondivider}{%
+  {%
+    \setbeamertemplate{background canvas}{%
+      \begin{tikzpicture}
+        \useasboundingbox (0,0) rectangle (\paperwidth,\paperheight);
+        \fill[themeink] (0,0) rectangle (\paperwidth,\paperheight);
+        \shade[left color=themeteal,right color=signal] (0,0) rectangle (\paperwidth,1.4pt);
+      \end{tikzpicture}}
+    \setbeamertemplate{footline}{}
+    \setbeamercolor{section in toc}{fg=white}
+    \setbeamercolor{section in toc shaded}{fg=white!45!themeink}
+    \setbeamercolor{section number projected}{fg=themeink,bg=accentlight}
+    \setbeamertemplate{section in toc shaded}[default][100]
+    \begin{frame}[plain,nologo]
+      \vskip0pt plus 1fill
+      {\usebeamerfont{eyebrow}\color{signal}PART \insertsectionnumber\par}
+      \vskip4pt
+      {\usebeamerfont{section title}\color{white}\insertsectionhead\par}
+      \vskip10pt
+      {\color{white!25!themeink}\rule{\linewidth}{0.4pt}}
+      \vskip8pt
+      {\small\tableofcontents[currentsection,hideallsubsections]}
+      \vskip0pt plus 1.4fill
+    \end{frame}
+  }%
 }
 
 \mode

@@ -36,7 +36,7 @@ multidimensional parallelism & cluster sizing strategy
     ↓
 KV-cached decoder
     ↓
-continuous-batching served model and benchmark report
+instructor-led serving demonstration and benchmark interpretation
 ```
 
 ## Milestones
@@ -44,13 +44,13 @@ continuous-batching served model and benchmark report
 | Milestone | Required evidence |
 | --- | --- |
 | Model & loop correctness | GPT-2 logit parity, causal masking, tiny-batch overfit (`loss < 0.1`), and deterministic checkpoint recovery |
-| Data pipeline & ingestion | Tokenizer fidelity/compression, contiguous packing with `<\|endoftext\|>`, zero-copy memmap loader throughput |
-| Baseline checkpoint | Hyperparameter tuple, loss/grad-norm curves, verified resume determinism, and fluent generated samples |
+| Data pipeline & ingestion | Disjoint document splits, tokenizer fidelity/compression, packing with `<\|endoftext\|>`, and measured memmap loader throughput |
+| Baseline checkpoint | Hyperparameter tuple, loss/grad-norm curves, verified resume determinism, and generated samples interpreted alongside held-out loss |
 | Single-GPU performance | Profiler trace comparison, bf16/SDPA/compile speedups, tokens/s, peak VRAM, and MFU calculation |
 | Distributed training | Multi-rank synchronization checks, `no_sync` gradient accumulation, FSDP memory savings, and TP numerical equivalence |
-| Multidimensional strategy | Cluster sizing identity verification ($G = P \times D \times F \times E_P \times T_P \times C$) and topology hierarchy defense |
+| Multidimensional strategy | Cluster sizing identity verification ($G = P \times T_P \times C \times D$) and explicit DP/FSDP/EP group definitions and topology justification |
 | Cached inference | Cached vs uncached logit/token equivalence, prefill vs per-token decode latency, and memory bandwidth analysis |
-| Serving engine | Declared dynamic workload with TTFT, ITL, throughput, and memory under continuous batching |
+| Serving interpretation | Explain TTFT, ITL, throughput, and memory for the declared workload in the instructor demonstration; no separate implementation or report |
 
 ## Experimental rules
 

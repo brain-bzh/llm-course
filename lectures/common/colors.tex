@@ -2,27 +2,32 @@
 % Centralized Semantic Color Definitions for LLMs Presentation
 %==============================================================
 
-% ---- Base Template / Theme Colors (Aligned with Palette B) ----
-\definecolor{themenavy}{RGB}{22,70,102}       % Palette B primary cerulean: #164666
-\definecolor{themeblue}{RGB}{22,70,102}       % Primary alias
-\definecolor{primarylight}{RGB}{34,92,132}    % Primary light: #225c84
-\definecolor{themeteal}{RGB}{0,159,176}       % Accent cyan-teal: #009fb0
+% ---- Base Template / Theme Colors ("ink & signal", mirrors extra.css) ----
+\definecolor{themeink}{RGB}{14,33,56}         % Ink: #0e2138 (title band, dividers)
+\definecolor{themenavy}{RGB}{23,64,107}       % Primary navy: #17406b
+\definecolor{themeblue}{RGB}{23,64,107}       % Primary alias
+\definecolor{primarylight}{RGB}{47,94,145}    % Primary light: #2f5e91
+\definecolor{themeteal}{RGB}{14,140,140}      % Teal accent: #0e8c8c
+\definecolor{signal}{RGB}{232,104,63}         % Coral signal: #e8683f
+\definecolor{signaldark}{RGB}{184,72,31}      % Coral for text on white: #b8481f
 \colorlet{main_color}{themenavy}
 \colorlet{accent}{themeteal}
 
-\definecolor{accentdark}{RGB}{0,108,120}      % Deep cyan-teal for contrast text
-\definecolor{accentlight}{RGB}{56,178,214}    % Slate accent cyan: #38b2d6
-\definecolor{leafred}{RGB}{197,93,61}         % Terracotta red for branches/leaves
+\definecolor{accentdark}{RGB}{10,114,116}     % Deep teal for contrast text: #0a7274
+\definecolor{accentlight}{RGB}{79,201,195}    % Light teal on ink: #4fc9c3
+\definecolor{leafred}{RGB}{212,86,46}         % Coral-terracotta for branches/leaves
 
 % ---- Website Panel & Border Neutrals ----
-\definecolor{panelbg}{RGB}{237,245,249}       % Course-panel: #edf5f9
-\definecolor{panelborder}{RGB}{204,226,238}   % Course-border: #cce2ee
+\definecolor{panelbg}{RGB}{242,246,249}       % Course-panel: #f2f6f9
+\definecolor{panelborder}{RGB}{217,227,234}   % Course-border: #d9e3ea
+\definecolor{inkmuted}{RGB}{91,107,124}       % Muted text: #5b6b7c
 
 % ---- Code listing style (syntax highlights) ----
-\definecolor{deepblue}{RGB}{22,70,102}
-\definecolor{deepred}{rgb}{0.6,0,0}
-\definecolor{deepgreen}{RGB}{0,135,150}
-\definecolor{halfgray}{gray}{0.55}
+\definecolor{deepblue}{RGB}{23,64,107}
+\definecolor{deepred}{RGB}{184,72,31}
+\definecolor{deepgreen}{RGB}{10,114,116}
+\definecolor{halfgray}{RGB}{123,135,148}
+\definecolor{codebg}{RGB}{244,247,249}
 
 % ---- Semantic Theme Navy / Cerulean Shades ----
 \colorlet{themebluebg}{panelbg}               % Panel #edf5f9
@@ -36,17 +41,17 @@
 \colorlet{accentdarkdraw}{themeteal}         % Secondary outlines/strokes/text/axes
 
 % ---- Functional Colors: Success Green ----
-\definecolor{successgreen}{RGB}{55,145,55}
+\definecolor{successgreen}{RGB}{46,138,87}
 \colorlet{successbg}{successgreen!8}
 \colorlet{successdraw}{successgreen!75}
 
 % ---- Functional Colors: Alert Red ----
-\definecolor{alertred}{RGB}{197,55,55}
+\definecolor{alertred}{RGB}{196,58,64}
 \colorlet{alertbg}{alertred!8}
 \colorlet{alertdraw}{alertred!75}
 
 % ---- Functional Colors: Warning Orange ----
-\definecolor{warningorange}{RGB}{220,110,30}
+\definecolor{warningorange}{RGB}{214,138,20}
 \colorlet{warningbg}{warningorange!10}
 \colorlet{warningdraw}{warningorange!80}
 
@@ -55,7 +60,7 @@
 \colorlet{leafreddraw}{leafred!80}
 
 % ---- Accent Violet (SWE-bench / observe phases) ----
-\definecolor{accentviolet}{RGB}{120,70,180}
+\definecolor{accentviolet}{RGB}{112,76,178}
 \colorlet{accentvioletbg}{accentviolet!10}
 \colorlet{accentvioletdraw}{accentviolet!80}
 
@@ -65,7 +70,7 @@
 \colorlet{posttrainingdraw}{posttrainingblue!75}
 
 % ---- Harness Component Action Green ----
-\definecolor{actiongreen}{RGB}{55,145,55}
+\definecolor{actiongreen}{RGB}{46,138,87}
 \colorlet{actiongreenbg}{actiongreen!10}
 \colorlet{actiongreendraw}{actiongreen!65}
 
@@ -81,9 +86,7 @@
 % ---- Neutrals (Grays/Blacks) ----
 \colorlet{neutralbg}{black!4}             % Very light background fills
 \colorlet{neutrallight}{black!30}         % Border frames/ticks/dividers
-\colorlet{neutraldark}{black!75}          % Main body text/code listing text
+\colorlet{neutraldark}{themeink!85}        % Main body text/code listing text
 
-% ---- Beamer Block Color Overrides (Premium Terracotta Theme) ----
-\setbeamercolor{block title alert}{bg=leafreddraw,fg=white}
-\setbeamercolor{block body alert}{bg=leafredbg}
-\setbeamercolor{alerted text}{fg=leafreddraw}
+% ---- Beamer alert colors ----
+\setbeamercolor{alerted text}{fg=signaldark}

@@ -10,6 +10,9 @@ This module follows the data-parallel progression in the
 start from independent micro-batches, derive the required gradient reduction,
 then overlap that communication with backward computation.
 
+!!! tip "Catch-up primer: Distributed primitives"
+    For a unified reference covering collective communication primitives (All-Reduce, Reduce-Scatter, All-Gather, All-to-All, P2P), autograd adjoints, and network cost models across all distributed modules, consult the [Distributed primitives primer](../primers/distributed-primitives.md).
+
 ## Learning goals
 
 By the end of the module, students should be able to:

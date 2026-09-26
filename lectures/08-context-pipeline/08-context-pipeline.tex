@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TLM -- Session 10]{Session 10: Context and Pipeline Parallelism\\[4pt]
+\title[TLM -- Module 8]{Module 8: Context, Pipeline and Expert Parallelism\\[4pt]
 \normalsize\itshape Splitting Sequence Length and Model Depth}
 \date{\today}
 
@@ -125,12 +125,13 @@
 \end{frame}
 
 \begin{frame}{Pipeline bubbles shrink as micro-batches increase}
-  For $P$ balanced stages and $M$ forward-only micro-batches:
+  For $P$ balanced stages, $M$ micro-batches, and negligible communication:
   \[
     \text{ideal utilization}\approx\frac{M}{M+P-1}
   \]
   \begin{block}{Worked example}
-    $P=4$, $M=8$ gives $8/(8+3)\approx73\%$ idealized forward utilization. With $M=32$, it rises to about $91\%$.
+    $P=4$, $M=16$ gives idle fraction $3/19\approx15.8\%$.\\
+    Below $10\%$ requires $M>9(P-1)$, hence at least 28 micro-batches here.
   \end{block}
   \begin{alertblock}{Trade-off}
     More micro-batches reduce bubbles but can create smaller, less efficient kernels and more activation bookkeeping.
@@ -170,6 +171,22 @@
 \checkpoint{schedule arithmetic}
   {For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
 
+\section{Expert parallelism}
+
+\begin{frame}{Routing tokens to distributed experts}
+  \begin{enumerate}
+    \setlength{\itemsep}{8pt}
+    \item A router selects top-$k$ of $E$ expert MLPs for each token.
+    \item Dispatch sends tokens to ranks hosting those experts.
+    \item Local experts compute and return outputs for weighted combination.
+  \end{enumerate}
+  \begin{block}{What changes?}
+    EP distributes expert weights. Shared attention weights remain replicated
+    over EP ranks. Uneven routing can overload one rank.
+  \end{block}
+  \smallsource{Megatron Core parallel configuration: EP subdivides the data-parallel dimension}
+\end{frame}
+
 \section{Composing parallel dimensions}
 
 \begin{frame}{The device count factorizes across parallel groups}
@@ -181,7 +198,7 @@
     \toprule
     Dimension & Splits & Communication pattern \\
     \midrule
-    data / FSDP & batch and model state & gradient or shard collectives \\
+    data & independent micro-batches & gradient or shard collectives \\
     tensor & hidden width and heads & frequent activation collectives \\
     context & sequence positions & key-value exchange per layer \\
     pipeline & layer depth & point-to-point activations \\
@@ -189,16 +206,31 @@
   \end{tabular}
 \end{frame}
 
+\begin{frame}{Subgroups reuse existing devices}
+  \begin{itemize}
+    \setlength{\itemsep}{9pt}
+    \item $D$ counts the total data-parallel degree.
+    \item FSDP degree $F$ divides $D$: $D/F$ groups replicate state shards.
+    \item EP degree $E_P$ can divide $D$: each expert has $D/E_P$ replicas.
+    \item Shared and expert parameters use different synchronization groups.
+  \end{itemize}
+  \begin{block}{Eight-device example}
+    $D=4$, $T_p=2$, $C=P=1$. Setting $E_P=4$ still uses eight devices.\\
+    Global tokens/update: $B_\mu\,T\,A\,D$.
+  \end{block}
+  \smallsource{Teaching layout: combined EP/FSDP requires separate expert shard-group definitions}
+\end{frame}
+
 \begin{frame}{Map the chattiest group to the fastest fabric}
   \begin{enumerate}
     \setlength{\itemsep}{7pt}
-    \item Use tensor parallelism inside a high-bandwidth GPU island.
+    \item Start by placing frequent TP collectives on a fast fabric.
     \item Add context parallelism when token activations or attention exceed local memory.
     \item Use pipeline parallelism when model depth spans nodes.
     \item Replicate the resulting model group with data parallelism when batch and devices remain.
   \end{enumerate}
   \begin{alertblock}{Selection rule}
-    Choose the smallest degree on each axis that resolves a concrete memory or compute constraint.
+    State the rank layout and measure exposed transfer time. Persistent state excludes activations, gathered weights, and communication buffers.
   \end{alertblock}
 \end{frame}
 
@@ -223,5 +255,5 @@
   {Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
   {Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
   {Load balance matters across causal context blocks and pipeline stages.}
-  {Parallel dimensions should follow the workload constraint and physical network hierarchy.}
+  {Count independent axes once and test placement against measured memory and communication.}
 \end{document}

@@ -5,6 +5,9 @@ site_url: https://brain-bzh.github.io/llm-course/
 theme:
   name: material
   favicon: assets/favicon.svg
+  font:
+    text: Source Sans 3
+    code: JetBrains Mono
   features:
     - navigation.instant
     - navigation.sections
@@ -60,6 +63,9 @@ nav:
   - Continuous project: project.md
   - Reproduction project: reproduction-project.md
   - External material: external-material.md
+  - Primers:
+      - PyTorch foundations: primers/torch-primitives.md
+      - Distributed primitives: primers/distributed-primitives.md
   - Assessment: assessment.md
 
 markdown_extensions:

@@ -49,7 +49,7 @@ on it directly:
 - one measured training-performance improvement;
 - a correct distributed or sharded-training experiment;
 - a KV-cache equivalence test;
-- a serving benchmark with a declared workload.
+- interpretation of a serving benchmark with a declared workload (instructor demonstration; no separate serving report).
 
 ## What does not count as evidence
 

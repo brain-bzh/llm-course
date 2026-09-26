@@ -10,6 +10,10 @@ This module follows the component-by-component progression of
 but adapts its original encoder–decoder model to the causal decoder-only model
 we will train during the course.
 
+!!! tip "Catch-up primer: PyTorch foundations"
+    New to PyTorch or need a refresher on tensor strides, memory contiguity, broadcasting, or custom autograd functions?
+    Consult the [PyTorch primitives primer](../primers/torch-primitives.md) before implementing the model.
+
 ## Key ideas
 
 - represent tokens as vectors and add position information;
@@ -166,6 +170,12 @@ $$\operatorname{MLP}(x) = \operatorname{GeLU}(x W_1 + b_1) W_2 + b_2.$$
 ---
 
 ## The modern Transformer stack: What changed since GPT-2
+
+!!! note "Implementation boundary"
+    Sessions 1–4 implement GPT-2: learned positions, LayerNorm, GELU, and MHA.
+    The variants below are a comparison, not additional requirements for the
+    parity exercise. Revisit GQA with KV-cache memory and the other variants
+    when reading architecture papers.
 
 While the macro-structure of repeated causal attention and MLP blocks remains unchanged, contemporary foundation models (such as **LLaMA** [[Touvron et al., 2023]](https://arxiv.org/abs/2302.13971), **Mistral** [[Jiang et al., 2023]](https://arxiv.org/abs/2310.06825), **Gemma** [[Gemma Team, 2024]](https://arxiv.org/abs/2403.08295), and **DeepSeek** [[DeepSeek-AI, 2024]](https://arxiv.org/abs/2401.06066)) have systematically refined individual components for superior stability, memory efficiency, and inference speed.
 

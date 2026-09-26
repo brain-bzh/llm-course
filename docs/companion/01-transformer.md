@@ -135,7 +135,7 @@ unchanged. Passing a shape test alone is not sufficient.
 
 ## Step 4 — Reproduce the official GPT-2 forward pass
 
-First run the complete local Session 1 suite:
+First run the complete local Module 1 suite:
 
 ```bash
 uv run pytest tests/test_module_01_model.py -q
@@ -185,6 +185,6 @@ You are finished when:
 
 Commit your implementation before moving to the training-loop module. From
 this point onward, the rest of the companion assumes that `nanolm/model.py` is
-your working Transformer implementation. Session 2 will initialize a much
+your working Transformer implementation. Module 2 will initialize a much
 smaller version from scratch and prove that it can learn by overfitting one
 batch.

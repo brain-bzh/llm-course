@@ -3,7 +3,7 @@
 These pages are the conceptual spine of the course: 11 modules, each covering
 one mechanism end to end. A module is not tied to a single 1h15 session — the
 [schedule](../schedule.md) shows exactly which sessions cover which module, and
-sessions range from two to five per module depending on how much theory and
+sessions range from one to four per module depending on how much theory and
 practice the topic needs.
 
 Every module follows the same contract: understand the mechanism, build or
@@ -12,8 +12,13 @@ real improvement from a plausible story. Concretely, each module:
 
 1. introduces one concrete systems or modeling problem;
 2. explains the minimum theory needed to reason about it;
-3. implements or measures the corresponding mechanism;
-4. adds the result to the continuous course project.
+3. implements, measures, or traces the corresponding mechanism;
+4. adds evidence or an interpretation to the continuous course project.
+
+Modules 1–9 include required practical work. Module 10 is an instructor-led
+serving demonstration with interpretation questions. Module 11 is a synthesis
+lecture with optional exploration. Neither final module adds a mandatory coding
+assignment or report; project studios remain reserved for the reproduction.
 
 Slides and companion implementation guides are built from this material
 without replacing it.
@@ -50,11 +55,13 @@ logits.
 
 **Understand:** raw web extraction (WARC vs WET), heuristic compute-conservation filtering,
 vocabulary construction via byte-level BPE, document boundaries, packing,
-binary sharding and zero-copy streaming without GPU starvation.
+binary sharding and the measurement of input-pipeline throughput.
 
-**Implement:** fast heuristic filters, BPE tokenizer training from scratch, and packed memory-mapped binary dataset shards.
+**Implement:** document packing and shifted batches; inspect provided filters,
+BPE training, and the memory-mapped loader.
 
-**Prove:** filters discard noise without boundary corruption, tokenizer achieves lossless roundtrip fidelity, and the binary loader feeds GPUs at line rate.
+**Prove:** source-document partitions are disjoint, tokenizer round-trip is
+lossless, boundaries and targets are correct, and loader throughput is measured.
 
 [Open the module page →](03-data-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/03-data-pipeline.pdf){ target="_blank" }
 
@@ -109,12 +116,13 @@ reference within the expected numerical tolerance.
 ## 8. Context, pipeline, and expert parallelism
 
 **Understand:** ring attention with online softmax, AFAB vs 1F1B pipeline schedules,
-expert routing and All-to-All communication, multidimensional composition ($G = P \times D \times F \times E_P \times T_P \times C$),
-and the physical outer-to-inner hierarchy ($\text{PP} \to \text{DP} \to \text{FSDP} \to \text{EP} \to \text{TP}$).
+expert routing and All-to-All communication, multidimensional composition ($G = P \times T_P \times C \times D$),
+and the physical placement based on exposed communication and topology.
 
 **Practice:** solve multidimensional memory and network communication cases across multi-node topologies.
 
-**Prove:** every proposed strategy fits device memory and minimizes cross-network communication latency bottlenecks.
+**Prove:** device counts and batch counts are consistent, memory exclusions are stated,
+and a measurement is proposed to test the placement.
 
 [Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/pipeline-parallelism.html){ target="_blank" }
 
@@ -143,13 +151,13 @@ caching and scheduling.
 
 ## 11. Frontier architectures and efficient generation
 
-**Understand:** speculative decoding and rejection sampling, diffusion models for text,
-DeepSeek breakthroughs (Multi-Head Latent Attention, DeepSeekMoE, MTP), encoder-free
-native multimodal architectures, and linear attention/SSMs (Mamba-2, Gated Delta Networks, KDA).
+**Understand:** three bottleneck comparisons—speculative verification cost,
+MLA cache memory, and recurrent state versus a growing KV cache.
 
-**Practice:** evaluate how architectural innovations break the memory-bandwidth wall
-and quadratic context bottlenecks.
+**Discuss:** what cost each mechanism reduces and what new cost or limitation
+it introduces. Diffusion, multimodality, and detailed MoE/MTP are optional reading.
 
-**Prove:** evaluate cache compression ratios, speculative speedup curves, and recurrent state update mechanics.
+**Explain:** why expected accepted tokens are not wall-clock speedup, and why
+constant state in a recurrent layer is not unlimited memory of the input.
 
 [Open the module page →](11-frontier-architectures.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-frontier-architectures.pdf){ target="_blank" }

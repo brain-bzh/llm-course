@@ -83,8 +83,11 @@ thousands of documents per second:
 | **Terminal punctuation** (e.g. $< 12\%$ lines end in punctuation) | Navigation lists, keyword stuffing, incomplete sentences | Ensures the model learns coherent syntactic structure and causal flow. |
 | **FastText language ID** (e.g. English score $< 0.65$) | Foreign-language crawl noise (unless multilingual target) | Concentrates tokenizer capacity on the intended target distribution. |
 
-Filtering reduces raw crawl data by $20\%\text{--}40\%$, directly compressing the
-required pretraining FLOP budget for an equivalent downstream target loss.
+Heuristic filtering substantially reduces noisy crawl text—corpora like FineWeb,
+RefinedWeb, and RedPajama-v2 report discarding roughly $20\%\text{--}50\%$ of raw
+text depending on source quality and threshold severity. This conserves the
+pretraining FLOP budget by focusing gradient updates on higher-density learning tokens,
+though actual retention varies significantly by domain.
 
 ---
 
@@ -348,9 +351,10 @@ class BinaryShardedDataset:
 Memory mapping provides decisive systems advantages:
 1. **Instant startup:** Opening a $50\text{ GB}$ shard takes microseconds because
    only the file descriptor and virtual address mapping are initialized.
-2. **Zero-copy OS page caching:** The operating system kernel automatically pages
-   data blocks from disk into RAM when accessed. Multiple DataLoader worker processes
-   access the exact same shared physical memory without duplicating data in RAM.
+2. **Shared OS page caching:** The operating system kernel pages data blocks from storage
+   into the OS page cache on demand. Multiple DataLoader worker processes access the same
+   cached physical pages without duplicating the raw dataset file across individual process
+   heaps (though slicing and materializing PyTorch tensor batches still creates Python copies).
 3. **Shifted next-token batching:** Extracting input $X$ from $[i : i + T]$ and target
    $Y$ from $[i + 1 : i + 1 + T]$ requires only a single contiguous array slice,
    guaranteeing that $Y_{b, t} = X_{b, t+1}$.
@@ -359,30 +363,27 @@ Memory mapping provides decisive systems advantages:
 
 ## Practical task
 
-Construct and verify the complete end-to-end data pipeline:
+Session 8 focuses on document packing and shifted batches. Inspect the provided
+filters, trace BPE merges, and use the reference tokenizer and memmap loader.
+The [lab protocol](../companion/03-data-pipeline.md) defines the timed exercise,
+minimum checks, fallback, and optional implementation extensions.
 
-1. **Document hygiene:** Implement fast rule-based filters (minimum length, alphanumeric ratio, and repetition limits) to prune low-information documents.
-2. **BPE from scratch:** Implement the greedy pair-counting and merging algorithm
-   starting from raw UTF-8 bytes up to a custom vocabulary size.
-3. **Special token handling:** Ensure `<|endoftext|>` is properly registered as a
-   distinct token ID and preserved during encoding.
-4. **Compression profiling:** Compare the token count against raw byte length on
-   sample sentences and calculate the compression ratio.
-5. **Document packing:** Pack multiple text documents into a contiguous binary shard
-   delimited by `<|endoftext|>`.
-6. **Batch slicing and invariant verification:** Memory-map the binary shard, sample
-   batches $(X, Y)$, and programmatically verify the next-token target shift:
-   `assert (Y[:, :-1] == X[:, 1:]).all()`.
+Before packing, assign stable document IDs and group exact duplicates so they
+cannot cross the train/validation split. Train learned tokenizer merges on the
+training partition. Keep the partitions in separate shards; splitting an
+already packed stream can place pieces of the same document in both sets.
 
 ## Expected output
 
-A self-contained data pipeline demonstrating:
-- high-throughput heuristic filtering discarding synthetic boilerplate and empty documents;
-- an educational BPE tokenizer that trains merge rules from scratch and decodes back to text losslessly;
-- measured token compression ratios ($\text{bytes} / \text{tokens} > 1.5$);
-- packed `uint16` binary dataset shards on disk;
-- fast memory-mapped batch generation with verified $Y_{b, t} = X_{b, t+1}$ alignment.
+- a document manifest identifying source, split, and filtering decisions;
+- lossless tokenizer round-trip on the chosen examples, including Unicode;
+- reported bytes/token rather than a universal compression threshold;
+- separate training and validation shards with explicit document delimiters;
+- verified shifted batches and a loader timing with its configuration.
 
+A memory map avoids loading the entire file eagerly. Batch assembly, dtype
+conversion, and device transfer can still copy data; a memmap alone does not
+prove zero-copy GPU ingestion or eliminate input stalls.
 
 ## References
 

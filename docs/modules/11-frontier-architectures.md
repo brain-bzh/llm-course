@@ -9,17 +9,26 @@ As language models scale to multi-million token contexts and high-throughput pro
 serving, two fundamental physical walls emerge:
 
 1. **The memory-bandwidth wall during generation:** Standard autoregressive decoding is
-   strictly memory-bound with arithmetic intensity $\sim 1\text{ FLOP/byte}$.
+   often bandwidth-bound at small batch sizes, with weight-only arithmetic intensity $\sim 1\text{ FLOP/byte}$.
 2. **The quadratic scaling wall of softmax attention:** Standard causal self-attention
    scales $\mathcal{O}(T^2)$ in computation and $\mathcal{O}(T)$ in KV-cache memory.
 
 This module analyzes the modern architectural innovations breaking through these walls:
 **speculative decoding**, **discrete and continuous diffusion for text**,
 **DeepSeek architectural breakthroughs (MLA, fine-grained MoE, MTP)**,
-**encoder-free multimodal architectures**, and
+**multimodal input architectures**, and
 **linear attention / recurrent state-space models (Mamba, GDN, KDA)**.
 
 ---
+
+## Session 30: required core and optional reading
+
+Use the 75-minute session for three comparisons: speculative verification
+(25 minutes), MLA cache accounting (20 minutes), and recurrent state versus
+KV cache (20 minutes), followed by a 10-minute synthesis discussion. For each,
+identify the original bottleneck, the new cost, and an experiment that could
+show a benefit. Diffusion, detailed MoE/MTP, multimodality, and individual
+recurrent variants are optional reading. There is no additional coding report.
 
 ## Key ideas
 
@@ -28,7 +37,7 @@ This module analyzes the modern architectural innovations breaking through these
 - Multi-Head Latent Attention (MLA) and low-rank KV-cache compression with decoupled RoPE;
 - fine-grained mixture of experts (DeepSeekMoE), isolated shared experts, and aux-loss-free balancing;
 - multi-token prediction (MTP) architectures;
-- encoder-free multimodal architectures: direct patch projection vs frozen vision towers (CLIP/SigLIP);
+- multimodal input architectures: vision encoders, discrete image tokenizers, and direct patch projection;
 - linear attention, selective state-space models (Mamba/Mamba-2), and Gated Delta Networks (GDN).
 
 ---
@@ -41,9 +50,10 @@ multiplication:
 
 $$\text{Arithmetic Intensity} = \frac{2P \text{ FLOPs}}{2P \text{ Bytes}} = 1 \text{ FLOP / Byte}.$$
 
-Modern accelerators (like H100) deliver $> 1000\text{ TFLOPs/s}$ of compute but only
-$3.35\text{ TB/s}$ of memory bandwidth. Consequently, GPU compute units sit $> 99\%$ idle
-during single-sequence token generation.
+This estimate assumes one sequence, dense weights stored in two bytes per
+parameter, and weight traffic dominating the step. Batching amortizes weight
+reads; long contexts add substantial KV traffic. Use the measured workload
+and device roofline before concluding that compute is underutilized.
 
 ```
 [ Small Draft Model ] ──(Proposes K draft tokens)──> [ x₁, x₂, ..., x_K ]
@@ -65,9 +75,10 @@ from target verification:
    
    $$p_{\text{target}}(x_t \mid x_{< t}) \quad \text{for all } t \in \{1, \dots, K\}.$$
    
-   Because evaluating $K$ tokens in parallel converts memory-bound vector-matrix operations
-   into compute-bound matrix-matrix multiplications (GEMMs), the target verification takes
-   nearly the exact same time as generating a single token!
+   Evaluating several positions together can reuse target weights and improve
+   arithmetic intensity. Verification cost still depends on draft length, context,
+   batch size, and kernels; it must be measured rather than assumed equal to one
+   ordinary decode step.
 
 ### 2. Provably unbiased rejection sampling
 
@@ -86,16 +97,29 @@ each draft token $x_t$ is evaluated sequentially with rejection sampling:
 
 ### 3. Expected speedup & advanced speculation
 
-For an average acceptance rate $\alpha$, the expected accepted tokens per step is:
+In a simplified model with constant conditional acceptance probability
+$\alpha$ at each draft position, the expected emitted tokens per verification
+step (including the replacement or bonus token) is:
 
 $$\mathbb{E}[\text{tokens per step}] = \frac{1 - \alpha^{K+1}}{1 - \alpha}.$$
 
-For $\alpha = 0.8$ and $K=5$, $\mathbb{E} \approx 3.36$ tokens per step, yielding a
-$2\text{--}3\times$ wall-clock speedup.
+For $\alpha = 0.8$ and $K=5$, $\mathbb{E} \approx 3.69$ emitted tokens.
+That is not yet a wall-clock speedup. Let $t_{\mathrm{base}}$ be the ordinary
+target decode time, $t_{\mathrm{draft}}(K)$ the time to propose $K$ tokens, and
+$t_{\mathrm{verify}}(K)$ the verification time. A simple cost model is
 
-- **Medusa / EAGLE:** Eliminate the external draft model entirely. Medusa adds $M$ lightweight
-  MLP prediction heads atop the target model. EAGLE conditions draft prediction on the target
-  model's top-layer hidden states, reaching acceptance rates $\alpha > 0.85$.
+$$S \approx \frac{\mathbb{E}[N] \, t_{\mathrm{base}}}
+{t_{\mathrm{draft}}(K) + t_{\mathrm{verify}}(K) + t_{\mathrm{overhead}}}.$$
+
+For illustrative costs of 10 ms baseline, 8 ms drafting, 12 ms verification,
+and 2 ms overhead, the speedup is about $1.68\times$. If drafting takes 30 ms,
+it falls below $1\times$. Increasing draft length is useful only while its
+extra accepted tokens outweigh its extra cost. At $\alpha=1$, use the limit
+$\mathbb{E}[N]=K+1$.
+
+- **Alternative draft mechanisms:** Auxiliary heads or feature-based draft
+  networks can replace a separate standalone language model. Their training,
+  acceptance rates, and verification cost remain part of the comparison.
 - **Tree-based speculation:** Generates candidate trees instead of linear sequences, verifying
   multiple token branches concurrently using tree attention masks.
 
@@ -204,60 +228,37 @@ DeepSeek replaces auxiliary loss with **dynamic expert bias adjustment**:
 
 ### 4. Multi-Token Prediction (MTP)
 
-Rather than predicting only token $x_{t+1}$, Multi-Token Prediction adds sequential prediction
+Rather than predicting only token $x_{t+1}$, Multi-Token Prediction trains sequential prediction
 modules that forecast $k$ future tokens ($x_{t+1}, \dots, x_{t+k}$) concurrently:
 
 - Each MTP module consists of a Transformer layer that combines the previous layer's hidden
   state with future token representations.
-- Enhances representation learning during pretraining.
-- The MTP modules can be detached and reused as native draft heads for **speculative decoding**
-  at zero additional training cost!
+- Enhances representation learning during pretraining by requiring deeper multi-step planning.
+- At inference time, the trained MTP modules can be reused directly as native draft heads for
+  **speculative decoding**, eliminating the need to train and host an independent draft model.
 
 ---
 
-## Encoder-free multimodal architectures
+## Multimodal input architectures (optional)
 
-First-generation vision-language models (e.g. LLaVA, Flamingo) pair a pretrained causal LLM
-with a **separate, frozen vision encoder** (such as CLIP or SigLIP) connected via a cross-attention
-adapter or MLP projector:
+Separate three decisions: how an image becomes tokens or features, where those
+representations enter the language model, and which components are trainable.
+Early fusion does not by itself imply an encoder-free input path.
 
-$$\text{Image} \;\longrightarrow\; \boxed{\text{Vision Tower (CLIP/SigLIP)}} \;\longrightarrow\; \boxed{\text{Projector}} \;\longrightarrow\; \boxed{\text{Causal Decoder}}.$$
+- **Vision encoder plus language model:** Gemma 3 uses a SigLIP vision encoder;
+  it is not a direct-patch encoder-free example. See the
+  [Gemma 3 developer guide](https://developers.googleblog.com/introducing-gemma3/).
+- **Discrete image tokens and early fusion:** Chameleon represents images with
+  a learned image tokenizer and models mixed image/text token sequences. This
+  is distinct from feeding raw patches through a single linear projection.
+  See the [Chameleon paper](https://arxiv.org/abs/2405.09818).
+- **Direct patch projection:** A patch embedding can map raw patches into the
+  shared model's hidden dimension. Whether later layers are shared or specialized,
+  and which weights are frozen, must be checked for the particular architecture.
 
-```
-                     Traditional Multimodal Architecture
-Image ──> [Frozen ViT (CLIP)] ──> [MLP Adapter] ──\
-                                                   ├──> [Causal LLM Decoder]
-Text  ──> [Token Embedding] ──────────────────────/
-
-                     Encoder-Free Architecture (e.g. Gemma 3)
-Image ──> [Linear Patch Projection] ──────────────\
-                                                   ├──> [Unified Causal Decoder]
-Text  ──> [Token Embedding] ──────────────────────/
-```
-
-### Limitations of dual-encoder designs
-
-1. **Resolution bottleneck & information loss:** Vision encoders compress images into a fixed
-   grid of vectors trained on contrastive image-text matching, stripping fine-grained spatial
-   and document-layout details.
-2. **Modality misalignment:** Visual and textual representations reside in different geometric
-   spaces, requiring expensive alignment stages.
-3. **Inference overhead:** Running a separate heavy vision backbone increases TTFT and latency.
-
-### Native encoder-free architectures (e.g. Gemma 3 / Chameleon)
-
-Modern architectures tokenize raw images directly into the unified causal model:
-
-1. **Patch projection:** The input image is divided into $P \times P$ non-overlapping patches
-   and mapped directly to the model's hidden dimension $d$ via a single linear or lightweight
-   convolutional layer:
-   
-   $$e_{\text{patch}} = \text{Conv2d}(\text{Image}, \text{kernel}=P, \text{stride}=P) \in \mathbb{R}^{N_{\text{patches}} \times d}.$$
-
-2. **Unified causal autoregression:** Visual patch tokens and text tokens are placed in the
-   exact same token sequence and processed through the exact same Transformer blocks.
-3. **End-to-end multimodal gradients:** Every parameter in the model updates with respect to
-   both visual and textual loss, enabling native interleaved image-text reasoning and generation.
+For a systems comparison, count image tokens, preprocessing/encoder latency,
+prefill work, and cache growth. Compare quality at a declared image resolution;
+a shorter representation can reduce cost while losing useful detail.
 
 ---
 
@@ -299,22 +300,25 @@ $$h'(t) = A h(t) + B x(t), \quad y(t) = C h(t).$$
 ### 3. Gated Delta Networks (GDN / DeltaNet)
 
 Standard linear attention suffers from memory capacity limits: $S_t = S_{t-1} + K_t^\top V_t$
-continually accumulates new data without discarding stale information.
+continually accumulates new associations without discarding stale information.
 
 **Gated Delta Networks (GDN)** apply the classical **delta rule** to associative memory:
+the model predicts the current retrieved value $\hat{V}_t = S_{t-1} K_t$ and updates
+the memory using the prediction error $(V_t - \hat{V}_t)$:
 
-$$S_t = S_{t-1} (I - \beta_t K_t K_t^\top) + \beta_t V_t K_t^\top,$$
+$$S_t = \alpha_t S_{t-1} + \beta_t (V_t - S_{t-1} K_t) K_t^\top = \alpha_t S_{t-1} (I - \beta_t K_t K_t^\top) + \beta_t V_t K_t^\top,$$
 
-where $\beta_t$ is a dynamic learning rate or decay gate.
-If a key $K_t$ already exists in memory, the $(I - \beta_t K_t K_t^\top)$ term actively
-**erases the old associated value** before writing the new one, solving the catastrophic
-forgetting and capacity saturation problem of linear RNNs.
+where:
+- $\alpha_t \in (0, 1)$ acts as a dynamic **forget/decay gate**, controlling the persistence of historical memory;
+- $\beta_t \in (0, 1)$ is a data-dependent **write gate** (learning rate) that controls the magnitude of the associative update;
+- the $(I - \beta_t K_t K_t^\top)$ term projects along the key vector to **actively erase stale associations**, solving the capacity saturation problem of un-gated linear RNNs.
 
-### 4. Kernelized Dynamic Attention (KDA) / Kangaroo
+### 4. Kimi Delta Attention (KDA)
 
-KDA architectures combine lightweight dynamic state tracking with selective attention
-anchor points, allowing sub-quadratic processing of multi-million token streams while
-retaining precise token retrieval capability.
+[Kimi Linear](https://arxiv.org/abs/2510.26692) introduces Kimi Delta Attention,
+which extends Gated DeltaNet with finer-grained gating. Kimi Linear is a hybrid
+architecture: fixed-size recurrent state in some layers does not imply that
+the entire model has constant cache memory if other layers retain attention.
 
 ---
 
@@ -324,19 +328,19 @@ retaining precise token retrieval capability.
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Standard Transformer** | Causal Softmax Attention | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ (Large MHA/GQA) | Exact associative recall | Memory bandwidth & quadratic context |
 | **DeepSeek (MLA + MoE)** | Low-Rank Latent Attention | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ ($80\%\text{--}90\%$ smaller) | Extreme parameter and cache efficiency | High All-to-All network communication |
-| **Speculative Decoding** | Target MHA + Draft verification | Standard | Standard | $2\text{--}3\times$ lower decode latency | Draft model alignment & acceptance variance |
-| **Mamba-2 (SSD)** | Selective State-Space / 1-SS | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $h$) | Infinite-context linear throughput | Sub-quadratic recall on in-context needle retrieval |
-| **Gated Delta Net (GDN)** | Delta-Rule Recurrent Memory | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $S$) | Dynamic memory erasure and update | Matrix state dimension $d \times d$ compute |
-| **Encoder-Free Multimodal** | Unified Causal Transformer | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ | End-to-end multimodal alignment | Long sequence lengths from vision patches |
+| **Speculative Decoding** | Target MHA + Draft verification | Standard | $\mathcal{O}(T)$ (Target + draft caches) | Empirical $1.5\text{--}2.5\times$ decode latency reduction | Draft acceptance rate $\alpha$, drafting latency, and verification kernel overhead |
+| **Mamba-2 (SSD)** | Selective State-Space / 1-SS | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $h$) | Long-context linear throughput | Bounded memory capacity on complex multi-needle retrieval |
+| **Gated Delta Net (GDN)** | Delta-Rule Recurrent Memory | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $S$) | Dynamic associative erasure and update | Matrix state dimension $d \times d$ compute |
+| **Multimodal token sequence** | Causal Transformer with image representations | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ | End-to-end multimodal alignment | Long sequence lengths from vision patches |
 
 ---
 
-## Practical task
+## Optional exploration
 
 1. **MLA memory calculation:** Derive the precise byte savings of Multi-Head Latent Attention
    versus standard MHA and GQA across sequence lengths from $4\text{k}$ to $128\text{k}$.
 2. **Speculative decoding simulation:** Model expected token acceleration $\mathbb{E}[\text{tokens/step}]$
-   as a function of draft length $K \in \{1, \dots, 8\}$ and empirical acceptance rate $\alpha \in [0.5, 0.95]$.
+   and the wall-clock cost model as a function of draft length $K \in \{1, \dots, 8\}$ and empirical acceptance rate $\alpha \in [0.5, 0.95]$.
 3. **Linear recurrent step:** Implement a minimal Gated Delta Network update step and compare
    its memory footprint against an autoregressive KV-cache during generation.
 
@@ -344,8 +348,9 @@ retaining precise token retrieval capability.
 
 ## Expected output
 
-A comparative systems analysis evaluating how MLA, speculative decoding, Mamba-2, and GDN
-shift the compute, memory, and communication bottlenecks established throughout this course.
+An in-class explanation of the three core comparisons: what cost is reduced,
+what cost remains, and what evidence would establish a useful trade-off. The
+explorations above are optional and do not add a required report.
 
 ---
 
@@ -362,7 +367,9 @@ shift the compute, memory, and communication bottlenecks established throughout 
 - [Schlag et al. (2021) — Linear Transformers with Learnable Kernel Functions (Delta Net)](https://arxiv.org/abs/2102.11174)
   — delta-rule memory update mechanics;
 - [Chameleon Team (2024) — Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)
-  — encoder-free unified multimodal tokenization.
+  — discrete image tokenization and mixed-modal early fusion.
+- [Kimi Team (2025) — Kimi Linear](https://arxiv.org/abs/2510.26692)
+  — Kimi Delta Attention and hybrid recurrent/attention layers.
 
 ---
 

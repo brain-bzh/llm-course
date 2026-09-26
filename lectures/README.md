@@ -6,21 +6,19 @@ Styled with the IMT Atlantique theme adapted from `llm4code`.
 
 ## Teaching Format
 
-Modules 1--12 are complete lecture decks, one per course module. Each module
-spans two to five 1h15 sessions of contact time (see the course
-[schedule](../docs/schedule.md) for the exact session count per module — a
-module is a topic, not a fixed-length time slot). Each deck uses the same
-teaching rhythm:
+The course has 11 modules and 32 teaching sessions of 75 minutes. Lecture 0
+introduces the course. Modules 1–10 have developed slide sources; Module 11
+remains a scaffold reserved for later authoring. The website chapters are the
+conceptual source, and the [schedule](../docs/schedule.md) assigns each module
+to one or more sessions.
 
-1. a guiding question and four explicit learning goals;
-2. three concept sections with equations, diagrams, or worked estimates;
-3. short checkpoints for individual reasoning or peer discussion;
-4. a final slide containing the durable ideas students should retain.
+A module number is not a session number. Some existing slide titles still use
+the older session numbering and need reconciliation before delivery. Do not
+interpret a compiled PDF as evidence that its content is complete or current.
 
-The decks contain 19--23 slides each. Section-outline slides provide natural
-pauses, while the checkpoints reserve time for active reasoning rather than
-continuous exposition. Module 13 remains the original scaffold, as requested,
-for later authoring.
+The developed decks combine guiding questions, worked estimates, diagrams,
+and reasoning checkpoints. Session timing and required practical outputs are
+defined by the schedule and companion guides.
 
 ## Directory Structure
 
@@ -47,7 +45,7 @@ lectures/
 
 ## Compilation
 
-To compile all 11 module slide decks:
+To compile the introduction and all 11 module slide decks:
 ```bash
 make all
 ```

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Choose an optimal multidimensional parallelization strategy from model size,
+Propose and test a feasible multidimensional parallelization strategy from model size,
 context length, batch target, expert sparsity, and physical cluster topology.
 
 Context parallelism (CP), pipeline parallelism (PP), expert parallelism (EP),
@@ -13,8 +13,7 @@ volumes, collective patterns, and network latency sensitivities.
 
 The main reference is the
 [Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook),
-extended here with expert parallelism and the physical network mapping rules
-governing multi-thousand GPU clusters.
+extended here with expert parallelism and explicit assumptions for mapping process groups onto hardware.
 
 ---
 
@@ -27,8 +26,8 @@ By the end of the module, students should be able to:
 - explain causal load imbalance and zig-zag sequence placement;
 - derive pipeline bubble ratios and activation-memory trade-offs for AFAB and 1F1B;
 - trace Expert Parallelism (EP) token routing and All-to-All communication volumes;
-- derive the complete cluster sizing identity: $G = P \times D \times F \times E_P \times T_P \times C$;
-- defend the **outer-to-inner hierarchy** ($\text{PP} \to \text{DP} \to \text{FSDP} \to \text{EP} \to \text{TP}$) grounded in communicated byte volume, frequency, and network fabric domains.
+- count devices from independent rank axes and distinguish subdivisions of DP;
+- defend a network placement using payload, frequency, overlap, and measured bandwidth.
 
 ---
 
@@ -41,7 +40,7 @@ The terminology is overloaded, so this course uses a strict distinction:
 | **Sequence parallelism (SP)** | Only operations outside TP regions, such as normalization and residual/dropout | Remove replicated activation residency created by TP |
 | **Context parallelism (CP)** | Through the full Transformer layer, including attention | Make very long sequences fit in VRAM and divide their quadratic compute |
 
-SP is a direct companion to tensor parallelism within a single node. CP is an
+SP is a direct companion to tensor parallelism within a TP group. CP is an
 orthogonal parallel axis used when the sequence length $T$ (e.g. 32k–1M tokens)
 exceeds single-device memory.
 
@@ -73,12 +72,12 @@ In **ring attention**, ranks form a logical communication ring:
 
 In causal language modeling, tokens only attend to past positions. Contiguous
 chunking ($[0, T/C)$ on rank 0, $[T/C, 2T/C)$ on rank 1, etc.) leaves rank 0
-computing on only 1 chunk while rank $C-1$ must attend to all $C$ chunks—wasting
-$50\%$ of cluster compute.
+processing fewer valid key blocks than rank $C-1$. The imbalance depends on
+which masked blocks the kernel skips and whether transfers overlap compute.
 
 **Zig-zag placement** distributes paired non-contiguous sub-chunks across ranks
-(e.g., assigning chunk $i$ and chunk $2C - 1 - i$ to the same rank), balancing
-the causal attention mask exactly across all ranks.
+(e.g., assigning chunk $i$ and chunk $2C - 1 - i$ to the same rank), balancing ideal valid-pair counts for equally sized chunks. Runtime also
+depends on kernel efficiency and communication.
 
 ---
 
@@ -92,34 +91,36 @@ divided across $P$ sequential stages.
 All $m$ micro-batches execute forward through stage $1 \dots P$, then all $m$
 micro-batches execute backward in reverse order.
 
-- **Bubble fraction:** $F_{\text{bubble}} = \frac{P - 1}{m + P - 1}$. To keep the bubble small ($< 10\%$), one needs $m \ge 4P$.
+- **Bubble fraction:** $F_{\text{bubble}} = \frac{P - 1}{m + P - 1}$. Under balanced stage times and negligible communication, $F_{\text{bubble}}<0.1$
+  requires $m>9(P-1)$. At $P=4,m=16$, the fraction is $3/19\approx15.8\%$.
 - **Activation residency:** Stage 1 must hold activations for all $m$ micro-batches
   in memory until backward begins, causing severe activation memory spikes.
 
 ### One-forward-one-backward (1F1B)
 
-After an initial warmup of $P$ micro-batches, each stage alternates executing
+After a stage-dependent warmup, each stage alternates executing
 one forward micro-batch and one backward micro-batch:
 
 - Frees activations immediately after each backward micro-step.
-- Caps peak activation residency at $P$ micro-batches (the pipeline depth)
-  instead of $m$, allowing arbitrarily large accumulation steps without OOM.
-- Preserves the same steady-state bubble fraction as AFAB, but dramatically
-  lowers peak VRAM.
+- Reduces the number of outstanding micro-batch activations to roughly the
+  pipeline depth in the standard non-interleaved schedule. It does not guarantee
+  that a model fits: weights, buffers, and activation sizes still matter.
+- Has the same ideal bubble fraction as AFAB under the balanced schedule model,
+  while reducing activation residency.
 
 ### Interleaved and zero-bubble schedules
 
 Interleaved 1F1B assigns multiple non-consecutive virtual stages to each
-physical device (e.g. device 0 runs layers 1–4 and 17–20). This shrinks the
-idle bubble by a factor of $v$ at the cost of $v \times$ more point-to-point
-communication across stage boundaries.
+physical device (e.g. device 0 runs layers 1–4 and 17–20). In an ideal balanced model, $v$ virtual stages can reduce the bubble term
+roughly by $v$, while introducing more boundary transfers. Actual benefit depends
+on schedule constraints, micro-batch count, stage balance, and communication.
 
 ### Interactive pipeline schedule simulator
 
 To explore how these pipeline schedules behave under different numbers of stages ($p$) and micro-batches ($m$), launch the dedicated interactive simulator:
 
 !!! tip "Interactive Visualization Lab"
-    Experiment with Naive, GPipe / AFAB, 1F1B, and Interleaved 1F1B schedules in a visual step-by-step simulator. Inspect dynamic bubble ratios $r = (p-1)/m$, track activation memory accumulation across GPUs, and watch peer-to-peer tensor transfers along stage boundaries.
+    Experiment with Naive, GPipe / AFAB, 1F1B, and Interleaved 1F1B schedules in a visual step-by-step simulator. Distinguish idle/useful ratio $r=(p-1)/m$ from idle/total fraction $r/(1+r)$, track activation memory accumulation across GPUs, and watch peer-to-peer tensor transfers along stage boundaries.
 
     [:material-play-circle-outline: Launch Pipeline Parallelism Simulator](../demos/pipeline-parallelism.html){ .md-button .md-button--primary target="_blank" }
 
@@ -132,7 +133,11 @@ sparsely activated experts. Each token is dynamically routed by a gating network
 to its top-$k$ experts ($k \ll E$).
 
 **Expert Parallelism (EP)** shards the $E$ expert networks across $E_P$ devices:
-each rank hosts $E / E_P$ experts.
+each rank hosts $E / E_P$ experts. The router scores experts, dispatches each
+token to the selected experts, and combines their outputs. Top-$k$ controls
+active expert work, not total stored parameters. Uneven routing can overload one
+rank; capacity limits or balancing policies change both runtime and model behavior.
+Shared attention weights are not divided by EP merely because experts are.
 
 ### Token routing and All-to-All communication
 
@@ -153,159 +158,132 @@ other rank, EP requires an **All-to-All** collective:
    originating ranks via a second `all_to_all_single` collective and linearly
    weighted by the gate softmax probabilities.
 
-### EP Communication volume
+### EP communication volume
 
-Per MoE layer, the data transmitted by each rank in forward is:
+Let $n$ be the number of source tokens owned by a rank, $k$ the selected experts
+per token, $d$ the hidden width, and $b$ the bytes per activation element.
+Dispatch plus combine has payload approximately $2n k d b$ in forward; backward
+adds approximately the same again. Local routes do not use the network. With
+uniform routing across $E_P$ ranks, a simple estimate multiplies by
+$1-1/E_P$. Declare the token layout before setting $n$: TP/SP can change whether
+tokens are replicated or partitioned. Metadata, padding, skew, and protocol
+traffic are additional costs.
 
-$$\text{Bytes}_{\text{EP, fwd}} = \left( \frac{B_\mu \cdot T}{C \cdot T_P} \right) \times k \times d \times \text{sizeof(dtype)}.$$
+## Map communication to the network
 
-In the backward pass, an identical volume of activation gradients is exchanged.
-Because All-to-All generates $E_P \times (E_P - 1)$ simultaneous point-to-point flows,
-EP requires high bisection bandwidth to avoid network congestion and incast packet drops.
+There is no universally optimal nesting of PP, DP, FSDP, EP, TP, and CP.
+Place groups according to the exposed communication on their critical path.
 
----
+| Group | Main transfer | Placement question |
+| --- | --- | --- |
+| PP | Boundary activations and their gradients per micro-batch | Can transfer finish before the next stage needs it? |
+| DP | Gradient buckets, normally once per optimizer update with accumulation | How much reduction remains after backward finishes? |
+| FSDP | Parameter gathers and gradient reduce-scatter | Do gathering and prefetch fit the bandwidth and memory budget? |
+| TP | Frequent activation collectives inside each layer | Are local matrix products large enough to amortize collective latency? |
+| CP | KV blocks and attention-gradient exchanges | Can attention compute hide transfers at this context length? |
+| EP | Routed-token dispatch and combine | Does the fabric support the routing pattern without one rank becoming a straggler? |
 
-## The Outer-to-Inner Hierarchy: Grounded in Communicated Bytes
+TP often benefits from the fastest local fabric; that is a starting hypothesis,
+not an NVLink-only restriction or a universal eight-device limit. PP can reduce
+the volume crossing a slower link, but its boundaries can still stall. DDP
+bucket overlap hides some communication only when sufficient compute is available.
+Measure achieved bandwidth and exposed time rather than dividing by an advertised
+aggregate link rate and declaring the result optimal.
 
-When mapping a 5D parallel execution plan ($P \times D \times F \times E_P \times T_P \times C$)
-onto real cluster hardware, we must order parallel axes from **outermost**
-(slowest, high-latency network links) to **innermost** (fastest, lowest-latency interconnect).
-
-The order is:
-
-$$\Large \mathbf{PP} \;\longrightarrow\; \mathbf{DP} \;\longrightarrow\; \mathbf{FSDP} \;\longrightarrow\; \mathbf{EP} \;\longrightarrow\; \mathbf{TP}$$
-
-```
-[ Outer Network: Cross-DC / Cross-Pod / Cross-Rack (100–400 Gbps, High Latency) ]
-   └── PP: Point-to-point boundary activations only (B_μ * T * d bytes)
-         └── DP: Gradient All-Reduce once per step (2 * params, fully overlapped)
-               └── FSDP: All-Gather + Reduce-Scatter per layer (3 * params total)
-                     └── EP: All-to-All token exchange per MoE layer
-                           └── TP: Blocking All-Reduce inside layer inner loop (NVLink only)
-[ Inner Network: Intra-Node NVLink / NVSwitch (900–1800 GB/s, Sub-Microsecond Latency) ]
-```
-
-### Comprehensive Systems & Communication Comparison
-
-| Parallel Axis | Collective Pattern | Communicated Bytes per Step | Frequency & Trigger | Latency Sensitivity & Critical Path | Physical Domain Placement |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **PP** (Pipeline) | Point-to-Point (`send` / `recv`) | $\mathcal{O}(B_\mu \cdot T \cdot d)$ per micro-batch | Once per boundary layer per micro-batch | **Lowest.** P2P transfer, easily hidden behind 1F1B compute. Independent of parameter count. | **Outermost:** Inter-pod, cross-rack, or lower-bandwidth switches. |
-| **DP** (Data Parallel) | All-Reduce | $2 \times \text{parameters}$ (gradients) | **Once per step** (at end of backward) | **Low.** Fully overlapped with backward pass by streaming gradient buckets from layer $L$ to 1. | **Outer:** Inter-node across spine-leaf fabric. |
-| **FSDP / ZeRO-3** | All-Gather + Reduce-Scatter | $3 \times \text{parameters}$ ($1\times$ fwd weights, $1\times$ bwd weights, $1\times$ bwd grads) | **Every layer**, twice per step (fwd & bwd) | **Medium-High.** Bursty, high byte volume. Prefetching helps, but requires sustained high bisection bandwidth. | **Intermediate:** Intra-pod InfiniBand/RoCE fat-tree network. |
-| **EP** (Expert Parallel) | All-to-All (`all_to_all_single`) | $\mathcal{O}(\text{tokens} \cdot k \cdot d)$ per MoE layer | **Every MoE layer**, fwd & bwd | **High.** All ranks exchange tokens simultaneously; highly sensitive to bisection bandwidth and incast. | **Intermediate:** Intra-pod non-blocking fabric. |
-| **TP** (Tensor Parallel) | All-Reduce | $4L \times 2 \times (B_\mu \cdot T \cdot d)$ | **Every layer**, $2\times$ in fwd, $2\times$ in bwd | **Ultra-High.** Strictly blocking on the inner critical path. Zero overlap possible without specialized kernels. | **Innermost:** Intra-node NVLink / NVSwitch only ($T_P \le 8$). |
-
-### Why this hierarchy is physically necessary:
-
-1. **Why PP is Outermost:**
-   PP communicates only activations at stage boundaries. The number of bytes is
-   $B_\mu \cdot T \cdot d$, which is **completely independent of model parameter count $P_{\text{model}}$**.
-   For a 70B model, transferring an activation chunk requires only tens of megabytes,
-   compared to hundreds of gigabytes of parameter state. Because communication is
-   point-to-point between adjacent ranks $(r, r+1)$ and hidden by the 1F1B schedule,
-   PP is the only parallelism scheme that cleanly tolerates slow inter-rack or cross-datacenter links.
-
-2. **Why DP is Outside FSDP:**
-   Standard DDP communicates $2 \times \text{parameters}$ in gradients, but does
-   so **only once per optimizer step**. PyTorch DDP overlaps this communication
-   asynchronously with backward computation: while layer $l$ computes gradients,
-   layers $l+1 \dots L$ are already all-reducing. FSDP, in contrast, must transmit
-   $3 \times \text{parameters}$ **on demand layer-by-layer** (gathering weights right
-   before execution). FSDP therefore requires substantially higher bandwidth and lower
-   latency than pure DDP.
-
-3. **Where EP Fits:**
-   In an MoE model, EP replaces dense parameters with routed tokens. While token
-   volume is generally lower than gathering full model weights, the **All-to-All**
-   communication pattern creates dense, all-to-all cross-chatter that saturates
-   network switches. EP must therefore be hosted within non-blocking network domains
-   (e.g., within an InfiniBand island or rail-optimized pod).
-
-4. **Why TP is Strictly Innermost:**
-   Megatron-style TP splits weight matrices along rows and columns. In every single
-   Transformer block, it executes two All-Reduces in forward (one after attention
-   projection, one after MLP down-projection) and two in backward.
-   Crucially, **computation cannot proceed until the All-Reduce finishes**.
-   Running TP over a 400 Gbps network link degrades Model FLOPs Utilization (MFU)
-   from $50\%$ to $< 15\%$ due to collective latency overhead. TP must stay on
-   NVLink ($900\text{--}1800\text{ GB/s}$), limiting $T_P \le 8$.
-
----
+For an ideal ring all-reduce of payload $S$ bytes over $R$ ranks, bytes **sent per
+rank** are $2(R-1)S/R$. This excludes received bytes and latency. A parameter
+count becomes a payload only after specifying precision and sharding. For FSDP,
+also specify how often weights are resharded and whether gradients synchronize
+on each micro-batch; “three times parameters per optimizer step” is not universal.
 
 ## Compose the parallel dimensions
 
-For a total cluster of $G$ GPUs, the parallel dimensions satisfy:
+For this course's balanced teaching layout, define independent coordinates:
 
-$$G = P \times D \times F \times E_P \times T_P \times C,$$
+$$G=P\times T_P\times C\times D.$$
 
-where:
-- $P$: Pipeline-parallel stages (cross-rack / inter-pod);
-- $D$: Replicated data-parallel groups (cross-pod / inter-node);
-- $F$: Fully sharded data-parallel degree (intra-pod);
-- $E_P$: Expert-parallel degree (intra-pod non-blocking fabric);
-- $T_P$: Tensor-parallel degree (intra-node NVLink, $\le 8$);
-- $C$: Context-parallel degree (ring attention, intra-node or intra-pod).
+- $P$: pipeline stages;
+- $T_P$: tensor-parallel degree;
+- $C$: context-parallel degree;
+- $D$: total data-parallel degree, counting independent micro-batches.
 
-### Practical cluster selection recipe
+**FSDP is a state-sharding choice within $D$.** Let $F$ divide $D$. There are
+$D/F$ replica groups, each sharding state over $F$ ranks. Ordinary DDP has $F=1$;
+full sharding across the whole DP group has $F=D$. Do not multiply by $F$ again.
 
-1. **Fit one layer and preserve GEMM efficiency:** Choose intra-node $T_P \in \{1, 2, 4, 8\}$
-   such that local matrix multiplication dimensions remain large enough to saturate Tensor Cores.
-2. **Fit context length:** If $T > 32\text{k}$ tokens, add Context Parallelism ($C$)
-   with ring attention.
-3. **Handle MoE experts:** If using MoE, allocate $E_P$ such that $E / E_P$ experts
-   fit in local VRAM, placing EP within the high-speed pod fabric.
-4. **Fit total model parameters across nodes:** If the model does not fit in a single
-   node, apply Pipeline Parallelism ($P$) across nodes or high-bandwidth FSDP ($F$).
-5. **Scale to global batch:** Use Data Parallelism ($D$) across remaining devices
-   until reaching the target global batch size:
-   
-   $$\text{Global tokens / step} = B_\mu \times T \times A \times D \times F.$$
+**EP can subdivide $D$.** In the simple MoE layout used here, $E_P$ divides $D$:
+experts are distributed across $E_P$ ranks and each expert has $D/E_P$ replicas.
+Shared and expert parameters have different synchronization groups. Do not
+multiply the device count by $E_P$ again. Production layouts can use different
+expert TP degrees or fold axes differently; derive their rank groups explicitly.
+See [Megatron's parallel configuration](https://docs.nvidia.com/megatron-core/developer-guide/latest/apidocs/core/core.model_parallel_config.html).
 
----
+The companion calculator supports either FSDP or EP under these assumptions.
+It rejects combined EP/FSDP layouts rather than guessing the expert shard groups.
+For micro-batch size $B_\mu$ and $A$ accumulation micro-batches per update:
+
+$$\text{global tokens/update}=B_\mu\,T\,A\,D.$$
+
+Neither CP nor TP creates extra training examples.
+
+### Persistent state is not peak memory
+
+For a declared mixed-precision AdamW layout, count parameter copies, gradients,
+two moments, and any master weights separately. DDP replicates these states.
+FSDP shards persistent state but temporarily materializes larger parameter units.
+EP distributes expert parameters while shared layers remain replicated over EP.
+
+Add activation residency, gathered weights, collective buffers, allocator reserve,
+and the largest-stage imbalance before testing whether a run fits. The calculator
+reports **average persistent state per rank**, not peak VRAM or a fit guarantee.
 
 ## Strategy case studies
 
-### Case A — Model fits in 1 GPU, short context, 64 GPUs available
-- **Choice:** Pure DDP ($D=64$, $P=1, T_P=1, C=1$).
-- **Rationale:** No memory bottleneck. DDP adds zero activation recomputation or pipeline bubbles and overlaps communication completely.
+### Case A — model fits, short context, 64 devices
 
-### Case B — 70B dense model on 64 $\times$ 8-GPU nodes (512 H100s)
-- **Choice:** $T_P=8$ (intra-node NVLink), $P=4$ (across nodes), $F=16$ (intra-pod FSDP).
-- **Rationale:** $T_P=8$ keeps latency-sensitive All-Reduces on NVLink. $P=4$ divides depth into manageable chunks. FSDP shards remaining state across 16 ranks with enough compute to hide weight gathers.
+Start with $D=64$ and the other independent degrees at one. Compare strong
+scaling at fixed global batch with weak scaling at fixed local batch. DDP can
+still be communication-bound; a model fitting on one GPU does not ensure speedup.
 
-### Case C — 1M context on 32 GPUs
-- **Choice:** $C=8$, $T_P=4$, $D=1$.
-- **Rationale:** KV cache dominates memory ($2 \times L \times h_{kv} \times d_h \times T$). Ring attention shards KV activations across 8 ranks, while $T_P=4$ shards wide projections.
+### Case B — 512 devices, dense model
 
----
+One candidate is $T_P=8,P=4,D=16,C=1$, with $F=16$ for state sharding. It uses
+512 devices, not 8192. Compare another layout at the same global token budget.
+Neither the device identity nor static-state estimate proves memory fit.
+
+### Case C — long-context training on 32 devices
+
+One candidate is $C=8,T_P=4,D=P=1$. CP divides token activations and attention
+work, but adds per-layer communication. Estimate training activations and
+backward state; an inference KV-cache formula alone is not a training-memory budget.
+
+### Case D — four experts within a data-parallel group
+
+For $D=4,T_P=2,P=C=1$, the world contains eight devices. Choosing $E_P=4$ still
+uses eight devices. Each expert-TP rank holds a slice of one expert, while
+shared attention parameters remain replicated across the four EP ranks.
 
 ## In-class investigation
 
-### Part A — Hierarchical communication calculation
-For an 8-node cluster ($64 \times \text{H100}$ GPUs with 900 GB/s NVLink intra-node and 400 Gbps InfiniBand inter-node):
-1. Compute the time spent in collective communication for $T_P=8$ intra-node vs $T_P=8$ inter-node.
-2. Calculate the All-to-All byte volume for an MoE layer with $B_\mu=2, T=4096, d=4096, k=2, E_P=8$.
-3. Prove why placing EP across nodes within a switch is viable, but placing TP across nodes collapses throughput.
-
-### Part B — Ring-attention trace
-For 4 ranks and 8 sequence chunks with causal masking:
-1. Trace the zig-zag assignment to show equal computation across all 4 ranks.
-2. Calculate the online softmax update factors between successive KV chunk shifts.
-
-### Part C — Pipeline bubble derivation
-Draw 1F1B timelines for $P=4, m=16$:
-1. Calculate the exact bubble fraction $F_{\text{bubble}}$.
-2. Compare peak activation memory between GPipe (AFAB) and 1F1B.
-
----
+1. For $P=4,m=16$, calculate idle/total fraction and idle/useful ratio. Find the
+   smallest integer $m$ giving an ideal bubble below 10%. Compare AFAB and 1F1B
+   activation residency in the [simulator](../demos/pipeline-parallelism.html).
+2. Trace four ranks and eight equally sized causal context chunks. Pair early
+   and late chunks and explain which imbalance the pairing addresses.
+3. For $n=8192,d=4096,k=2,b=2,E_P=8$, estimate EP dispatch/combine payload for
+   forward and backward. State the routing and token-ownership assumptions.
+4. Draw the rank coordinates for Case D. Identify which parameters EP distributes
+   and which it replicates. Explain why multiplying by EP again is incorrect.
+5. Propose two placements across eight 8-GPU nodes. Mark transfers crossing nodes,
+   specify a bandwidth measurement, and state what evidence would reject your choice.
 
 ## Exit ticket
 
-1. Why does pipeline communication volume not scale with parameter count $P_{\text{model}}$?
-2. What makes tensor parallelism strictly intolerant of inter-node network latency?
-3. How does zig-zag chunk placement eliminate the causal imbalance in ring attention?
-4. In an MoE architecture, what collective does expert parallelism rely on, and why does it stress network bisection bandwidth?
-5. Write the full outer-to-inner parallelism hierarchy and explain why FSDP is placed inside DP.
+1. Which dimensions create new examples in the global batch?
+2. Why can identical device counts have different persistent memory per rank?
+3. When can pipeline transfers or DP reductions remain exposed?
+4. Why does expert routing imbalance affect both memory and throughput?
+5. Which omitted memory terms must be measured before claiming a model fits?
 
 ---
 

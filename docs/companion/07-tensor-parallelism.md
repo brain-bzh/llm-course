@@ -100,132 +100,48 @@ The entire 2-layer MLP executes with **only one communication collective** in th
 
 ---
 
-## Part 3 — Implementation with PyTorch's Gloo Backend
+## Part 3 — Forward and backward communication
 
-To ensure that every student can run and test Tensor Parallelism on their local machine (including macOS laptops and CPU-only workstations), we use PyTorch's **`gloo`** distributed backend rather than NVIDIA NCCL.
+Inspect `ColumnParallelLinear`, `RowParallelLinear`, and the two autograd
+mappings in `nanolm/tensor_parallel.py`:
 
-### Column-Parallel Linear Layer
+| Boundary | Forward | Backward |
+| --- | --- | --- |
+| Replicated input to column-parallel projections | Identity | Sum input-gradient contributions across TP ranks |
+| Row-parallel partial outputs to replicated result | Sum partial outputs | Identity for the replicated downstream gradient |
 
-```python
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.distributed as dist
+A raw in-place `dist.all_reduce` in forward does not specify this backward
+contract. The reference uses explicit autograd functions. Each rank evaluates
+the same replicated loss; summing its gradient again at the row-output boundary
+would introduce an unwanted factor of the TP degree.
 
-class ColumnParallelLinear(nn.Module):
-    def __init__(self, in_features: int, out_features: int, world_size: int = 1, rank: int = 0):
-        super().__init__()
-        assert out_features % world_size == 0
-        self.in_features = in_features
-        self.out_features_per_partition = out_features // world_size
-        self.world_size = world_size
-        self.rank = rank
+## Part 4 — Verify actual ranks
 
-        # Each rank stores only 1/world_size of the output weights
-        self.weight = nn.Parameter(torch.empty(self.out_features_per_partition, in_features))
-        nn.init.normal_(self.weight, std=0.02)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Input is replicated [B, T, in_features]
-        # Output is local shard [B, T, out_features / world_size]
-        return F.linear(x, self.weight)
-```
-
-### Row-Parallel Linear Layer with All-Reduce
-
-```python
-class RowParallelLinear(nn.Module):
-    def __init__(self, in_features: int, out_features: int, world_size: int = 1, rank: int = 0):
-        super().__init__()
-        assert in_features % world_size == 0
-        self.in_features_per_partition = in_features // world_size
-        self.out_features = out_features
-        self.world_size = world_size
-        self.rank = rank
-
-        # Each rank stores only 1/world_size of the input weights
-        self.weight = nn.Parameter(torch.empty(out_features, self.in_features_per_partition))
-        nn.init.normal_(self.weight, std=0.02)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Local matrix multiplication produces partial output: [B, T, out_features]
-        output_parallel = F.linear(x, self.weight)
-
-        # Cross-rank All-Reduce sum
-        if self.world_size > 1 and dist.is_available() and dist.is_initialized():
-            dist.all_reduce(output_parallel, op=dist.ReduceOp.SUM)
-
-        return output_parallel
-```
-
-### Composing the Sharded MLP
-
-```python
-class ShardedMLP(nn.Module):
-    def __init__(self, n_embd: int, world_size: int = 1, rank: int = 0):
-        super().__init__()
-        self.fc1 = ColumnParallelLinear(n_embd, 4 * n_embd, world_size=world_size, rank=rank)
-        self.gelu = nn.GELU(approximate="tanh")
-        self.fc2 = RowParallelLinear(4 * n_embd, n_embd, world_size=world_size, rank=rank)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x is replicated: [B, T, n_embd]
-        h_sharded = self.gelu(self.fc1(x))  # [B, T, 4 * n_embd / world_size]
-        out_replicated = self.fc2(h_sharded) # [B, T, n_embd] via all-reduce
-        return out_replicated
-```
-
----
-
-## Part 4 — Verification & Equivalence Test
-
-We test our parallel layer against a standard single-process reference layer:
+Run from the companion root:
 
 ```bash
-uv run python scripts/07_tensor_parallel.py
+uv run torchrun --standalone --nproc_per_node=2 scripts/07_tensor_parallel.py
+uv run pytest tests/test_module_07_tp.py tests/test_distributed_experiments.py -q
 ```
 
-### Multi-Rank Worker Execution (Gloo CPU)
+The script uses Gloo on CPU. It copies slices of one reference MLP into real
+sharded layers, then compares outputs, input gradients, and both weight-gradient
+shards. All ranks participate in the backward collectives. Running with ordinary
+`python` checks only the single-rank path; it is not evidence of communication.
 
-Below is the complete runner function to spawn real distributed worker processes using `gloo`:
+## Session 21 TP exercise
 
-```python
-import os
-import torch
-import torch.distributed as dist
-import torch.multiprocessing as mp
+Use the TP portion of the combined FSDP/TP session for a 30-minute investigation:
 
-def run_worker(rank: int, world_size: int, shared_x, shared_w1, shared_w2, result_queue):
-    # Initialize Gloo process group over local loopback TCP
-    os.environ["MASTER_ADDR"] = "127.0.0.1"
-    os.environ["MASTER_PORT"] = "29500"
-    dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
+1. **10 min:** predict activation shapes and communication boundaries for two ranks.
+2. **10 min:** run the verification and inspect the two autograd mappings.
+3. **10 min:** explain why removing the input-gradient reduction can leave forward
+   outputs correct while breaking backpropagation into preceding layers.
 
-    n_embd = shared_x.shape[-1]
-    d_ff = 4 * n_embd
+**Minimum evidence:** actual two-rank forward/backward equivalence, a shape ledger,
+and an explanation of each collective. The implementation uses the default
+process group for TP only; combining it with DP requires explicit TP subgroups.
 
-    # Instantiate sharded layers for this rank
-    mlp = ShardedMLP(n_embd, world_size=world_size, rank=rank)
-
-    # Slice weights from the reference model
-    with torch.no_grad():
-        mlp.fc1.weight.copy_(shared_w1[rank * (d_ff // world_size) : (rank + 1) * (d_ff // world_size), :])
-        mlp.fc2.weight.copy_(shared_w2[:, rank * (d_ff // world_size) : (rank + 1) * (d_ff // world_size)])
-
-    # Forward pass (all-reduce occurs inside RowParallelLinear)
-    y_tp = mlp(shared_x)
-
-    if rank == 0:
-        result_queue.put(y_tp)
-
-    dist.destroy_process_group()
-```
-
-### Expected Output
-
-```text
-=== Module 7: Tensor Parallelism Toy Layer ===
-Column + Row Parallel MLP output shape: [2, 4, 64]
-Max absolute difference vs reference: 0.00e+00
-SUCCESS: Simulated Tensor Parallel MLP is mathematically identical to reference MLP.
-```
+**Fallback:** hand-trace the partitioned arithmetic test, recording that real
+collective execution remains unverified. **Extension:** include bias parameters
+or change TP degree while preserving divisibility and gradient equivalence.

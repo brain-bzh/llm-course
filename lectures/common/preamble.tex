@@ -17,10 +17,8 @@
 % ---- Presentation defaults ----
 \setbeamertemplate{navigation symbols}{}
 \setbeamersize{text margin left=0.55cm,text margin right=0.55cm}
-\setbeamerfont{title}{size=\LARGE}
+\setbeamerfont{title}{size=\LARGE,series=\bfseries}
 \setbeamerfont{subtitle}{size=\large}
-\setbeamerfont{block title}{size=\normalsize}
-\setbeamerfont{block body}{size=\small}
 
 % ---- FontAwesome fallback ----
 \IfFileExists{fontawesome5.sty}{%
@@ -44,8 +42,8 @@
 }
 
 % ---- Theme Style and Semantic Colors ----
-\usepackage{../common/style}
 \input{../common/colors}
+\usepackage{../common/style}
 \graphicspath{{../common/figs/}{figs/}}
 
 % ---- Code Listing Config ----
@@ -56,8 +54,10 @@
   stringstyle=\color{deepgreen},
   commentstyle=\color{halfgray}\itshape,
   numbers=left, numberstyle=\tiny\color{halfgray},
-  rulesepcolor=\color{neutrallight},
-  showstringspaces=false, breaklines=true, frame=shadowbox,
+  backgroundcolor=\color{codebg},
+  frame=l, framerule=1.5pt, rulecolor=\color{themeteal},
+  xleftmargin=10pt, framexleftmargin=4pt, numbersep=6pt,
+  showstringspaces=false, breaklines=true,
   aboveskip=4pt, belowskip=4pt
 }
 
@@ -75,12 +75,7 @@
 
 % ---- Concept Highlight Card Utility ----
 \newcommand{\conceptcard}[3]{%
-  \begin{tikzpicture}
-    \node[draw=#1, fill=#1!8, thick, rounded corners=4pt, text width=0.92\linewidth, inner sep=7pt] {
-      {\bfseries\color{#1} #2}\\[3pt]
-      \small #3
-    };
-  \end{tikzpicture}
+  \begin{coursebox}{#1}{#2}#3\end{coursebox}%
 }
 
 % ---- Reusable teaching-slide components ----
@@ -124,7 +119,7 @@
 \newif\ifplacelogo
 \placelogotrue
 \logo{\ifplacelogo
-  \includegraphics[width=0.12\textwidth]{IMT_Atlantique_logo.png}%
+  \raisebox{-0.3ex}{\includegraphics[height=0.4cm]{IMT_Atlantique_logo.png}}%
 \fi}
 
 \makeatletter
@@ -145,25 +140,18 @@
 \newcommand{\makelecturetitle}[1][Training and Scaling Language Models: From First Principles to Efficient Serving]{%
   \placelogofalse
   {
-    \setbeamertemplate{headline}{}
     \setbeamertemplate{footline}{}
-    \begin{frame}
-      \maketitle
-      \vfill
-      \begin{center}
-        \raisebox{-0.5\height}{\includegraphics[height=0.13\textwidth]{IMT_Atlantique_logo.png}}
-        \hspace{2.5em}
-        \raisebox{-0.5\height}{\includegraphics[height=0.13\textwidth]{brain.pdf}}
-      \end{center}
-      \centering\small\textit{#1}
+    \settitletagline{#1}
+    \settitlelogos{%
+      \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{IMT_Atlantique_logo.png}}%
+      \hspace{1.2em}%
+      \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{brain.pdf}}}
+    \begin{frame}[plain]
+      \titlepage
     \end{frame}
   }
   \placelogotrue
 }
 
 % Section TOC Frame
-\AtBeginSection[]{
-  \begin{frame}[nologo]{Outline}
-    \tableofcontents[currentsection,hideothersubsections]
-  \end{frame}
-}
+\AtBeginSection[]{\coursesectiondivider}
