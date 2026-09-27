@@ -50,8 +50,8 @@ The core of any PyTorch training loop consists of five sequential steps:
 ```python
 for x, y in dataloader:
     optimizer.zero_grad(set_to_none=True)  # 1. Clear gradients
-    logits, loss = model(x, targets=y)      # 2. Forward pass & loss
-    loss.backward()                        # 3. Backward pass (accumulate)
+    logits, loss = model(x, targets=y)     # 2. Forward pass & loss
+    loss.backward()                        # 3. Backward pass
     optimizer.step()                       # 4. Update model parameters
 ```
 
@@ -69,12 +69,10 @@ examine the internal state transitions:
    inputs, intermediate tensors needed for differentiation (saved via
    `ctx.save_for_backward`), and the vector-Jacobian product function.
 3. **The loss function:**
-   Computes a scalar loss from model predictions and ground-truth targets. For
-   causal language models, this is categorical cross-entropy:
-   
-   $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} \log p_\theta(x_i \mid x_{< i}).$$
-   
-   The returned tensor is the root of the computation graph (`loss.grad_fn` points to the last node).
+    Computes a scalar loss from model predictions and ground-truth targets. For
+    causal language models, this is categorical cross-entropy:
+    $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\log p_\theta(x_i \mid x_{< i}).$$
+    The returned tensor is the root of the computation graph (`loss.grad_fn` points to the last node).
 4. **The backward pass (`loss.backward()`):**
    Traverses the DAG backwards from `loss` to every leaf parameter. It computes
    derivatives via the chain rule and populates `.grad` on all parameters with

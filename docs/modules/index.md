@@ -92,12 +92,12 @@ intended and token accounting is global rather than rank-local.
 ## 6. FSDP and ZeRO
 
 **Understand:** which states are sharded, when all-gather and reduce-scatter
-occur, and how checkpointing changes.
+occur, and how checkpointing changes. The current companion exercise is analytical.
 
-**Implement:** one focused FSDP comparison with DDP.
+**Inspect:** the reference FSDP wrapper and compare ZeRO state formulas with DDP.
 
-**Prove:** memory savings and throughput costs are measured, and the produced
-checkpoint can be restored.
+**Explain:** predicted persistent-state savings, transient-memory costs, and
+which DDP/FSDP measurements are required before claiming a fit or speedup.
 
 [Open the module page →](06-fsdp.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/06-fsdp.pdf){ target="_blank" }
 
@@ -124,7 +124,7 @@ and the physical placement based on exposed communication and topology.
 **Prove:** device counts and batch counts are consistent, memory exclusions are stated,
 and a measurement is proposed to test the placement.
 
-[Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/pipeline-parallelism.html){ target="_blank" }
+[Open the module page →](08-context-pipeline.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/08-context-pipeline.pdf){ target="_blank" } · [Pipeline simulator :material-play-circle-outline:](../demos/pipeline-parallelism.html){ target="_blank" } · [Parallelism composer :material-play-circle-outline:](../demos/parallelism-composer.html){ target="_blank" }
 
 ## 9. KV-cached decoding
 

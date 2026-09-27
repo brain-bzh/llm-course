@@ -19,7 +19,7 @@
   <rect class="cache" x="390" y="202" width="360" height="118" rx="13"/><text class="teal" x="570" y="228" text-anchor="middle">layer-local KV cache</text>
   <g><rect class="past" x="410" y="245" width="58" height="48" rx="7"/><text class="label" x="439" y="275" text-anchor="middle">K₁</text><rect class="past" x="474" y="245" width="58" height="48" rx="7"/><text class="label" x="503" y="275" text-anchor="middle">K₂</text><text class="sub" x="552" y="274">…</text><rect class="past" x="576" y="245" width="75" height="48" rx="7"/><text class="label" x="613" y="275" text-anchor="middle">Kₜ₋₁</text><rect class="new" x="657" y="245" width="72" height="48" rx="7"/><text class="accent" x="693" y="275" text-anchor="middle">Kₜ</text></g>
   <text class="sub" x="570" y="310" text-anchor="middle">V has the same append-only layout</text>
-  <path class="attend" d="M277 190V128H570V198"/><text class="teal" x="432" y="119" text-anchor="middle">qₜ scans all visible K,V</text>
+  <path class="attend" d="M277 190V172H570V198"/><text class="teal" x="432" y="165" text-anchor="middle">qₜ scans all visible K,V</text>
   <path class="flow" d="M750 261H805"/>
   <rect class="output" x="810" y="223" width="135" height="76" rx="12"/><text class="inverse" x="877" y="254" text-anchor="middle">attention oₜ</text><text class="inverse" x="877" y="278" text-anchor="middle">for one row</text>
   <text class="label" x="490" y="390" text-anchor="middle">The cache removes repeated K,V projection—not the linear scan over context.</text>

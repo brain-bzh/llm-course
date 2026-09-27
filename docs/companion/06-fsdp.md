@@ -7,7 +7,7 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 
     - **Lab script:** [`scripts/06_fsdp_experiment.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_fsdp_experiment.py)
     - **Reference module:** [`nanolm/profile_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/profile_utils.py) · [`nanolm/optim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/optim.py)
-    - **Unit tests:** [`tests/test_module_08_parallelism.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_08_parallelism.py)
+    - **Unit tests:** [`tests/test_module_08_parallelism.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_08_parallelism.py) (analytical state-accounting checks)
 
 ---
 
@@ -15,13 +15,13 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 
 1. **State sharding decomposition**: Understand where memory savings originate across ZeRO-1 (optimizer states), ZeRO-2 (gradients), and ZeRO-3 / FSDP (model weights).
 2. **Auto-wrap policy**: Configure wrapping rules for Transformer blocks and observe collective communication (all-gather and reduce-scatter) timing.
-3. **Peak memory measurement**: Compare memory consumption between unsharded DDP and sharded FSDP under identical batch configurations.
+3. **Peak memory reasoning**: Separate persistent-state estimates from gathered parameters, activations, and allocator reserve. The current script does not execute FSDP or measure peak VRAM.
 
 ---
 
 ## Quickstart
 
-Run the FSDP memory scaling analysis:
+Run the analytical ZeRO state calculator (it does not launch FSDP):
 
 ```bash
 uv run python scripts/06_fsdp_experiment.py
@@ -29,13 +29,21 @@ uv run python scripts/06_fsdp_experiment.py
 
 ## Session 19 protocol
 
-**Prepare:** state model size, optimizer state multiplier (e.g. AdamW requires $8\text{ bytes/param}$ for $m$ and $v$ in FP32), and rank count $N$.
+**Prepare:** read the DDP/FSDP comparison contract in Module 6 and calculate
+state bytes per parameter for the declared optimizer and precision.
 
-- **0–15 min:** predict static state memory per GPU for a 24-layer model under DDP vs ZeRO-1, ZeRO-2, and ZeRO-3 across $N \in \{1, 4, 8, 64\}$ ranks.
-- **15–35 min:** execute `scripts/06_fsdp_experiment.py` and verify calculated memory footprints against analytical state formulas.
-- **35–55 min:** analyze communication overhead: explain why ZeRO-3 requires all-gather before forward and backward, whereas DDP requires only gradient all-reduce.
-- **55–75 min:** relate static state savings to dynamic activation memory. Formulate an auto-wrap policy on `TransformerBlock` boundaries to constrain peak materialized working memory.
+- **0–15 min:** predict DDP and ZeRO-1/2/3 persistent state for the supplied model and world sizes.
+- **15–35 min:** run the calculator and reconcile each term against your worksheet.
+- **35–55 min:** inspect `nanolm/fsdp_utils.py`; trace when each wrapped block's full parameters exist and when gradients are reduced.
+- **55–75 min:** list the hardware, synchronization, warmup, model, batch, and measurement conditions needed for a fair DDP/FSDP peak-memory and throughput comparison.
 
-**Minimum evidence:** verified parameter, gradient, and optimizer state byte breakdown table across sharding strategies, with explicit distinction between persistent state and transient forward activations.
+**Minimum evidence:** state formulas, predicted values, a materialization
+lifecycle sketch, and a list of excluded peak-memory terms. The current example
+script is analytical: it constructs a model and prints formulas. It does not
+launch distributed workers or call FSDP. No empirical FSDP result is required
+from this script. If the teaching cluster later supports an actual FSDP run,
+record that as a separate, currently unverified extension.
 
-**Fallback:** analytical derivation from parameter counts if script execution is unavailable. **Extension:** calculate the communication volume ratio between standard DDP and ZeRO-3 for one optimization step.
+**Fallback:** use one rank and compare the formulas by hand. **Extension:** with
+instructor-supplied measurements, compare predicted persistent state to observed
+peak allocation and explain the residual; do not infer a speedup from the formula.

@@ -93,7 +93,7 @@
 
   <!-- Repeated Block Box -->
   <rect x="382" y="144" width="276" height="204" fill="none" stroke="#007f86" stroke-dasharray="3,3" stroke-width="1.2" rx="8"/>
-  <text class="repeat" x="394" y="160" fill="#007f86">× N blocks</text>
+  <text class="repeat lbl-t" x="394" y="160">× N blocks</text>
 
   <!-- 3. Pre-RMSNorm -->
   <rect class="accent" x="412" y="166" width="216" height="26"/><text class="lbl-t" x="520" y="183">Pre-RMSNorm (no bias)</text>

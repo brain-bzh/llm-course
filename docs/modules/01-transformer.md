@@ -10,10 +10,6 @@ This module follows the component-by-component progression of
 but adapts its original encoder–decoder model to the causal decoder-only model
 we will train during the course.
 
-!!! tip "Catch-up primer: PyTorch foundations"
-    New to PyTorch or need a refresher on tensor strides, memory contiguity, broadcasting, or custom autograd functions?
-    Consult the [PyTorch primitives primer](../primers/torch-primitives.md) before implementing the model.
-
 ## Key ideas
 
 - represent tokens as vectors and add position information;
@@ -27,15 +23,51 @@ we will train during the course.
 
 ## The task: Next-token prediction
 
-At its theoretical foundation, generative language modeling casts the generation of text as estimating the joint probability distribution over an ordered sequence of discrete tokens:
+At first glance, generating coherent human language seems to require a profound combination of grammar, factual knowledge, and reasoning. Modern generative language models tackle this through a surprisingly elegant simplification: they cast text generation as a sequential prediction task. Given a sequence of preceding words or subwords (a *prefix*), the model's job is simply to predict what comes next.
 
-$$P(x_1, x_2, \dots, x_T) = \prod_{t=1}^T P(x_t \mid x_1, \dots, x_{t-1}) = \prod_{t=1}^T P(x_t \mid x_{< t}).$$
+Once we can predict the next unit of text, we can generate entire essays, codebases, or dialogues through **autoregressive decoding**: predict a continuation, append it to the prompt, and feed the extended sequence back into the model to predict the one after it.
 
-By the chain rule of probability, this high-dimensional joint distribution factorizes exactly into a sequence of conditional distributions. The model's core objective is **next-token prediction (NTP)**: given an observed context of prefix tokens $x_{< t} = (x_1, \dots, x_{t-1})$, compute a probability distribution over the vocabulary $\mathcal{V}$ for the subsequent token $x_t$.
+### From intuition to probability distributions
 
-Training maximizes the log-likelihood of ground-truth sequences sampled from a vast pretraining corpus $\mathcal{D}$, minimizing empirical cross-entropy loss:
+Natural language is inherently non-deterministic. Consider a simple prompt:
 
-$$\mathcal{L}_{\text{NTP}}(\theta) = -\frac{1}{T}\sum_{t=1}^T \log P_\theta(x_t \mid x_{< t}).$$
+> *"The chef seasoned the..."*
+
+Multiple continuations are completely natural: *"soup"*, *"sauce"*, *"steak"*, or *"vegetables"*. Conversely, words like *"refrigerator"* are improbable, and ungrammatical continuations like *"the"* or *"slowly"* make little sense.
+
+Because there is rarely a single "correct" continuation, a language model does not simply output a single word guess. Instead, it outputs a **probability distribution** over every possible candidate in its vocabulary $\mathcal{V}$, assigning higher probability mass to plausible continuations.
+
+### Formal formulation: The autoregressive factorization
+
+Formally, we represent a piece of text as an ordered sequence of discrete units called **tokens**, denoted $X = (x_1, x_2, \dots, x_T)$.
+
+Modeling the probability of an entire document $P(X) = P(x_1, x_2, \dots, x_T)$ directly in one step is intractable: the space of possible token sequences grows exponentially with sequence length ($|\mathcal{V}|^T$).
+
+However, the **chain rule of probability** allows us to factorize this joint probability distribution exactly into a product of conditional distributions:
+
+<div class="formula-highlight" markdown>
+
+$$P(X) = \prod_{t=1}^T P(x_t \mid x_1, \dots, x_{t-1}) = \prod_{t=1}^T P(x_t \mid x_{< t})$$
+
+</div>
+
+where $x_{< t} = (x_1, \dots, x_{t-1})$ denotes the history (or prefix) of tokens preceding position $t$.
+
+This factorization is the mathematical foundation of **next-token prediction (NTP)**: it proves that estimating the joint probability of an entire sequence is mathematically equivalent to predicting one token at a time conditioned on the preceding context.
+
+### The pretraining objective
+
+Because natural text is self-labeled—each word is immediately followed by its ground-truth successor—training requires no manual annotations. We train a model parameterized by weights $\theta$ to maximize the log-likelihood of real sequences sampled from a massive pretraining corpus $\mathcal{D}$.
+
+In practice, this is implemented by minimizing the empirical **cross-entropy loss** over all sequence positions:
+
+<div class="formula-highlight" markdown>
+
+$$\mathcal{L}_{\text{NTP}}(\theta) = -\frac{1}{T}\sum_{t=1}^T \log P_\theta(x_t \mid x_{< t})$$
+
+</div>
+
+At each step $t$, the loss penalizes the model if it assigns low probability mass to the true next token $x_t$.
 
 ### What is a token?
 
@@ -47,46 +79,43 @@ Before a neural network can process text, the text must be converted into numeri
 
 ---
 
-## Historical next-token prediction: The recurrent era
+## Sequential vs. parallel training: The paradigm shift
 
-Long before the Transformer, next-token prediction was dominated by recurrent architectures: Elman Recurrent Neural Networks ([Elman, 1990](https://doi.org/10.1016/0364-0213(90)90002-E)), Long Short-Term Memory networks (LSTM; [Hochreiter & Schmidhuber, 1997](https://doi.org/10.1162/neco.1997.9.8.1735)), and Gated Recurrent Units (GRU; [Cho et al., 2014](https://doi.org/10.3115/v1/D14-1179)).
+To understand why the Transformer became the dominant architecture for language modeling, we must compare how architectures train on sequence data: **sequential training** versus **parallel training**.
 
-Recurrent architectures model language sequentially as a discrete-time dynamical system. As the model ingests token $x_t$, it updates a recurrent hidden vector $h_t \in \mathbb{R}^d$ through a parameterized transition function:
+### The sequential paradigm: Recurrence
 
-$$h_t = f(W_{hh} h_{t-1} + W_{xh} x_t + b_h),$$
+Before the Transformer, language modeling was dominated by recurrent architectures (Elman RNNs, LSTMs, and GRUs). Recurrent models process text as a discrete-time sequence: ingesting token $x_t$ requires updating a hidden state $h_t$ based on the previous state $h_{t-1}$.
 
-$$P(x_{t+1} \mid x_{\le t}) = \operatorname{softmax}(W_{\text{out}} h_t + b_{\text{out}}).$$
+While intuitive, this sequential formulation imposes severe bottlenecks on modern hardware:
 
-To preserve longer dependencies, LSTMs augmented the simple recurrent cell with an additive internal cell state $c_t$ governed by input, forget, and output gating mechanisms:
+1. **$O(T)$ sequential steps during training (No time-parallelism):**
+   Because step $t$ depends strictly on $h_{t-1}$, forward and backward passes cannot execute step $t$ until step $t-1$ finishes. For a sequence of length $T$, the accelerator must execute $T$ serial steps. Modern GPUs and TPUs achieve peak performance through massive, simultaneous matrix multiplication; sequential loops serialize execution, underutilizing Tensor Cores and memory bandwidth.
 
-$$f_t = \sigma(W_f [h_{t-1}, x_t] + b_f), \quad i_t = \sigma(W_i [h_{t-1}, x_t] + b_i), \quad o_t = \sigma(W_o [h_{t-1}, x_t] + b_o),$$
+2. **$O(T)$ interaction path length:**
+   Information from token $i$ must traverse $|j - i|$ intermediate transformations to influence token $j$. Early context gets repeatedly compressed into a fixed-size vector, and backpropagating gradients over long sequences causes them to either vanish exponentially or explode.
 
-$$c_t = f_t \odot c_{t-1} + i_t \odot \tanh(W_c [h_{t-1}, x_t] + b_c), \quad h_t = o_t \odot \tanh(c_t).$$
+??? info "Optional details: Recurrent cell formulations (Elman RNNs, LSTMs, and BPTT)"
 
-While recurrent networks demonstrated that neural language models could outperform classical $n$-gram statistical models ([Bengio et al., 2003](https://www.jmlr.org/papers/v3/bengio03a.html)), they suffered from two fundamental bottlenecks that prevented scaling to large foundation models.
+    #### Classical recurrent formulations
 
----
+    In an Elman RNN ([Elman, 1990](https://doi.org/10.1016/0364-0213(90)90002-E)), the hidden vector $h_t \in \mathbb{R}^d$ updates via a parameterized transition function:
 
-## The sequential bottleneck of RNNs and LSTMs
+    $$h_t = f(W_{hh} h_{t-1} + W_{xh} x_t + b_h), \quad P(x_{t+1} \mid x_{\le t}) = \operatorname{softmax}(W_{\text{out}} h_t + b_{\text{out}}).$$
 
-The limitations of recurrent language models stem directly from their mathematical formulation:
+    To mitigate information loss, Long Short-Term Memory networks (LSTM; [Hochreiter & Schmidhuber, 1997](https://doi.org/10.1162/neco.1997.9.8.1735)) added an internal additive cell state $c_t$ controlled by input ($i_t$), forget ($f_t$), and output ($o_t$) gating mechanisms:
 
-### 1. The computational training bottleneck: $O(T)$ sequential steps
+    $$f_t = \sigma(W_f [h_{t-1}, x_t] + b_f), \quad i_t = \sigma(W_i [h_{t-1}, x_t] + b_i), \quad o_t = \sigma(W_o [h_{t-1}, x_t] + b_o),$$
 
-Computing the hidden state $h_t$ strictly requires the prior hidden state $h_{t-1}$. Consequently:
+    $$c_t = f_t \odot c_{t-1} + i_t \odot \tanh(W_c [h_{t-1}, x_t] + b_c), \quad h_t = o_t \odot \tanh(c_t).$$
 
-- **No temporal parallelization during training:** Forward and backward passes cannot execute step $t$ until step $t-1$ has finished. For a context window of length $T$, the training loop must step through $T$ sequential matrix-vector operations.
-- **Hardware underutilization:** Modern accelerators (such as NVIDIA GPUs and Google TPUs) achieve peak throughput by performing massive, simultaneous parallel matrix multiplications across thousands of Tensor Cores. Recurrent loops force GPUs to execute sequentially over time, starving compute units and leaving memory bandwidth underutilized.
+    #### Gradient flow in Backpropagation Through Time (BPTT)
 
-### 2. The information and gradient bottleneck: $O(T)$ interaction path
+    Computing the gradient of the loss at step $T$ with respect to the initial hidden state $h_1$ expands via the chain rule into a product of $T-1$ Jacobians ([Pascanu et al., 2013](https://proceedings.mlr.press/v28/pascanu13.html)):
 
-- **Fixed-capacity compression:** The hidden vector $h_t \in \mathbb{R}^d$ has a fixed dimensionality. Compressing an entire variable-length prefix $x_1, \dots, x_t$ into a single vector inevitably causes catastrophic forgetting of early context.
-- **Vanishing and exploding gradients:** Training recurrent networks over long contexts relies on Backpropagation Through Time (BPTT). Computing the gradient of the loss at step $T$ with respect to the hidden state at step 1 expands through a product of $T-1$ Jacobians ([Pascanu et al., 2013](https://proceedings.mlr.press/v28/pascanu13.html)):
+    $$\frac{\partial h_T}{\partial h_1} = \prod_{k=2}^T \frac{\partial h_k}{\partial h_{k-1}} = \prod_{k=2}^T \operatorname{diag}\left(1 - \tanh^2(\cdot)\right) W_{hh}^\top.$$
 
-$$\frac{\partial h_T}{\partial h_1} = \prod_{k=2}^T \frac{\partial h_k}{\partial h_{k-1}} = \prod_{k=2}^T \operatorname{diag}\left(1 - \tanh^2(\cdot)\right) W_{hh}^\top.$$
-
-If the largest singular value of $W_{hh}$ is less than 1, gradients decay exponentially toward zero as $T$ grows; if greater than 1, gradients explode. Even LSTMs, which introduce an additive highway for cell state gradients, struggle to maintain effective credit assignment beyond several hundred steps.
-- **Interaction path length:** For information at position $i$ to influence position $j$, it must traverse $O(|j - i|)$ intermediate transformations.
+    If the spectral radius (largest singular value) of $W_{hh}$ is less than 1, gradients decay exponentially toward zero as $T$ grows; if greater than 1, gradients explode. Even LSTMs, which introduce an additive highway for cell state gradients, struggle to maintain effective credit assignment beyond several hundred steps.
 
 ---
 
@@ -102,6 +131,11 @@ The Transformer architecture ([Vaswani et al., 2017](https://arxiv.org/abs/1706.
   <figcaption markdown="span">The paradigm shift: Recurrent models suffer from an $O(T)$ sequential compute dependency and gradient decay, whereas causal self-attention computes all interactions concurrently with an $O(1)$ direct path.</figcaption>
 </figure>
 
+!!! note "Hardware alignment: Parallelism over operation count"
+    It is crucial to recognize that the Transformer's efficiency is not magic, nor does it perform *fewer* operations. In fact, standard self-attention requires $\mathcal{O}(T^2 \cdot d)$ floating-point operations, which is often significantly *more* total arithmetic than an RNN for long sequences.
+
+    The breakthrough is an **architectural alignment with GPU hardware**: modern accelerators (such as NVIDIA GPUs and TPUs) are massively parallel SIMD/tensor engines designed to crunch dense General Matrix Multiplications (GEMMs) at blistering speed, but they sit idle when forced to wait on sequential token loops. The Transformer's true achievement was restructuring sequence learning so that virtually all computation can execute concurrently as dense, hardware-friendly matrix operations on a GPU.
+
 ---
 
 ## Key component: Self-attention
@@ -114,7 +148,11 @@ At the heart of the Transformer's capability is **self-attention** ([Bahdanau et
 
 For a single attention head, the operation is defined as:
 
-$$\operatorname{Attention}(Q, K, V) = \operatorname{softmax}\left(\frac{Q K^\top}{\sqrt{d_{\text{head}}}} + M\right) V.$$
+<div class="formula-highlight" markdown>
+
+$$\operatorname{Attention}(Q, K, V) = \operatorname{softmax}\left(\frac{Q K^\top}{\sqrt{d_{\text{head}}}} + M\right) V$$
+
+</div>
 
 ### Why divide by $\sqrt{d_{\text{head}}}$?
 

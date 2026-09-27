@@ -311,9 +311,13 @@ State the loader and validation procedure, not just the format name.
 
 ## Expected output
 
-A focused DDP/FSDP comparison with predicted and measured memory, update
-equivalence, a communication trace, throughput results and a verified
-checkpoint round trip.
+A focused analytical comparison: persistent-state predictions, an FSDP
+materialization lifecycle sketch, a communication timeline, an excluded-terms
+list, and checkpoint-format decisions for the four scenarios above. The current
+companion script does not run FSDP, so it cannot produce measured memory,
+throughput, update-equivalence, or checkpoint round-trip evidence. Those results
+are an optional extension only when a verified teaching environment and a
+separate executable protocol are available.
 
 ## References
 
@@ -332,4 +336,3 @@ checkpoint round trip.
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/06-fsdp.pdf){ .md-button target="_blank" }
 [:material-code-tags: Practical Companion Guide](../companion/06-fsdp.md){ .md-button .md-button--primary }
-

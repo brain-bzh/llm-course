@@ -47,9 +47,12 @@ on it directly:
 - a valid held-out evaluation that does not overlap the selected training data;
 - a validated data ingestion and tokenization pipeline;
 - one measured training-performance improvement;
-- a correct distributed or sharded-training experiment;
+- a correct DDP experiment and an FSDP state-accounting exercise (a measured FSDP run only if verified teaching hardware is available);
 - a KV-cache equivalence test;
 - interpretation of a serving benchmark with a declared workload (instructor demonstration; no separate serving report).
+
+Quiz question drafts, answer keys, and instructor preparation materials are
+maintained separately from the student-facing course pages.
 
 ## What does not count as evidence
 

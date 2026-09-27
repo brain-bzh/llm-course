@@ -246,6 +246,40 @@
   margin-bottom: 0;
 }
 
+/* ---- Highlighted Formula Card ---- */
+.formula-highlight {
+  position: relative;
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.6rem;
+  background: color-mix(in srgb, #ffffff 65%, var(--course-paper));
+  border: 1px solid color-mix(in srgb, var(--course-teal) 22%, var(--course-border));
+  border-radius: 0.55rem;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--course-teal) 6%, transparent), var(--course-shadow);
+  overflow: hidden;
+  text-align: center;
+}
+
+.formula-highlight::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--course-teal-bright) 0%, var(--course-signal) 100%);
+}
+
+.formula-highlight .arithmatex {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+[data-md-color-scheme="slate"] .formula-highlight {
+  background: color-mix(in srgb, var(--course-panel) 85%, var(--course-paper));
+  border-color: color-mix(in srgb, var(--course-teal) 30%, var(--course-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--course-teal) 8%, transparent), var(--course-shadow);
+}
+
 /* ---- Tables ---- */
 
 .md-typeset table:not([class]) {
@@ -497,6 +531,31 @@
   height: 100%;
   border: 0;
   border-radius: 0.5rem;
+}
+
+/* ---- Figures ---- */
+
+.md-typeset figure {
+  display: flow-root;
+  margin: 1.8em auto;
+  max-width: 100%;
+  width: 100%;
+  text-align: center;
+}
+
+.md-typeset figure img {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.md-typeset figcaption {
+  margin: 0.8em auto 0;
+  max-width: 100%;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.78rem;
 }
 
 /* ---- Footer ---- */

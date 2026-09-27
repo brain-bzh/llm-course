@@ -23,8 +23,7 @@ and distributed, and finish by serving the resulting model efficiently.
 
 The course follows one question throughout:
 
-> **Given finite compute, memory bandwidth, and interconnect limits: where is our
-> system bottlenecked, and how do we prove an optimization actually scales?**
+> **How do we turn raw text and finite compute into a language model that trains, scales, and serves efficiently?**
 
 ## Course at a glance
 
@@ -81,7 +80,9 @@ are outside the implementation scope here.
 Students should already be comfortable with Python, matrix multiplication,
 probability and cross-entropy, differentiation, and basic PyTorch training.
 The opening practical sessions reinforce tensor shapes and module composition,
-but do not replace an introductory deep-learning course.
+but do not replace an introductory deep-learning course. To refresh tensor
+memory layout, strided views, autograd computation graphs, and CUDA execution
+before starting, consult the [PyTorch foundations primer](primers/torch-primitives.md).
 
 ## Teaching principle
 

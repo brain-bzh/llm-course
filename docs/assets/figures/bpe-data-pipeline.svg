@@ -78,10 +78,10 @@
   <text class="accent-sub" x="687" y="146" text-anchor="middle">Zero-copy OS cache</text>
 
   <!-- Flow 5 -> 6 -->
-  <path class="flow" d="M687 160V195H420"/>
+  <path class="flow" d="M687 160V182H420V199"/>
 
   <!-- Stage 6: Shifted Next-Token Batching -->
-  <rect class="node" x="180" y="195" width="480" height="60" rx="8"/>
-  <text class="label" x="420" y="222" text-anchor="middle">Contiguous Window Batching: Input X vs Target Y (Offset + 1)</text>
-  <text class="label-sub" x="420" y="242" text-anchor="middle">X = tokens[i : i + T]  →  Y = tokens[i + 1 : i + 1 + T]  (Shapes: B × T)</text>
+  <rect class="node" x="130" y="200" width="580" height="62" rx="8"/>
+  <text class="label" x="420" y="226" text-anchor="middle">Contiguous Window Batching: Input X vs Target Y (Offset + 1)</text>
+  <text class="label-sub" x="420" y="246" text-anchor="middle">X = tokens[i : i + T]  →  Y = tokens[i + 1 : i + 1 + T]  (Shapes: B × T)</text>
 </svg>

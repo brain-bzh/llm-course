@@ -2,30 +2,30 @@
 
 ## Purpose
 
-Trace how raw web snapshots become clean, high-throughput numerical token tensors
-ingested by the model without accelerator starvation.
+Trace how raw text becomes token tensors and identify where the input pipeline
+spends time and makes copies.
 
 Before a language model can perform self-attention or compute cross-entropy loss,
 unstructured human text must be extracted from the web, filtered to remove noise,
-transformed into discrete token integers, packed, and streamed to GPUs at gigabytes
-per second. Every stage in this pipeline is a systems decision: bad extraction wastes
-VRAM on HTML boilerplate, sloppy filtering burns expensive GPU FLOPs training on junk,
-and naive file I/O leaves multi-million-dollar clusters idling waiting for data.
+transformed into token IDs, packed, and batched for training. Each stage changes
+the data distribution or the work required downstream. Measure the pipeline on
+the target corpus and hardware before making claims about GPU starvation.
 
-This module covers the complete pretraining data pipeline: from raw Common Crawl
-WARC extraction and high-throughput heuristic filtering, to building a Byte-Pair
-Encoding (BPE) tokenizer from scratch and zero-copy memory-mapped binary dataset sharding.
+This module follows a representative pretraining data pipeline: raw Common Crawl
+extraction, corpus-dependent filtering, a Byte-Pair Encoding (BPE) tokenizer, and
+memory-mapped binary dataset sharding. The extractor and filtering rules are
+examples to inspect and evaluate, not universal defaults.
 
 ## Key ideas
 
-- **extraction is already selection:** why main-text extraction (e.g. `trafilatura`) beats generic WET dumps;
+- **extraction is already selection:** how DOM-based main-text extraction and generic WET text make different corpus choices;
 - **heuristic filtering as compute conservation:** discarding repeated lines, boilerplate, and low-quality tokens before training;
 - **the tokenization trade-off:** characters versus words versus subwords;
 - **byte-level BPE:** eliminating out-of-vocabulary (`<unk>`) tokens with a 256-byte base vocabulary;
 - **pre-tokenization regex splitting:** preventing semantic boundary pollution across punctuation and numbers;
 - **vocabulary size trade-offs:** compression ratio (bits per byte) versus embedding table memory footprint;
 - **contiguous sequence packing:** eliminating batch padding waste with `<|endoftext|>` delimiters;
-- **zero-copy binary sharding with `np.memmap`:** feeding GPUs at line rate via the Linux page cache.
+- **memory-mapped shards:** use the OS page cache while accounting for the copies required to assemble and transfer batches.
 
 <figure markdown="span">
   ![End-to-end training data ingestion pipeline: raw text documents, regex pre-tokenization, BPE subword merges, document packing with end-of-text tokens, binary memory-mapped shards, and shifted next-token batching.](../assets/figures/bpe-data-pipeline.svg){ loading=lazy }
@@ -38,15 +38,16 @@ Encoding (BPE) tokenizer from scratch and zero-copy memory-mapped binary dataset
 
 Web-scale pretraining datasets (like Common Crawl) provide raw HTML archives stored
 as WARC (Web ARChive) files, as well as generic text extractions known as WET files.
-Relying on generic WET text is tempting because it saves CPU compute during preprocessing,
-but it introduces massive systems inefficiency during training.
+They make different trade-offs: WET can save extraction work, while a DOM-based
+extractor can select different text and incur additional preprocessing cost.
 
 ### WARC vs WET: the boilerplate tax
 
-In the [FineWeb](https://arxiv.org/abs/2406.17557) ablations, training on generic WET
-extracts resulted in worse models despite containing ~25% more tokens than text extracted
-directly from WARC files using high-precision DOM extractors such as `trafilatura`.
-The extra 25% was almost entirely:
+In the [FineWeb](https://arxiv.org/abs/2406.17557) ablations, the tested generic WET
+pipeline produced about 25% more tokens than its tested WARC/DOM-extraction pipeline,
+and the paper reports a quality difference under its own training setup. This is
+evidence for that comparison, not a general ranking of WET and DOM extractors. In
+that experiment, much of the extra text was:
 - navigation menus and header bars;
 - cookie banners and legal disclaimers;
 - advertisement boilerplate and tracking text.
@@ -57,9 +58,9 @@ When boilerplate text enters the training set, it consumes:
 2. **Optimizer updates:** gradients update weights to predict useless web chrome
    rather than transferable reasoning or knowledge.
 
-**The systems takeaway:** extraction defines what becomes training text. Spending
-CPU cycles upfront on precise DOM extraction saves orders of magnitude more GPU FLOPs
-downstream.
+**The systems takeaway:** extraction defines what becomes training text. Compare
+preprocessing cost, retained text, and downstream behavior on the intended corpus
+before choosing an extraction method.
 
 ---
 
@@ -71,23 +72,20 @@ costs real hardware time. Filtering is therefore a **compute conservation tool**
 
 ### Quality heuristics at scale
 
-Instead of running heavy neural classifiers over petabytes of text, production pipelines
-apply high-throughput rule-based filters that CPU worker pools can execute at hundreds of
-thousands of documents per second:
+A pipeline may combine inexpensive rules and learned quality models. Thresholds and throughput depend on the corpus, language mix, and implementation. Example rules include:
 
 | Filter Rule | Failure Mode Targeted | Hardware / Training Consequence |
 | :--- | :--- | :--- |
-| **Document length** (e.g. $< 50$ or $> 100\text{k}$ chars) | Empty pages, error logs, infinite scroll dumps | Prevents batch imbalance and degenerate gradient spikes. |
-| **Alphanumeric ratio** (e.g. $< 60\%$ alnum chars) | Binary dumps, encrypted strings, ASCII art | Avoids wasting vocabulary capacity and sequence length on garbage. |
-| **Line-level repetition** (e.g. $> 10\%$ in dup lines) | Scraping artifacts, repeated sidebars, spam loops | Prevents memorization and excessive gradient norms on repetitive tokens. |
-| **Terminal punctuation** (e.g. $< 12\%$ lines end in punctuation) | Navigation lists, keyword stuffing, incomplete sentences | Ensures the model learns coherent syntactic structure and causal flow. |
-| **FastText language ID** (e.g. English score $< 0.65$) | Foreign-language crawl noise (unless multilingual target) | Concentrates tokenizer capacity on the intended target distribution. |
+| **Document length** (e.g. $< 50$ or $> 100\text{k}$ chars) | Empty pages, error logs, infinite scroll dumps | May remove unusable fragments or unusually long documents; inspect both tails. |
+| **Alphanumeric ratio** (e.g. $< 60\%$ alnum chars) | Binary dumps, encrypted strings, ASCII art | May reduce some noise, but can also remove code, math, or non-Latin writing. |
+| **Line-level repetition** (e.g. $> 10\%$ in dup lines) | Scraping artifacts, repeated sidebars, spam loops | May reduce duplicated text; measure effects on useful templates and lists. |
+| **Terminal punctuation** (e.g. $< 12\%$ lines end in punctuation) | Navigation lists, keyword stuffing, incomplete sentences | Can bias the corpus against valid non-prose formats and languages. |
+| **FastText language ID** (e.g. English score $< 0.65$) | Language mismatch for a monolingual target | Can enforce a target-language mixture, but risks excluding code-switching and multilingual examples. |
 
-Heuristic filtering substantially reduces noisy crawl text—corpora like FineWeb,
-RefinedWeb, and RedPajama-v2 report discarding roughly $20\%\text{--}50\%$ of raw
-text depending on source quality and threshold severity. This conserves the
-pretraining FLOP budget by focusing gradient updates on higher-density learning tokens,
-though actual retention varies significantly by domain.
+Filtering retention is corpus- and threshold-dependent. Report the retained
+document/token counts and inspect samples from both sides of each rule. Filtering
+can remove valuable material as well as noise, so treat quality and downstream
+model effects as hypotheses to measure.
 
 ---
 
@@ -105,10 +103,11 @@ compromise:
 | **Word-level** | Enormous ($> 10^6$) | Short ($\sim 1\times$ word count) | Catastrophic OOV; unseen words, typos, and inflections become `<unk>` | Massive embedding parameters ($V \times d_{\text{model}}$); tail words are seen too rarely to learn good embeddings. |
 | **Subword (BPE)** | Tunable ($32\text{k}\text{--}128\text{k}$) | Balanced ($1.2\text{--}1.4\times$ word count) | Zero OOV with byte-level fallback; morphemes are shared across words | Requires a learned merge table and pre-tokenization rules. |
 
-Subword tokenization via **Byte-Pair Encoding** occupies the Pareto-optimal frontier:
+Subword tokenization via **Byte-Pair Encoding** is a common compromise:
 common words (*the*, *attention*, *model*) receive dedicated single-token IDs,
 while rare words or neologisms decompose gracefully into shared subword morphemes
-(*pre* + *train* + *ing*).
+(*pre* + *train* + *ing*). Token counts and compression vary by tokenizer and
+corpus; compare the actual encodings rather than assuming one universal ratio.
 
 ---
 
@@ -404,4 +403,3 @@ prove zero-copy GPU ingestion or eliminate input stalls.
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/03-data-pipeline.pdf){ .md-button target="_blank" }
 [:material-code-tags: Practical Companion Guide](../companion/03-data-pipeline.md){ .md-button .md-button--primary }
-

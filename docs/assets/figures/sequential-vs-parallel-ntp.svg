@@ -86,8 +86,8 @@
   <rect class="node" x="282" y="192" width="48" height="30"/><text class="lbl" x="306" y="212">y_T</text>
 
   <!-- Tag badge -->
-  <rect class="tag-warn" x="78" y="238" width="220" height="24"/>
-  <text class="t-warn" x="188" y="254">Sequential bottleneck: O(T) latency</text>
+  <rect class="tag-warn" x="68" y="246" width="240" height="24"/>
+  <text class="t-warn" x="188" y="262">Sequential bottleneck: O(T) latency</text>
 
   <!-- Right: Transformer -->
   <rect class="panel" x="380" y="16" width="342" height="258"/>
@@ -101,7 +101,7 @@
 
   <!-- Attention Block -->
   <rect class="accent" x="408" y="136" width="286" height="52"/>
-  <text class="inv" x="551" y="162" fill="#007f86">Causal Attention (QKᵀ)</text>
+  <text class="t-good" x="551" y="160" font-size="13px">Causal Attention (QKᵀ)</text>
   <text class="sub" x="551" y="178" text-anchor="middle">direct pairwise routing</text>
   <path class="flow-t" d="M551 188 V204"/>
 
@@ -110,6 +110,6 @@
   <text class="lbl" x="551" y="227">[ y₁,  y₂,  y₃,  ⋯ ,  y_T ]</text>
 
   <!-- Tag badge -->
-  <rect class="tag-good" x="441" y="248" width="220" height="24"/>
-  <text class="t-good" x="551" y="264">Parallel training: O(1) path length</text>
+  <rect class="tag-good" x="431" y="246" width="240" height="24"/>
+  <text class="t-good" x="551" y="262">Parallel training: O(1) path length</text>
 </svg>

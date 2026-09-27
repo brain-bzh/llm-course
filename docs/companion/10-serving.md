@@ -29,3 +29,11 @@ Run the discrete-event continuous batching simulation:
 ```bash
 uv run python scripts/10_serving_benchmark.py
 ```
+
+## Session 28 activity
+
+The core activity covers the request lifecycle, continuous batching, paged
+allocation, and interpretation of TTFT, ITL, and throughput. The instructor may
+include a live engine demonstration. There is no implementation deliverable or
+separate report. Chunked prefill, prefix caching, open-loop load sweeps, SLO
+goodput, and source walkthroughs are optional follow-up topics.

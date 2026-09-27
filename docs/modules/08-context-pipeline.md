@@ -218,6 +218,11 @@ multiply the device count by $E_P$ again. Production layouts can use different
 expert TP degrees or fold axes differently; derive their rank groups explicitly.
 See [Megatron's parallel configuration](https://docs.nvidia.com/megatron-core/developer-guide/latest/apidocs/core/core.model_parallel_config.html).
 
+!!! tip "Interactive Visualization Lab"
+    Compose TP, CP, EP, PP, and DP on a modelled multi-node cluster. The composer maps every rank to a physical GPU, draws each process group, flags groups that cross the inter-node network, and estimates per-GPU memory, per-axis communication, and step time. Reorder the axes to see why TP usually sits innermost and PP outermost.
+
+    [:material-play-circle-outline: Launch Parallelism Composer](../demos/parallelism-composer.html){ .md-button .md-button--primary target="_blank" }
+
 The companion calculator supports either FSDP or EP under these assumptions.
 It rejects combined EP/FSDP layouts rather than guessing the expert shard groups.
 For micro-batch size $B_\mu$ and $A$ accumulation micro-batches per update:
@@ -276,6 +281,9 @@ shared attention parameters remain replicated across the four EP ranks.
    and which it replicates. Explain why multiplying by EP again is incorrect.
 5. Propose two placements across eight 8-GPU nodes. Mark transfers crossing nodes,
    specify a bandwidth measurement, and state what evidence would reject your choice.
+   Use the [parallelism composer](../demos/parallelism-composer.html){ target="_blank" }
+   to check which groups cross nodes, then say which of its assumptions you would
+   test first.
 
 ## Exit ticket
 
@@ -303,5 +311,6 @@ shared attention parameters remain replicated across the four EP ranks.
 ---
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/08-context-pipeline.pdf){ .md-button target="_blank" }
-[:material-play-circle-outline: Interactive Simulator](../demos/pipeline-parallelism.html){ .md-button target="_blank" }
+[:material-play-circle-outline: Pipeline Simulator](../demos/pipeline-parallelism.html){ .md-button target="_blank" }
+[:material-play-circle-outline: Parallelism Composer](../demos/parallelism-composer.html){ .md-button target="_blank" }
 [:material-code-tags: Practical Companion Guide](../companion/08-context-pipeline.md){ .md-button .md-button--primary }

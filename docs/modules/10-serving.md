@@ -385,9 +385,21 @@ Do not attribute a result to “continuous batching” in general. Identify whet
 the observed change came from admission, ragged packing, token budget, cache
 allocation, chunking or request replacement.
 
+## Session 28 scope
+
+The 75-minute required path is: define one workload; trace a request; simulate
+staggered requests; compare reservation with paged allocation; interpret TTFT,
+ITL, and throughput. Chunked prefill, prefix caching, load sweeps, and source
+walkthrough are optional extensions.
+
 ## In-class investigation
 
-Because implementing a production-grade inference server from scratch requires significant systems boilerplate and merely spinning up a pre-built vLLM container provides limited educational value, Module 10 is structured as an interactive theory session and live instructor-led demonstration. Students dissect the underlying algorithms through interactive tracing and live benchmark analysis, reserving project studio bandwidth for the [Reproduction project](../reproduction-project.md).
+Module 10 is an interactive theory session with a deterministic simulator and a
+prepared instructor demonstration. A live vLLM run is useful when the model,
+GPU allocation, launch command, and fallback trace have passed preflight; the
+session remains complete without live hardware. This keeps the focus on system
+behavior and interpretation while reserving project studio time for the
+[Reproduction project](../reproduction-project.md).
 
 ### Part A — schedule by hand
 
@@ -407,16 +419,20 @@ For a fixed block count and block size, trace allocation for requests that
 arrive and finish at different lengths. Compare contiguous maximum-length
 reservation with paged allocation, including partial-tail waste.
 
-### Part C — live engine demonstration & code walkthrough
+### Part C — prepared demonstration; optional engine walkthrough
 
-During Session 28, the instructor conducts a live demonstration using both a production engine (vLLM) and an educational implementation ([nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) / [`nanolm/serving_sim.py`](../companion/10-serving.md)):
+Use the companion run sheet to demonstrate the simulator and interpret a
+workload trace. If the vLLM preflight succeeds, the instructor may add a live
+engine demonstration. Otherwise, use the clearly labeled saved trace. The
+optional source walkthrough can use [nano-vLLM](https://github.com/GeeeekExplorer/nano-vllm)
+or [`nanolm/serving_sim.py`](../companion/10-serving.md):
 
-1. **Architecture inspection:** walk through `nano-vllm`'s request queue, `Scheduler`, and block-table memory allocation logic to see how continuous batching and PagedAttention execute in pure Python.
-2. **Saturation curves:** run an open-loop load generator against vLLM while progressively increasing arrival rates to observe the hockey-stick transition where queueing explodes and p99 latency collapses.
-3. **Chunked prefill & decode protection:** demonstrate how unchunked long-prompt prefills cause decode stalls (ITL spikes), and how chunked prefill restores predictable token pacing.
-4. **Prefix caching:** observe TTFT reduction and cache-hit metrics when requests share long common prefixes (e.g., system prompts or few-shot exemplars).
+1. Trace the request queue, scheduler, and paged block-table allocation.
+2. If prepared measurements exist, interpret load, TTFT, ITL, and throughput
+   with their workload and provenance.
+3. Treat chunked prefill and prefix caching as optional follow-up topics.
 
-Students are encouraged to follow along or inspect the simulation scripts locally, but no separate benchmark implementation is required.
+There is no separate benchmark implementation or report required from students.
 
 ## Exit ticket
 

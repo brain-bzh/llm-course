@@ -131,9 +131,13 @@
 % Fix Beamer bold font warning: substitute undefined T1/cmss/b/n with T1/cmss/bx/n
 \DeclareFontShape{T1}{cmss}{b}{n}{<->ssub * cmss/bx/n}{}
 
-% Default Author & Institute metadata
-\author[Jonathan Lys]{Jonathan Lys}
+% Default Author, Institute & Date metadata
+\author[BRAIN team]{BRAIN team}
 \institute[IMT Atlantique]{IMT Atlantique}
+\date{January 2027}
+
+% Override \date so individual decks calling \date{\today} do not overwrite the common date
+\renewcommand{\date}[2][]{}
 
 % ---- Front Page / Title Slide Macro ----
 % Displays Title + IMT Atlantique logo and Brain logo
@@ -146,6 +150,8 @@
       \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{IMT_Atlantique_logo.png}}%
       \hspace{1.2em}%
       \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{brain.pdf}}}
+    \def\insertauthor{BRAIN team}
+    \def\insertdate{January 2027}
     \begin{frame}[plain]
       \titlepage
     \end{frame}

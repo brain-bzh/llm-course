@@ -1,0 +1,1691 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parallelism Composer · Training and Scaling Language Models</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --pc-bg: #f8fafc;
+      --pc-panel: #ffffff;
+      --pc-shell: #edf5f9;
+      --pc-ink: #0f172a;
+      --pc-heading: #164666;
+      --pc-muted: #52697a;
+      --pc-line: #cce2ee;
+      --pc-line-subtle: #e2e8f0;
+      --pc-idle: #e2e8f0;
+      --pc-primary: #164666;
+      --pc-accent: #009fb0;
+      --pc-ok: #047857;
+      --pc-warn: #b45309;
+      --pc-bad: #b91c1c;
+      --pc-inter: #c2410c;
+      --pc-c-compute: #008294;
+      --pc-c-bubble: #94a3b8;
+      --pc-c-tp: #7c3aed;
+      --pc-c-cp: #2563eb;
+      --pc-c-ep: #db2777;
+      --pc-c-pp: #d97706;
+      --pc-c-dp: #059669;
+      --pc-m-weights: #164666;
+      --pc-m-grads: #0891b2;
+      --pc-m-optim: #7c3aed;
+      --pc-m-acts: #d97706;
+      --pc-m-buffers: #db2777;
+      --pc-m-overhead: #94a3b8;
+      --pc-tile-l: 84%;
+      --pc-tile-s: 62%;
+      --pc-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --pc-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --pc-radius: 12px;
+      --pc-shadow: 0 4px 20px -2px rgba(22, 70, 102, 0.08);
+    }
+
+    [data-theme="dark"],
+    :root.dark {
+      --pc-bg: #0c1722;
+      --pc-panel: #142533;
+      --pc-shell: #0f1d29;
+      --pc-ink: #f1f5f9;
+      --pc-heading: #f8fafc;
+      --pc-muted: #8ba2b5;
+      --pc-line: #234057;
+      --pc-line-subtle: #1a2f40;
+      --pc-idle: #1c2e3d;
+      --pc-primary: #38b2d6;
+      --pc-accent: #38b2d6;
+      --pc-ok: #34d399;
+      --pc-warn: #fbbf24;
+      --pc-bad: #f87171;
+      --pc-inter: #fb923c;
+      --pc-c-compute: #009fb0;
+      --pc-c-bubble: #475569;
+      --pc-c-tp: #a78bfa;
+      --pc-c-cp: #60a5fa;
+      --pc-c-ep: #f472b6;
+      --pc-c-pp: #fbbf24;
+      --pc-c-dp: #34d399;
+      --pc-m-weights: #38b2d6;
+      --pc-m-grads: #22d3ee;
+      --pc-m-optim: #a78bfa;
+      --pc-m-acts: #fbbf24;
+      --pc-m-buffers: #f472b6;
+      --pc-m-overhead: #475569;
+      --pc-tile-l: 30%;
+      --pc-tile-s: 45%;
+      --pc-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --pc-bg: #0c1722;
+        --pc-panel: #142533;
+        --pc-shell: #0f1d29;
+        --pc-ink: #f1f5f9;
+        --pc-heading: #f8fafc;
+        --pc-muted: #8ba2b5;
+        --pc-line: #234057;
+        --pc-line-subtle: #1a2f40;
+        --pc-idle: #1c2e3d;
+        --pc-primary: #38b2d6;
+        --pc-accent: #38b2d6;
+        --pc-ok: #34d399;
+        --pc-warn: #fbbf24;
+        --pc-bad: #f87171;
+        --pc-inter: #fb923c;
+        --pc-c-compute: #009fb0;
+        --pc-c-bubble: #475569;
+        --pc-c-tp: #a78bfa;
+        --pc-c-cp: #60a5fa;
+        --pc-c-ep: #f472b6;
+        --pc-c-pp: #fbbf24;
+        --pc-c-dp: #34d399;
+        --pc-m-weights: #38b2d6;
+        --pc-m-grads: #22d3ee;
+        --pc-m-optim: #a78bfa;
+        --pc-m-acts: #fbbf24;
+        --pc-m-buffers: #f472b6;
+        --pc-m-overhead: #475569;
+        --pc-tile-l: 30%;
+        --pc-tile-s: 45%;
+        --pc-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--pc-bg);
+      color: var(--pc-ink);
+      font-family: var(--pc-font);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    #pc-lab { max-width: 1120px; margin: 0 auto; }
+
+    .pc-nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 0 4px;
+      font-size: 12px;
+    }
+
+    .pc-breadcrumb {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-weight: 600;
+      color: var(--pc-muted);
+    }
+
+    .pc-breadcrumb a { color: var(--pc-accent); text-decoration: none; }
+    .pc-breadcrumb a:hover { text-decoration: underline; }
+
+    .pc-theme-toggle {
+      background: var(--pc-panel);
+      border: 1px solid var(--pc-line);
+      color: var(--pc-ink);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .pc-theme-toggle:hover { border-color: var(--pc-accent); }
+
+    .pc-shell {
+      background: var(--pc-panel);
+      border: 1px solid var(--pc-line);
+      border-radius: var(--pc-radius);
+      box-shadow: var(--pc-shadow);
+      overflow: hidden;
+    }
+
+    .pc-head {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--pc-line);
+      background: var(--pc-shell);
+    }
+
+    .pc-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--pc-accent);
+      margin-bottom: 4px;
+    }
+
+    h1.pc-title {
+      font-size: 20px;
+      font-weight: 750;
+      line-height: 1.25;
+      margin: 0 0 6px;
+      letter-spacing: -0.02em;
+      color: var(--pc-heading);
+    }
+
+    .pc-sub { color: var(--pc-muted); font-size: 13px; margin: 0; max-width: 860px; }
+
+    button, select { font: inherit; color: inherit; }
+
+    .pc-presets {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--pc-line);
+    }
+
+    .pc-presets > span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--pc-muted);
+      margin-right: 4px;
+    }
+
+    .pc-presets-papers { padding-top: 0; margin-top: -4px; }
+    .pc-scaled { font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+    .pc-tab {
+      border: 1px solid var(--pc-line);
+      background: var(--pc-shell);
+      color: var(--pc-ink);
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+
+    .pc-tab:hover { border-color: var(--pc-accent); }
+
+    .pc-tab[aria-pressed="true"] {
+      background: var(--pc-primary);
+      color: #ffffff;
+      border-color: var(--pc-primary);
+    }
+
+    [data-theme="dark"] .pc-tab[aria-pressed="true"] { color: #0c1722; }
+
+    .pc-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-bottom: 1px solid var(--pc-line);
+    }
+
+    .pc-group { padding: 14px 20px 16px; }
+    .pc-group + .pc-group { border-left: 1px solid var(--pc-line); }
+
+    .pc-group h2 {
+      margin: 0 0 10px;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--pc-heading);
+    }
+
+    .pc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .pc-field.pc-wide { grid-column: 1 / -1; }
+
+    .pc-field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--pc-muted);
+      margin-bottom: 4px;
+    }
+
+    .pc-field label span { float: right; margin-left: 6px; color: var(--pc-heading); font-family: var(--pc-mono); font-weight: 600; text-transform: none; }
+
+    .pc-field select {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid var(--pc-line);
+      border-radius: 6px;
+      background: var(--pc-shell);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .pc-field select:focus-visible, .pc-tab:focus-visible, .pc-gpu:focus-visible { outline: 2px solid var(--pc-accent); outline-offset: 1px; }
+
+    input[type="range"] { width: 100%; accent-color: var(--pc-accent); cursor: pointer; }
+
+    .pc-degree label::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      margin-right: 5px;
+      background: var(--pc-axis-color, transparent);
+      vertical-align: 0;
+    }
+
+
+    .pc-order { margin-top: 12px; }
+
+    .pc-order-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+    .pc-order-chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--pc-line);
+      border-radius: 6px;
+      background: var(--pc-shell);
+      font-family: var(--pc-mono);
+      font-size: 11px;
+      font-weight: 700;
+      overflow: hidden;
+    }
+
+    .pc-order-chip b { padding: 3px 6px; border-left: 3px solid var(--pc-axis-color); }
+
+    .pc-order-chip button {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      padding: 3px 5px;
+      color: var(--pc-muted);
+      font-size: 10px;
+    }
+
+    .pc-order-chip button:hover:not(:disabled) { color: var(--pc-accent); }
+    .pc-order-chip button:disabled { opacity: 0.25; cursor: default; }
+
+    .pc-order-arrow { color: var(--pc-muted); font-size: 11px; }
+
+    .pc-formula {
+      margin-top: 6px;
+      font-family: var(--pc-mono);
+      font-size: 10.5px;
+      color: var(--pc-muted);
+      overflow-wrap: anywhere;
+    }
+
+    .pc-order-hint { display: flex; justify-content: space-between; font-size: 10px; color: var(--pc-muted); margin: 4px 0 2px; }
+
+    .pc-story {
+      padding: 10px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      border-bottom: 1px solid var(--pc-line);
+      background: var(--pc-shell);
+      font-size: 12px;
+    }
+
+    .pc-story strong { color: var(--pc-heading); white-space: nowrap; }
+    .pc-story span { color: var(--pc-muted); }
+
+    .pc-messages { padding: 0 24px; border-bottom: 1px solid var(--pc-line); }
+    .pc-messages:empty { display: none; }
+
+    .pc-messages ul { list-style: none; margin: 0; padding: 8px 0; display: grid; gap: 4px; }
+
+    .pc-messages li {
+      font-size: 12px;
+      padding-left: 18px;
+      position: relative;
+      color: var(--pc-ink);
+    }
+
+    .pc-messages li::before {
+      position: absolute;
+      left: 0;
+      font-weight: 800;
+    }
+
+    .pc-messages li.is-error::before { content: "✕"; color: var(--pc-bad); }
+    .pc-messages li.is-warn::before { content: "!"; color: var(--pc-warn); left: 4px; }
+    .pc-messages li.is-note::before { content: "✓"; color: var(--pc-ok); }
+
+    .pc-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--pc-line);
+    }
+
+    .pc-metric { padding: 14px 20px; border-right: 1px solid var(--pc-line); min-width: 0; }
+    .pc-metric:last-child { border-right: 0; }
+
+    .pc-metric-name {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pc-muted);
+      font-weight: 700;
+    }
+
+    .pc-metric-value {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--pc-mono);
+      font-weight: 700;
+      color: var(--pc-heading);
+      white-space: nowrap;
+    }
+
+    .pc-metric-value.is-bad { color: var(--pc-bad); }
+    .pc-metric-note { display: block; margin-top: 2px; font-size: 11px; color: var(--pc-muted); }
+
+    .pc-main { padding: 16px 22px 18px; border-bottom: 1px solid var(--pc-line); }
+
+    .pc-map-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 14px;
+      margin-bottom: 12px;
+    }
+
+    .pc-map-toolbar .pc-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .pc-toolbar-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--pc-muted);
+    }
+
+    .pc-axis-tab { border-left: 3px solid var(--pc-axis-color) !important; }
+
+    .pc-map-legend {
+      margin-left: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--pc-muted);
+    }
+
+    .pc-map-legend i {
+      display: inline-block;
+      width: 18px;
+      height: 0;
+      margin-right: 5px;
+      vertical-align: middle;
+      border-top: 2.5px solid var(--pc-accent);
+    }
+
+    .pc-map-legend i.is-inter { border-top: 2.5px dashed var(--pc-inter); }
+
+    .pc-map-row { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; }
+
+    .pc-map-wrap {
+      position: relative;
+      border: 1px solid var(--pc-line-subtle);
+      border-radius: 8px;
+      background: var(--pc-shell);
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .pc-map { display: flex; flex-wrap: wrap; gap: 12px; position: relative; z-index: 1; }
+
+    .pc-node {
+      border: 1px solid var(--pc-line);
+      border-radius: 8px;
+      background: var(--pc-panel);
+      padding: 6px 7px 7px;
+    }
+
+    .pc-node-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--pc-muted);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pc-node-grid { display: grid; gap: 4px; }
+
+    .pc-gpu {
+      width: 46px;
+      height: 42px;
+      border-radius: 5px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: var(--pc-idle);
+      cursor: pointer;
+      padding: 2px 3px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-family: var(--pc-mono);
+      color: var(--pc-ink);
+      transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+
+    .pc-gpu small { font-size: 8.5px; opacity: 0.75; line-height: 1; }
+    .pc-gpu b { font-size: 11px; line-height: 1.1; align-self: center; }
+    .pc-gpu.is-dim { opacity: 0.28; }
+    .pc-gpu.is-member { box-shadow: 0 0 0 2px var(--pc-accent); }
+
+    .pc-gpu.is-selected {
+      box-shadow: 0 0 0 2px var(--pc-panel), 0 0 0 4px var(--pc-ink);
+      transform: translateY(-1px);
+    }
+
+    .pc-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+    .pc-link { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
+    .pc-link.is-intra { stroke: var(--pc-accent); }
+    .pc-link.is-inter { stroke: var(--pc-inter); stroke-dasharray: 6 4; animation: pc-dash 0.8s linear infinite; }
+
+    @keyframes pc-dash { to { stroke-dashoffset: -10; } }
+
+    .pc-inspector {
+      border: 1px solid var(--pc-line);
+      border-radius: 8px;
+      background: var(--pc-shell);
+      padding: 12px 14px;
+      font-size: 12px;
+      min-width: 0;
+    }
+
+    .pc-inspector h3 {
+      margin: 0 0 2px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pc-muted);
+      font-weight: 750;
+    }
+
+    .pc-inspector .pc-rank-title { font-size: 15px; font-weight: 750; color: var(--pc-heading); }
+    .pc-inspector .pc-rank-sub { font-size: 11px; color: var(--pc-muted); margin-bottom: 8px; }
+
+    .pc-coords { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+
+    .pc-coord {
+      font-family: var(--pc-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--pc-panel);
+      border: 1px solid var(--pc-line);
+      border-left: 3px solid var(--pc-axis-color);
+    }
+
+    .pc-group-list { display: grid; gap: 6px; }
+
+    .pc-group-item {
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--pc-panel);
+      border: 1px solid var(--pc-line-subtle);
+      border-left: 3px solid var(--pc-axis-color);
+    }
+
+    .pc-group-item.is-active { border-color: var(--pc-accent); border-left-color: var(--pc-axis-color); }
+
+    .pc-group-item div:first-child {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--pc-muted);
+    }
+
+    .pc-group-item code { font-family: var(--pc-mono); font-size: 10.5px; color: var(--pc-heading); overflow-wrap: anywhere; }
+    .pc-span-ok { color: var(--pc-ok); }
+    .pc-span-inter { color: var(--pc-inter); }
+
+    .pc-section { padding: 16px 22px; border-bottom: 1px solid var(--pc-line); }
+
+    .pc-section h3 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--pc-heading);
+      font-weight: 750;
+    }
+
+    .pc-section-sub { color: var(--pc-muted); font-size: 11px; margin: 0 0 10px; }
+
+    .pc-table-wrap { overflow-x: auto; }
+
+    table.pc-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 760px; }
+
+    .pc-table th {
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--pc-muted);
+      font-weight: 700;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--pc-line);
+      white-space: nowrap;
+    }
+
+    .pc-table td { padding: 7px 8px; border-bottom: 1px solid var(--pc-line-subtle); vertical-align: top; }
+    .pc-table tr.is-inactive td { color: var(--pc-muted); opacity: 0.6; }
+    .pc-table tr.is-focus td { background: color-mix(in srgb, var(--pc-accent) 8%, transparent); }
+    .pc-table td.pc-num { font-family: var(--pc-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .pc-table th.pc-num { text-align: right; }
+
+    .pc-axis-name { font-weight: 750; border-left: 3px solid var(--pc-axis-color); padding-left: 7px; white-space: nowrap; }
+    .pc-coll { color: var(--pc-muted); font-size: 11px; }
+
+    .pc-bars { display: grid; grid-template-columns: 1fr 1fr; }
+    .pc-bars > .pc-section { border-bottom: 0; }
+    .pc-bars > .pc-section + .pc-section { border-left: 1px solid var(--pc-line); }
+
+    .pc-stack {
+      position: relative;
+      height: 26px;
+      display: flex;
+      border-radius: 5px;
+      overflow: hidden;
+      background: var(--pc-idle);
+      margin: 8px 0 22px;
+    }
+
+    .pc-stack span { height: 100%; transition: width 0.2s ease; }
+
+    .pc-cap {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 2px;
+      background: var(--pc-ink);
+    }
+
+    .pc-cap-label {
+      position: absolute;
+      top: 30px;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-family: var(--pc-mono);
+      color: var(--pc-muted);
+      white-space: nowrap;
+    }
+
+    .pc-stack-wrap { position: relative; }
+
+    .pc-legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 11px; }
+
+    .pc-legend-grid div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .pc-legend-grid i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+    .pc-legend-grid span { color: var(--pc-muted); flex: 1; }
+    .pc-legend-grid b { font-family: var(--pc-mono); font-weight: 600; font-size: 11px; color: var(--pc-heading); }
+
+    .pc-info {
+      display: inline-grid;
+      place-items: center;
+      width: 13px;
+      height: 13px;
+      margin-left: 4px;
+      border-radius: 50%;
+      border: 1px solid var(--pc-muted);
+      color: var(--pc-muted);
+      font: 700 8.5px/1 var(--pc-font);
+      font-style: normal;
+      text-transform: none;
+      vertical-align: 1px;
+      cursor: help;
+    }
+
+    [data-tip] { cursor: help; }
+    [data-tip]:hover > .pc-info, .pc-info:focus-visible { border-color: var(--pc-accent); color: var(--pc-accent); outline: none; }
+    button[data-tip], select[data-tip] { cursor: pointer; }
+
+    .pc-tip {
+      position: fixed;
+      z-index: 50;
+      max-width: 340px;
+      padding: 10px 12px;
+      border: 1px solid var(--pc-line);
+      border-radius: 8px;
+      background: var(--pc-panel);
+      box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.35);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--pc-ink);
+      pointer-events: none;
+    }
+
+    .pc-tip[hidden] { display: none; }
+    .pc-tip h4 { margin: 0 0 4px; font-size: 12px; font-weight: 750; color: var(--pc-heading); }
+    .pc-tip p { margin: 0 0 6px; color: var(--pc-muted); }
+    .pc-tip p:last-child { margin-bottom: 0; }
+    .pc-tip b { color: var(--pc-ink); font-weight: 650; }
+    .pc-tip em { font-style: italic; }
+    .pc-tip code { font-family: var(--pc-mono); font-size: 11px; }
+
+    .pc-tip .pc-tip-now {
+      margin-top: 6px;
+      padding: 5px 8px;
+      border-left: 3px solid var(--pc-accent);
+      border-radius: 0 4px 4px 0;
+      background: var(--pc-shell);
+      font-family: var(--pc-mono);
+      font-size: 11px;
+      color: var(--pc-heading);
+    }
+
+    details.pc-assume { padding: 12px 22px 16px; font-size: 12px; color: var(--pc-muted); }
+    details.pc-assume summary { cursor: pointer; font-weight: 700; color: var(--pc-heading); font-size: 12px; }
+    details.pc-assume ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+    details.pc-assume code { font-family: var(--pc-mono); font-size: 11px; }
+
+    @media (max-width: 900px) {
+      .pc-controls { grid-template-columns: 1fr; }
+      .pc-group + .pc-group { border-left: 0; border-top: 1px solid var(--pc-line); }
+      .pc-map-row { grid-template-columns: 1fr; }
+      .pc-metrics { grid-template-columns: 1fr 1fr; }
+      .pc-metric:nth-child(2) { border-right: 0; }
+      .pc-metric:nth-child(-n+2) { border-bottom: 1px solid var(--pc-line); }
+      .pc-bars { grid-template-columns: 1fr; }
+      .pc-bars > .pc-section + .pc-section { border-left: 0; border-top: 1px solid var(--pc-line); }
+      .pc-map-legend { margin-left: 0; }
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 8px; }
+      .pc-head, .pc-presets, .pc-story, .pc-messages { padding-left: 14px; padding-right: 14px; }
+      .pc-main, .pc-section, details.pc-assume { padding-left: 14px; padding-right: 14px; }
+      .pc-story { flex-direction: column; gap: 2px; }
+      .pc-metric { padding: 10px 14px; }
+      .pc-metric-value { font-size: 18px; }
+      .pc-legend-grid { grid-template-columns: 1fr; }
+      .pc-theme-toggle #pc-theme-text { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="pc-lab">
+    <div class="pc-nav-bar">
+      <div class="pc-breadcrumb">
+        <span>LLM Course</span><span>›</span>
+        <a href="../modules/08-context-pipeline/">Module 8: Context, Pipeline &amp; Expert Parallelism</a><span>›</span>
+        <span>Parallelism Composer</span>
+      </div>
+      <button type="button" class="pc-theme-toggle" id="pc-theme-btn" aria-label="Toggle theme">
+        <span id="pc-theme-icon">◐</span> <span id="pc-theme-text">Toggle Theme</span>
+      </button>
+    </div>
+
+    <div class="pc-shell">
+      <header class="pc-head">
+        <div class="pc-badge">Interactive System Simulator</div>
+        <h1 class="pc-title">Parallelism Composer: TP × CP × EP × PP × DP on a Multi-Node Cluster</h1>
+        <p class="pc-sub">Choose a cluster, a model, and a degree for each parallel axis. The composer maps every
+          rank onto a physical GPU, draws the process groups, and estimates per-GPU memory, communication, and step
+          time. Reorder the axes to see which groups stay on the intra-node fabric and which cross the network.</p>
+      </header>
+
+      <div class="pc-presets" role="group" aria-label="Scenario presets">
+        <span>Scenarios</span>
+        <div id="pc-presets" style="display:contents"></div>
+      </div>
+      <div class="pc-presets pc-presets-papers" role="group" aria-label="Layouts from papers">
+        <span>From papers <i class="pc-scaled">(scaled down)</i></span>
+        <div id="pc-papers" style="display:contents"></div>
+      </div>
+
+      <section class="pc-controls" aria-label="Configuration">
+        <div class="pc-group">
+          <h2>Cluster &amp; model</h2>
+          <div class="pc-fields">
+            <div class="pc-field pc-wide"><label for="pc-hw">Accelerator</label><select id="pc-hw"></select></div>
+            <div class="pc-field"><label for="pc-nodes">Nodes <span id="pc-nodes-value">8</span></label><input id="pc-nodes" type="range" min="1" max="32" step="1" value="8"></div>
+            <div class="pc-field"><label for="pc-gpn">GPUs / node</label><select id="pc-gpn"></select></div>
+            <div class="pc-field pc-wide"><label for="pc-model">Model <span id="pc-model-size"></span></label><select id="pc-model"></select></div>
+            <div class="pc-field"><label for="pc-seq">Sequence length <em>s</em></label><select id="pc-seq"></select></div>
+            <div class="pc-field"><label for="pc-mb">Micro-batch <em>B</em></label><select id="pc-mb"></select></div>
+          </div>
+        </div>
+        <div class="pc-group">
+          <h2>Parallel degrees</h2>
+          <div class="pc-fields">
+            <div class="pc-field pc-degree" style="--pc-axis-color:var(--pc-c-tp)"><label for="pc-tp">Tensor <em>TP</em></label><select id="pc-tp"></select></div>
+            <div class="pc-field pc-degree" style="--pc-axis-color:var(--pc-c-cp)"><label for="pc-cp">Context <em>CP</em></label><select id="pc-cp"></select></div>
+            <div class="pc-field pc-degree" style="--pc-axis-color:var(--pc-c-pp)"><label for="pc-pp">Pipeline <em>PP</em></label><select id="pc-pp"></select></div>
+            <div class="pc-field pc-degree" style="--pc-axis-color:var(--pc-c-dp)"><label for="pc-dp">Data <em>D</em> <span id="pc-dp-value"></span></label><select id="pc-dp"></select></div>
+            <div class="pc-field pc-degree" style="--pc-axis-color:var(--pc-c-ep)"><label for="pc-ep">Expert <em>EP</em> ⊂ D</label><select id="pc-ep"></select></div>
+            <div class="pc-field"><label for="pc-zero">State sharding</label><select id="pc-zero"></select></div>
+            <div class="pc-field pc-wide"><label for="pc-fsdp">Shard group <em>F</em> ⊂ D <span id="pc-fsdp-value"></span></label><select id="pc-fsdp"></select></div>
+          </div>
+        </div>
+        <div class="pc-group">
+          <h2>Training step &amp; rank order</h2>
+          <div class="pc-fields">
+            <div class="pc-field"><label for="pc-accum">Micro-batches <em>A</em></label><select id="pc-accum"></select></div>
+            <div class="pc-field"><label for="pc-sched">PP schedule</label><select id="pc-sched"></select></div>
+            <div class="pc-field pc-wide"><label for="pc-recomp">Activation recomputation</label><select id="pc-recomp"></select></div>
+          </div>
+          <div class="pc-order">
+            <div class="pc-field"><label data-tip="order">Rank order<i class="pc-info" tabindex="0" aria-label="Explain rank order">?</i></label></div>
+            <div class="pc-order-hint"><span>innermost · packed on a node</span><span>outermost · across nodes</span></div>
+            <div class="pc-order-row" id="pc-order"></div>
+            <div class="pc-formula" id="pc-formula"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="pc-story" aria-live="polite"><strong id="pc-story-title">TP groups:</strong> <span id="pc-story-text"></span></div>
+      <div class="pc-messages" id="pc-messages" aria-live="polite"></div>
+
+      <section class="pc-metrics" aria-live="polite">
+        <div class="pc-metric"><span class="pc-metric-name" data-tip="m-world">World size<i class="pc-info" tabindex="0" aria-label="Explain World size">?</i></span><span class="pc-metric-value" id="pc-world">—</span><span class="pc-metric-note" id="pc-world-note">—</span></div>
+        <div class="pc-metric"><span class="pc-metric-name" data-tip="m-mem">Peak memory / GPU<i class="pc-info" tabindex="0" aria-label="Explain Peak memory / GPU">?</i></span><span class="pc-metric-value" id="pc-mem">—</span><span class="pc-metric-note" id="pc-mem-note">—</span></div>
+        <div class="pc-metric"><span class="pc-metric-name" data-tip="m-step">Step time<i class="pc-info" tabindex="0" aria-label="Explain Step time">?</i></span><span class="pc-metric-value" id="pc-step">—</span><span class="pc-metric-note" id="pc-step-note">—</span></div>
+        <div class="pc-metric"><span class="pc-metric-name" data-tip="m-batch">Global batch / step<i class="pc-info" tabindex="0" aria-label="Explain Global batch / step">?</i></span><span class="pc-metric-value" id="pc-batch">—</span><span class="pc-metric-note" id="pc-batch-note">—</span></div>
+      </section>
+
+      <section class="pc-main">
+        <div class="pc-map-toolbar">
+          <span class="pc-toolbar-label">Show groups</span>
+          <div class="pc-tabs" id="pc-axis-tabs" role="group" aria-label="Process group to inspect"></div>
+          <span class="pc-toolbar-label">Colour</span>
+          <div class="pc-tabs" role="group" aria-label="Tile colouring">
+            <button type="button" class="pc-tab" data-color="group" aria-pressed="true">by group</button>
+            <button type="button" class="pc-tab" data-color="coord" aria-pressed="false">by position in group</button>
+          </div>
+          <div class="pc-map-legend"><span><i></i>intra-node link</span><span><i class="is-inter"></i>crosses the network</span></div>
+        </div>
+        <div class="pc-map-row">
+          <div class="pc-map-wrap" id="pc-map-wrap">
+            <svg class="pc-overlay" id="pc-overlay" aria-hidden="true"></svg>
+            <div class="pc-map" id="pc-map" aria-label="Cluster map"></div>
+          </div>
+          <aside class="pc-inspector" id="pc-inspector" aria-live="polite"></aside>
+        </div>
+      </section>
+
+      <section class="pc-section">
+        <h3>Communication per training step</h3>
+        <p class="pc-section-sub">Bytes each GPU sends for one optimizer step (all <em>A</em> micro-batches). Exposed time is what remains on the critical path after the overlap assumed for that axis.</p>
+        <div class="pc-table-wrap">
+          <table class="pc-table">
+            <thead>
+              <tr><th>Axis</th><th data-tip="c-groups">Groups</th><th data-tip="c-place">Placement</th><th data-tip="c-coll">Collective</th><th class="pc-num" data-tip="c-vol">Sent / GPU</th><th class="pc-num" data-tip="c-link">Link</th><th class="pc-num" data-tip="c-time">Comm time</th><th class="pc-num" data-tip="c-exp">Exposed</th></tr>
+            </thead>
+            <tbody id="pc-comm"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="pc-bars">
+        <section class="pc-section">
+          <h3 data-tip="m-mem">Memory on the worst stage<i class="pc-info" tabindex="0" aria-label="Explain memory">?</i></h3>
+          <p class="pc-section-sub" id="pc-mem-sub">—</p>
+          <div class="pc-stack-wrap"><div class="pc-stack" id="pc-mem-bar"></div></div>
+          <div class="pc-legend-grid" id="pc-mem-legend"></div>
+        </section>
+        <section class="pc-section">
+          <h3 data-tip="m-step">Step time breakdown<i class="pc-info" tabindex="0" aria-label="Explain step time">?</i></h3>
+          <p class="pc-section-sub" id="pc-time-sub">—</p>
+          <div class="pc-stack-wrap"><div class="pc-stack" id="pc-time-bar"></div></div>
+          <div class="pc-legend-grid" id="pc-time-legend"></div>
+        </section>
+      </div>
+
+      <details class="pc-assume">
+        <summary>Model assumptions (read before trusting a number)</summary>
+        <ul>
+          <li>World size <code>W = TP × CP × PP × D</code>. EP and F subdivide D; neither adds GPUs. Rank ↦ coordinates is a mixed-radix decomposition in the rank order shown; EP is the innermost part of the D coordinate.</li>
+          <li>CP ranks hold identical weights, so gradients reduce over <code>D × CP</code> ranks, and ZeRO/FSDP shards over <code>F × CP</code>. Expert gradients reduce over <code>(D/EP) × CP</code> and shard over <code>gcd(F, D/EP) × CP</code>.</li>
+          <li>Mixed-precision AdamW: bf16 weights (2 B) + bf16 gradients (2 B) + fp32 master, m, v (12 B). ZeRO-1 shards optimizer state, ZeRO-2 also gradients, ZeRO-3 (FSDP) also weights, with two gathered layers in flight.</li>
+          <li>Activations per layer follow Korthikanti et al. with sequence parallelism (divided by TP) and CP (sequence divided by CP); SwiGLU MLP; fp32 logits on the last stage. 1F1B keeps <code>min(PP − stage, A)</code> micro-batches in flight; AFAB keeps <code>A</code>. Plus 3 GB for CUDA context, NCCL, and allocator.</li>
+          <li>Compute at 55% of peak bf16 throughput. Full recomputation adds one forward pass (compute × 4/3) but MFU counts only model FLOPs <code>6·N<sub>active</sub> + 6·L·s·h</code> per token.</li>
+          <li>Communication: ideal ring bytes, bandwidth of the slowest link a group uses (per-GPU NVLink/PCIe inside a node, per-GPU NIC across nodes), plus a latency per collective. TP (4 all-gathers + 4 reduce-scatters per layer), EP all-to-all, and PP sends are fully exposed. CP ring transfers hide behind attention compute. DP/ZeRO reductions hide behind the last backward pass; ZeRO-2/3 per-micro-batch traffic hides behind one micro-batch of compute.</li>
+          <li>Step time = <code>(A + PP − 1) × t<sub>micro-batch</sub> + exposed DP</code>. Load imbalance, stragglers, kernel efficiency of small GEMMs, and hierarchical collectives are ignored. Use this to compare layouts, not to predict a real run.</li>
+        </ul>
+      </details>
+    </div>
+    <div class="pc-tip" id="pc-tip" role="tooltip" hidden></div>
+  </div>
+
+  <script>
+    (() => {
+      // Theme synchronization (same pattern as the other course simulators)
+      const toggleBtn = document.getElementById("pc-theme-btn");
+      const themeIcon = document.getElementById("pc-theme-icon");
+      const themeText = document.getElementById("pc-theme-text");
+      let onThemeChange = () => { };
+
+      function readSaved() { try { return localStorage.getItem("pc-theme"); } catch (e) { return null; } }
+
+      function getPreferredTheme() {
+        const saved = readSaved();
+        if (saved) return saved;
+        try {
+          if (window.parent && window.parent.document && window.parent.document.body) {
+            const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+            if (scheme === "slate") return "dark";
+            if (scheme === "default") return "light";
+          }
+        } catch (e) { }
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        themeIcon.textContent = theme === "dark" ? "☀" : "☾";
+        themeText.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+        onThemeChange();
+      }
+
+      let currentTheme = getPreferredTheme();
+      applyTheme(currentTheme);
+      toggleBtn.addEventListener("click", () => {
+        currentTheme = currentTheme === "dark" ? "light" : "dark";
+        try { localStorage.setItem("pc-theme", currentTheme); } catch (e) { }
+        applyTheme(currentTheme);
+      });
+      try {
+        if (window.parent && window.parent !== window && window.parent.document && window.parent.document.body) {
+          new MutationObserver(() => {
+            const scheme = window.parent.document.body.getAttribute("data-md-color-scheme");
+            if (scheme === "slate") applyTheme("dark");
+            else if (scheme === "default") applyTheme("light");
+          }).observe(window.parent.document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
+        }
+      } catch (e) { }
+
+      // ------------------------------------------------------------------ data
+      const HW = {
+        h100: { label: "H100 SXM · 80 GB · NVLink + IB 400G", tflops: 989, mem: 80, intra: 450, inter: 50, intraName: "NVLink", interName: "IB" },
+        a100: { label: "A100 SXM · 80 GB · NVLink + IB 200G", tflops: 312, mem: 80, intra: 300, inter: 25, intraName: "NVLink", interName: "IB" },
+        h800: { label: "H800 SXM · 80 GB · NVLink 400 + IB 400G", tflops: 989, mem: 80, intra: 200, inter: 50, intraName: "NVLink", interName: "IB" },
+        b200: { label: "B200 · 192 GB · NVLink 5 + IB 400G", tflops: 2250, mem: 192, intra: 900, inter: 50, intraName: "NVLink", interName: "IB" },
+        l40s: { label: "L40S PCIe · 48 GB · PCIe + 200G Ethernet", tflops: 362, mem: 48, intra: 25, inter: 25, intraName: "PCIe", interName: "Eth" }
+      };
+      const ALPHA = { intra: 5e-6, inter: 15e-6 };
+      const EFF = 0.55, OVERHEAD = 3e9;
+
+      const MODELS = {
+        "1b": { label: "Dense 1B", L: 16, h: 2048, heads: 32, kv: 8, ffn: 8192, V: 128256 },
+        "8b": { label: "Dense 8B", L: 32, h: 4096, heads: 32, kv: 8, ffn: 14336, V: 128256 },
+        "70b": { label: "Dense 70B", L: 80, h: 8192, heads: 64, kv: 8, ffn: 28672, V: 128256 },
+        "405b": { label: "Dense 405B (Llama 3.1 405B)", L: 126, h: 16384, heads: 128, kv: 8, ffn: 53248, V: 128256 },
+        "nem15": { label: "Dense 15B (Nemotron-4 15B-like)", L: 32, h: 6144, heads: 48, kv: 8, ffn: 16384, V: 256000 },
+        "nem340": { label: "Dense 340B (Nemotron-4 340B-like)", L: 96, h: 18432, heads: 96, kv: 8, ffn: 49152, V: 256000 },
+        "moe7": { label: "MoE 64 experts, top-8 (fine-grained)", L: 16, h: 2048, heads: 16, kv: 16, ffn: 1024, V: 50304, E: 64, k: 8 },
+        "moe47": { label: "MoE 8 experts, top-2 (8×7B-like)", L: 32, h: 4096, heads: 32, kv: 8, ffn: 14336, V: 32000, E: 8, k: 2 },
+        "dsv3": { label: "MoE 256 experts, top-8 (DeepSeek-V3-like)", L: 61, h: 7168, heads: 128, kv: 128, ffn: 2048, V: 129280, E: 256, k: 8 },
+        "moe141": { label: "MoE 8 experts, top-2 (8×22B-like)", L: 56, h: 6144, heads: 48, kv: 8, ffn: 16384, V: 32768, E: 8, k: 2 }
+      };
+
+      const AXES = {
+        tp: { name: "TP", color: "var(--pc-c-tp)", long: "Tensor parallel" },
+        cp: { name: "CP", color: "var(--pc-c-cp)", long: "Context parallel" },
+        ep: { name: "EP", color: "var(--pc-c-ep)", long: "Expert parallel" },
+        dp: { name: "DP", color: "var(--pc-c-dp)", long: "Data parallel" },
+        pp: { name: "PP", color: "var(--pc-c-pp)", long: "Pipeline parallel" }
+      };
+
+      const DEFAULT_ORDER = ["tp", "cp", "dp", "pp"];
+      const SCENARIOS = [
+        { id: "dp", desc: "Baseline: the model fits on one node, so plain data parallelism with sharded optimizer state is enough. Every GPU does the same work on different data; the only collective is the gradient sync.", label: "8B · 1 node · ZeRO-1", cfg: { hw: "h100", nodes: 1, gpn: 8, model: "8b", seq: 4096, mb: 1, accum: 8, tp: 1, cp: 1, pp: 1, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "3d", desc: "Classic 3D layout. TP8 fills each node over NVLink, PP2 splits 80 layers into two stages across nodes, and DP4 replicates the pipeline. Only DP gradient sync and PP boundary sends cross the network.", label: "70B · 3D (TP8·PP2·DP4)", cfg: { hw: "h100", nodes: 8, gpn: 8, model: "70b", seq: 4096, mb: 1, accum: 16, tp: 8, cp: 1, pp: 2, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "bad", desc: "Identical degrees, different rank order: PP and DP are innermost, so each TP group has one GPU on each of 8 nodes. The same bytes now cross InfiniBand at ~1/9 the bandwidth, 320 times per micro-batch.", label: "Same, TP across nodes", cfg: { hw: "h100", nodes: 8, gpn: 8, model: "70b", seq: 4096, mb: 1, accum: 16, tp: 8, cp: 1, pp: 2, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: ["pp", "dp", "cp", "tp"] } },
+        { id: "cp", desc: "Long context: at 128k tokens, activations and attention compute per sample are too large for one TP group. CP8 gives each rank 16k tokens. CP groups cross nodes, but ring transfers hide behind the large attention compute.", label: "8B · 128k context (TP4·CP8)", cfg: { hw: "h100", nodes: 4, gpn: 8, model: "8b", seq: 131072, mb: 1, accum: 4, tp: 4, cp: 8, pp: 1, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "moe", desc: "Sparse MoE: EP8 places one expert per GPU inside a node, so the two all-to-alls per layer stay on NVLink. Expert gradients sync over only D/EP = 4 ranks; attention gradients over all 32.", label: "MoE 8×7B · EP8", cfg: { hw: "h100", nodes: 4, gpn: 8, model: "moe47", seq: 4096, mb: 1, accum: 8, tp: 1, cp: 1, pp: 1, dp: "auto", ep: 8, zero: 1, fsdp: "full", sched: "1f1b", recomp: "full", order: DEFAULT_ORDER } },
+        { id: "fsdp", desc: "Hybrid sharding: ZeRO-3 inside each 8-GPU node (per-micro-batch gathers on NVLink), plain replication across the 4 nodes (one gradient all-reduce of a 1/8 shard per step over IB).", label: "8B · HSDP (F=8 per node)", cfg: { hw: "h100", nodes: 4, gpn: 8, model: "8b", seq: 4096, mb: 1, accum: 4, tp: 1, cp: 1, pp: 1, dp: "auto", ep: 1, zero: 3, fsdp: 8, sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "llama3", paper: true, desc: "Llama 3 405B pre-training (Llama 3 paper, arXiv:2407.21783, §3.3): 16,384 H100 with TP8 · CP1 · PP16 · DP128 and rank order [TP, CP, PP, DP]. Here DP is scaled from 128 to 2. DP sits outermost because its FSDP traffic is overlapped and latency tolerant, while PP boundary sends stay closer. Parameters are not resharded after forward, which is closest to ZeRO-2 here. The paper keeps 16 sequences per replica, as here. With plain 1F1B that leaves a bubble of about half the step, which is why the paper uses interleaved stages (and fewer layers on the first and last stage); neither is modelled here.", label: "Llama 3 405B", cfg: { hw: "h100", nodes: 32, gpn: 8, model: "405b", seq: 8192, mb: 1, accum: 16, tp: 8, cp: 1, pp: 16, dp: "auto", ep: 1, zero: 2, fsdp: "full", sched: "1f1b", recomp: "full", order: ["tp", "cp", "pp", "dp"] } },
+        { id: "nem15", paper: true, desc: "Nemotron-4 15B (arXiv:2402.16819): 3,072 H100 with 8-way TP and 384-way DP, sharded optimizer. Here DP is scaled to 8. The simplest 2D layout: TP fills each node, DP replicates across nodes. The squared-ReLU MLP is modelled as a SwiGLU of equal parameter count.", label: "Nemotron-4 15B", cfg: { hw: "h100", nodes: 8, gpn: 8, model: "nem15", seq: 4096, mb: 1, accum: 32, tp: 8, cp: 1, pp: 1, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "nem340", paper: true, desc: "Nemotron-4 340B (arXiv:2406.11704): 6,144 H100 with TP8 · PP12 (interleaved) and DP ramped from 16 to 64 during training. Here DP is 2 on 192 GPUs. Interleaving is not modelled, so the bubble is larger than in the paper. The squared-ReLU MLP is modelled as a SwiGLU of equal parameter count.", label: "Nemotron-4 340B", cfg: { hw: "h100", nodes: 24, gpn: 8, model: "nem340", seq: 4096, mb: 1, accum: 32, tp: 8, cp: 1, pp: 12, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "selective", order: DEFAULT_ORDER } },
+        { id: "dsv3", paper: true, desc: "DeepSeek-V3 (arXiv:2412.19437, §3.2): 2,048 H800 with no TP at all, PP16 (DualPipe), EP64 spanning 8 nodes, and ZeRO-1 DP. Here EP is 16 (2 nodes) on 256 GPUs. Look at the step breakdown: the exposed EP all-to-all and the PP16 bubble dominate. DualPipe exists to overlap the all-to-all with compute and shrink the bubble; this demo does not model it, so its MFU is far below the paper's. MLA is approximated as multi-head attention; the shared expert and the first three dense layers are omitted.", label: "DeepSeek-V3", cfg: { hw: "h800", nodes: 32, gpn: 8, model: "dsv3", seq: 4096, mb: 1, accum: 32, tp: 1, cp: 1, pp: 16, dp: "auto", ep: 16, zero: 1, fsdp: "full", sched: "1f1b", recomp: "full", order: DEFAULT_ORDER } },
+        { id: "5d", desc: "Frontier-scale composition: TP8 in the node, CP2 and PP8 across nodes, DP2 on top. Full recomputation is needed to fit activations of 16 layers × 8 micro-batches in flight on stage 0.", label: "405B · 4D on 256 GPUs", cfg: { hw: "h100", nodes: 32, gpn: 8, model: "405b", seq: 8192, mb: 1, accum: 32, tp: 8, cp: 2, pp: 8, dp: "auto", ep: 1, zero: 1, fsdp: "full", sched: "1f1b", recomp: "full", order: DEFAULT_ORDER } }
+      ];
+
+      const state = { ...SCENARIOS[1].cfg, order: [...DEFAULT_ORDER], preset: "3d", inspect: "tp", colorBy: "group", selected: 0 };
+
+      // ------------------------------------------------------------- helpers
+      const $ = sel => document.querySelector(sel);
+      const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+      const fmtCount = n => n >= 1e12 ? `${(n / 1e12).toFixed(2)}T` : n >= 1e9 ? `${(n / 1e9).toFixed(n >= 1e11 ? 0 : 1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : `${n}`;
+      const fmtBytes = b => b >= 1e12 ? `${(b / 1e12).toFixed(2)} TB` : b >= 1e9 ? `${(b / 1e9).toFixed(b >= 1e11 ? 0 : 1)} GB` : b >= 1e6 ? `${(b / 1e6).toFixed(0)} MB` : b >= 1e3 ? `${(b / 1e3).toFixed(0)} kB` : b > 0 ? `${b.toFixed(0)} B` : "0";
+      const fmtTime = t => t >= 1 ? `${t.toFixed(2)} s` : t >= 1e-3 ? `${(t * 1e3).toFixed(t >= 0.1 ? 0 : 1)} ms` : t > 0 ? `${(t * 1e6).toFixed(0)} µs` : "0";
+      const fmtTokens = n => n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : `${n}`;
+      const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+      function fillSelect(id, options, value) {
+        const el = $(id);
+        el.innerHTML = options.map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
+        el.value = String(value);
+      }
+
+      function modelParams(m) {
+        const hd = m.h / m.heads;
+        const attn = 2 * m.h * m.h + 2 * m.h * m.kv * hd;
+        const dense = m.E ? 0 : 3 * m.h * m.ffn;
+        const router = m.E ? m.h * m.E : 0;
+        const expert = m.E ? m.E * 3 * m.h * m.ffn : 0;
+        const activeMlp = m.E ? m.k * 3 * m.h * m.ffn : dense;
+        const shared = attn + dense + router;
+        const embed = m.V * m.h;
+        return {
+          hd, attn, shared, expert, embed,
+          total: m.L * (shared + expert) + 2 * embed,
+          active: m.L * (attn + activeMlp + router) + 2 * embed,
+          layerActive: attn + activeMlp + router
+        };
+      }
+
+      // ---------------------------------------------------------- computation
+      function compute() {
+        const s = state, hw = HW[s.hw], m = MODELS[s.model], P = modelParams(m);
+        const W = s.nodes * s.gpn, errors = [], warns = [], notes = [];
+        const tp = s.tp, cp = s.cp, pp = s.pp;
+        const rest = W / (tp * cp * pp);
+        let D = s.dp === "auto" ? rest : +s.dp;
+        const out = { W, hw, m, P, errors, warns, notes, D, valid: false };
+
+        if (s.dp === "auto" && !Number.isInteger(rest)) {
+          errors.push(`TP·CP·PP = ${tp * cp * pp} does not divide the ${W} GPUs, so no integer D exists. Change a degree or the cluster size.`);
+          return out;
+        }
+        if (tp * cp * pp * D !== W) {
+          errors.push(`TP·CP·PP·D = ${tp}·${cp}·${pp}·${D} = ${tp * cp * pp * D}, but the cluster has ${W} GPUs. Set D to auto or change a degree.`);
+          return out;
+        }
+        const ep = s.ep;
+        const F = s.fsdp === "full" ? D : +s.fsdp;
+        if (ep > 1 && !m.E) errors.push("EP > 1 needs a mixture-of-experts model: a dense model has no experts to distribute.");
+        if (m.E && m.E % ep) errors.push(`EP = ${ep} must divide the ${m.E} experts.`);
+        if (D % ep) errors.push(`EP = ${ep} must divide D = ${D}: expert ranks are carved out of the data-parallel group.`);
+        if (s.zero > 0 && D % F) errors.push(`Shard group F = ${F} must divide D = ${D}.`);
+        if (m.heads % tp) errors.push(`TP = ${tp} must divide the ${m.heads} attention heads.`);
+        if (s.seq % cp) errors.push(`CP = ${cp} must divide the sequence length.`);
+        if (pp > m.L) errors.push(`PP = ${pp} exceeds the ${m.L} layers.`);
+        if (errors.length) return out;
+
+        out.valid = true;
+        const Fe = gcd(F, D / ep);
+        Object.assign(out, { tp, cp, pp, D, ep, F, Fe });
+        if (m.L % pp) warns.push(`${m.L} layers do not split evenly over ${pp} stages; the busiest stage holds ${Math.ceil(m.L / pp)} layers.`);
+        if (tp > m.kv) warns.push(`TP = ${tp} exceeds the ${m.kv} KV heads, so KV projections are replicated inside each TP group.`);
+        if (pp > 1 && s.accum < pp) warns.push(`A = ${s.accum} micro-batches is fewer than PP = ${pp} stages: the pipeline never fills.`);
+        if (cp > 1 && s.seq % (2 * cp)) warns.push("Zig-zag load balancing needs s divisible by 2·CP.");
+        if (s.zero === 0 && s.fsdp !== "full") notes.push("F is ignored without state sharding (DDP replicates all state).");
+
+        // coordinates
+        const sizes = { tp, cp, dp: D, pp };
+        const coords = [];
+        for (let r = 0; r < W; r++) {
+          let x = r; const c = { rank: r, node: Math.floor(r / s.gpn), local: r % s.gpn };
+          for (const a of s.order) { c[a] = x % sizes[a]; x = Math.floor(x / sizes[a]); }
+          c.ep = c.dp % ep; c.edp = Math.floor(c.dp / ep);
+          coords.push(c);
+        }
+        out.coords = coords;
+
+        const keyFns = {
+          tp: c => `${c.cp}|${c.dp}|${c.pp}`,
+          cp: c => `${c.tp}|${c.dp}|${c.pp}`,
+          dp: c => `${c.tp}|${c.cp}|${c.pp}`,
+          pp: c => `${c.tp}|${c.cp}|${c.dp}`,
+          ep: c => `${c.tp}|${c.cp}|${c.pp}|${c.edp}`,
+          grad: c => `${c.tp}|${c.pp}`,
+          shard: c => `${c.tp}|${c.pp}|${Math.floor(c.dp / F)}`,
+          replica: c => `${c.tp}|${c.pp}|${c.cp}|${c.dp % F}`,
+          egrad: c => `${c.tp}|${c.pp}|${c.ep}`,
+          eshard: c => `${c.tp}|${c.pp}|${c.ep}|${Math.floor(c.edp / Fe)}`,
+          ereplica: c => `${c.tp}|${c.pp}|${c.cp}|${c.ep}|${c.edp % Fe}`
+        };
+        const groups = {};
+        for (const [name, fn] of Object.entries(keyFns)) {
+          const map = new Map();
+          coords.forEach(c => { const k = fn(c); if (!map.has(k)) map.set(k, []); map.get(k).push(c.rank); });
+          const list = [...map.values()];
+          if (name === "pp") list.forEach(g => g.sort((a, b) => coords[a].pp - coords[b].pp));
+          const index = new Array(W);
+          list.forEach((g, i) => g.forEach(r => { index[r] = i; }));
+          let maxNodes = 1;
+          list.forEach(g => { maxNodes = Math.max(maxNodes, new Set(g.map(r => coords[r].node)).size); });
+          const size = list[0].length;
+          groups[name] = { list, index, size, maxNodes, inter: maxNodes > 1 && size > 1, bw: (maxNodes > 1 ? hw.inter : hw.intra) * 1e9, alpha: maxNodes > 1 ? ALPHA.inter : ALPHA.intra };
+        }
+        out.groups = groups;
+
+        // model partition
+        const L = m.L, Lp = Math.ceil(L / pp), sl = s.seq / cp, B = s.mb, A = s.accum, h = m.h, bf = 2;
+        const kvLocal = Math.max(1, m.kv / tp) * P.hd;
+        const ffnAct = m.E ? m.k * m.ffn : m.ffn;
+        const tpComm = tp > 1 ? 1 : 0;
+
+        // compute per micro-batch on the busiest stage (last stage owns the LM head)
+        const flopsTokLayer = 6 * P.layerActive + 6 * s.seq * h;
+        const stageFlops = st => (Lp * flopsTokLayer + (st === pp - 1 ? 6 * m.V * h : 0)) * B * s.seq / (tp * cp);
+        const peak = hw.tflops * 1e12 * EFF;
+        const recompFactor = s.recomp === "full" ? 4 / 3 : 1;
+        const tComp = stageFlops(pp - 1) * recompFactor / peak;
+        const tAttn = Lp * 6 * B * sl * s.seq * h / tp / peak;
+
+        // ---- communication rows
+        const rows = [];
+        const act = B * sl * h * bf;
+
+        { // TP
+          const g = groups.tp, n = 8 * Lp, vol = tpComm * n * (tp - 1) / tp * act;
+          const t = tpComm ? vol / g.bw + n * g.alpha : 0;
+          rows.push({ axis: "tp", deg: tp, g, coll: "all-gather + reduce-scatter ×8 per layer", mbVol: vol, mbT: t, mbExp: t, stepVol: 0 });
+        }
+        { // CP
+          const g = groups.cp, n = cp > 1 ? 3 * Lp * (cp - 1) : 0, vol = n * 2 * B * sl * kvLocal * bf;
+          const t = cp > 1 ? vol / g.bw + n * g.alpha : 0;
+          rows.push({ axis: "cp", deg: cp, g, coll: "ring send/recv of K,V (and dK,dV)", mbVol: vol, mbT: t, mbExp: Math.max(0, t - tAttn), stepVol: 0 });
+        }
+        if (m.E) { // EP
+          const g = groups.ep, nTok = B * sl / tp, n = ep > 1 ? 4 * Lp : 0;
+          const vol = ep > 1 ? Lp * 4 * nTok * m.k * h * bf * (1 - 1 / ep) : 0;
+          const t = ep > 1 ? vol / g.bw + n * g.alpha : 0;
+          rows.push({ axis: "ep", deg: ep, g, coll: "all-to-all dispatch + combine", mbVol: vol, mbT: t, mbExp: t, stepVol: 0 });
+        }
+        { // PP
+          const g = groups.pp, vol = pp > 1 ? 2 * act / tp : 0;
+          const t = pp > 1 ? vol / g.bw + 2 * g.alpha : 0;
+          rows.push({ axis: "pp", deg: pp, g, coll: "send activations → / ← gradients", mbVol: vol, mbT: t, mbExp: t, stepVol: 0 });
+        }
+
+        // DP / ZeRO
+        const sharedStage = st => Lp * P.shared / tp + ((st === 0 ? 1 : 0) + (st === pp - 1 ? 1 : 0)) * P.embed / tp;
+        const expertStage = Lp * P.expert / (ep * tp);
+        const fc = F * cp, efc = Fe * cp;
+        function zeroParts(Pn, gGrad, gShard, gRep, g, fcx, r) {
+          const mb = [], step = [];
+          if (g <= 1 || Pn === 0) return { mb, step };
+          if (s.zero === 0) step.push({ vol: 2 * (g - 1) / g * Pn * bf, grp: gGrad, hide: true, role: "all-reduce" });
+          else {
+            if (s.zero >= 2) mb.push({ vol: (s.zero === 3 ? 3 : 1) * (fcx - 1) / fcx * Pn * bf, grp: gShard, role: "shards" });
+            else step.push({ vol: (fcx - 1) / fcx * Pn * bf, grp: gShard, hide: true, role: "shards" });
+            if (r > 1) step.push({ vol: 2 * (r - 1) / r * Pn * bf / fcx, grp: gRep, hide: true, role: "replicas" });
+            if (s.zero <= 2) step.push({ vol: (fcx - 1) / fcx * Pn * bf, grp: gShard, hide: false, role: "shards" });
+          }
+          return { mb, step };
+        }
+        const collName = { 0: "all-reduce gradients", 1: "reduce-scatter grads, all-gather params", 2: "reduce-scatter grads / µbatch, all-gather params", 3: "all-gather params ×2 + reduce-scatter grads / µbatch" };
+        const dpRows = [];
+        const psMax = Math.max(sharedStage(0), sharedStage(pp - 1));
+        if (m.E && ep > 1) {
+          dpRows.push({ axis: "dp", label: "DP shared", deg: D * cp, g: groups.grad, parts: zeroParts(psMax, groups.grad, groups.shard, groups.replica, D * cp, fc, D / F) });
+          dpRows.push({ axis: "dp", label: "DP experts", deg: (D / ep) * cp, g: groups.egrad, parts: zeroParts(expertStage, groups.egrad, groups.eshard, groups.ereplica, (D / ep) * cp, efc, (D / ep) / Fe) });
+        } else {
+          dpRows.push({ axis: "dp", label: cp > 1 ? "DP × CP" : "DP", deg: D * cp, g: groups.grad, parts: zeroParts(psMax + expertStage, groups.grad, groups.shard, groups.replica, D * cp, fc, D / F) });
+        }
+        const partT = p => p.vol / p.grp.bw + (p.vol > 0 ? p.grp.alpha : 0);
+        let mbDpT = 0, stepHide = 0, stepNoHide = 0;
+        dpRows.forEach(r => {
+          r.mbVol = r.parts.mb.reduce((a, p) => a + p.vol, 0);
+          r.stepVol = r.parts.step.reduce((a, p) => a + p.vol, 0);
+          r.mbT = r.parts.mb.reduce((a, p) => a + partT(p), 0);
+          r.stepHideT = r.parts.step.filter(p => p.hide).reduce((a, p) => a + partT(p), 0);
+          r.stepNoHideT = r.parts.step.filter(p => !p.hide).reduce((a, p) => a + partT(p), 0);
+          r.coll = collName[s.zero];
+          r.link = [...r.parts.mb, ...r.parts.step].some(p => p.grp.inter) ? `${hw.interName} ${hw.inter}` : `${hw.intraName} ${hw.intra}`;
+          const used = [...r.parts.mb, ...r.parts.step].filter(p => p.vol > 0 && p.grp.size > 1);
+          r.inter = used.some(p => p.grp.inter);
+          const roles = [...new Map(used.map(p => [p.role, p.grp])).entries()];
+          r.place = roles.map(([role, g]) => `${roles.length > 1 ? `${role}: ` : ""}${g.inter ? `<span class="pc-span-inter">spans ${g.maxNodes} nodes</span>` : `<span class="pc-span-ok">within a node</span>`}`).join("<br>");
+          mbDpT += r.mbT; stepHide += r.stepHideT; stepNoHide += r.stepNoHideT;
+        });
+        const mbDpExp = Math.max(0, mbDpT - tComp);
+        const stepDpExp = Math.max(0, stepHide - tComp * 2 / 3) + stepNoHide;
+        dpRows.forEach(r => {
+          r.mbExp = mbDpT > 0 ? mbDpExp * r.mbT / mbDpT : 0;
+          const rt = r.stepHideT + r.stepNoHideT, tt = stepHide + stepNoHide;
+          r.stepExp = tt > 0 ? stepDpExp * rt / tt : 0;
+        });
+
+        // ---- step time
+        const perMb = { tp: 0, cp: 0, ep: 0, pp: 0 };
+        rows.forEach(r => { perMb[r.axis] = r.mbExp; });
+        const tMb = tComp + perMb.tp + perMb.cp + perMb.ep + perMb.pp + mbDpExp;
+        const step = (A + pp - 1) * tMb + stepDpExp;
+        const time = {
+          compute: A * tComp, bubble: (pp - 1) * tMb, tp: A * perMb.tp, cp: A * perMb.cp,
+          ep: A * perMb.ep, pp: A * perMb.pp, dp: A * mbDpExp + stepDpExp
+        };
+        const tokens = B * s.seq * A * D;
+        const modelFlops = (m.L * flopsTokLayer + 6 * m.V * h) * tokens;
+        const mfu = modelFlops / (W * hw.tflops * 1e12 * step);
+
+        rows.forEach(r => { r.stepT = A * r.mbT; r.stepExp = A * r.mbExp; r.totalVol = A * r.mbVol; });
+        dpRows.forEach(r => { r.stepT = A * r.mbT + r.stepHideT + r.stepNoHideT; r.totalVol = A * r.mbVol + r.stepVol; r.stepExp += A * r.mbExp; });
+
+        // ---- memory per stage
+        const attnC = 10, lnC = 4, mlpC = 2 + 6 * ffnAct / h;
+        const selLayer = B * sl * h * (attnC + lnC + mlpC) / tp;
+        const eagerExtra = 5 * (m.heads / tp) * B * sl * s.seq;
+        const layerAct = s.recomp === "full" ? 2 * B * sl * h / tp : s.recomp === "none" ? selLayer + eagerExtra : selLayer;
+        const layerTransient = s.recomp === "full" ? selLayer : 0;
+        const zs = s.zero;
+        const stageMem = st => {
+          const Ps = sharedStage(st), Pe = expertStage;
+          const div = (lvl, shared) => zs >= lvl ? (shared ? fc : efc) : 1;
+          const inflight = pp === 1 ? 1 : s.sched === "afab" ? A : Math.min(pp - st, A);
+          const logits = st === pp - 1 ? B * sl * m.V / tp * 4 : 0;
+          return {
+            stage: st, inflight,
+            weights: 2 * (Ps / div(3, true) + Pe / div(3, false)),
+            grads: 2 * (Ps / div(2, true) + Pe / div(2, false)),
+            optim: 12 * (Ps / div(1, true) + Pe / div(1, false)),
+            acts: inflight * Lp * layerAct + layerTransient + logits,
+            buffers: zs >= 3 ? 2 * 2 * (P.shared / tp + P.expert / (ep * tp)) : 0,
+            overhead: OVERHEAD
+          };
+        };
+        const stages = Array.from({ length: pp }, (_, st) => stageMem(st));
+        stages.forEach(x => { x.total = x.weights + x.grads + x.optim + x.acts + x.buffers + x.overhead; });
+        const worst = stages.reduce((a, b) => (b.total > a.total ? b : a));
+        const cap = hw.mem * 1e9;
+        if (worst.total > cap) errors.push(`Out of memory: stage ${worst.stage} needs ≈ ${fmtBytes(worst.total)} but the GPU has ${hw.mem} GB. Shard state (ZeRO/F), add TP/PP/CP, or recompute activations.`);
+
+        if (groups.tp.inter && tp > 1) warns.push(`TP groups span ${groups.tp.maxNodes} nodes: ${8 * Lp} blocking collectives per micro-batch now cross the ${hw.interName} network. Move TP to the innermost position.`);
+        if (m.E && ep > 1 && groups.ep.inter) warns.push(`EP all-to-all crosses ${groups.ep.maxNodes} nodes; routed tokens pay network bandwidth on every MoE layer.`);
+        if (time.bubble / step > 0.25) warns.push(`Pipeline bubble is ${Math.round(100 * time.bubble / step)}% of the step. Raise A (currently ${A}) or lower PP.`);
+
+        Object.assign(out, { rows, dpRows, time, step, tokens, mfu, stages, worst, cap, Lp, tComp, sizes });
+        return out;
+      }
+
+      // ------------------------------------------------------------ rendering
+      function hue(i) { return Math.round((i * 137.508 + 190) % 360); }
+      function tileColor(i) { return `hsl(${hue(i)} var(--pc-tile-s) var(--pc-tile-l))`; }
+
+      function inspectKey(res) {
+        const k = state.inspect;
+        if (k === "ep" && !(res.m.E && res.ep > 1)) return "tp";
+        return k;
+      }
+
+      function renderControls(res) {
+        $("#pc-nodes-value").textContent = state.nodes;
+        $("#pc-dp-value").textContent = res.valid || Number.isInteger(res.D) ? `= ${res.D}` : "";
+        $("#pc-fsdp-value").textContent = res.valid && state.zero > 0 ? `= ${res.F} · ${res.D / res.F} replica${res.D / res.F === 1 ? "" : "s"}` : "";
+        $("#pc-model-size").textContent = `${fmtCount(res.P.total)}${res.m.E ? ` · ${fmtCount(res.P.active)} active` : ""}`;
+        $("#pc-fsdp").disabled = state.zero === 0;
+
+        // rank order chips
+        const sizes = { tp: state.tp, cp: state.cp, dp: res.D, pp: state.pp };
+        $("#pc-order").innerHTML = state.order.map((a, i) => `${i ? '<span class="pc-order-arrow">›</span>' : ""}<span class="pc-order-chip" style="--pc-axis-color:${AXES[a].color}"><button type="button" data-move="${i}" data-dir="-1" aria-label="Move ${AXES[a].name} inward" ${i === 0 ? "disabled" : ""}>◀</button><b>${AXES[a].name === "DP" && state.ep > 1 ? "DP⊃EP" : AXES[a].name}</b><button type="button" data-move="${i}" data-dir="1" aria-label="Move ${AXES[a].name} outward" ${i === state.order.length - 1 ? "disabled" : ""}>▶</button></span>`).join("");
+        const nest = i => i === state.order.length - 1 ? state.order[i] : `${state.order[i]} + ${sizes[state.order[i]] ?? "?"}·${i === state.order.length - 2 ? nest(i + 1) : `(${nest(i + 1)})`}`;
+        $("#pc-formula").textContent = `rank = ${nest(0)}`;
+
+        // axis tabs
+        const axes = ["tp", "cp", "ep", "dp", "pp"].filter(a => a !== "ep" || res.m.E);
+        const cur = res.valid ? inspectKey(res) : state.inspect;
+        $("#pc-axis-tabs").innerHTML = axes.map(a => {
+          const deg = a === "dp" ? res.D : a === "ep" ? state.ep : state[a];
+          return `<button type="button" class="pc-tab pc-axis-tab" style="--pc-axis-color:${AXES[a].color}" data-axis="${a}" data-tip="${a}" aria-pressed="${a === cur}" ${a === "ep" && state.ep === 1 ? "disabled" : ""}>${AXES[a].name}${Number.isFinite(deg) ? ` ${deg}` : ""}</button>`;
+        }).join("");
+        document.querySelectorAll("[data-preset]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.preset === state.preset)));
+      }
+
+      function renderMessages(res) {
+        const items = [
+          ...res.errors.map(t => `<li class="is-error">${t}</li>`),
+          ...res.warns.map(t => `<li class="is-warn">${t}</li>`),
+          ...res.notes.map(t => `<li class="is-note">${t}</li>`)
+        ];
+        $("#pc-messages").innerHTML = items.length ? `<ul>${items.join("")}</ul>` : "";
+      }
+
+      const STORY = {
+        tp: ["TP groups", "split every weight matrix and exchange activations eight times per layer, so they belong on the fastest fabric."],
+        cp: ["CP groups", "split the sequence. K/V blocks circulate in a ring while attention computes, so they tolerate a slower link at long context."],
+        ep: ["EP groups", "each host a subset of experts. Every MoE layer runs two all-to-alls, whose cost follows the slowest link in the group."],
+        dp: ["DP groups", "hold the same model slice and synchronise gradients once per optimizer step, overlapped with the last backward pass."],
+        pp: ["Pipelines", "chain stages point to point. Only boundary activations move, so PP is the usual axis to stretch across nodes."]
+      };
+
+      function renderStory(res) {
+        const k = res.valid ? inspectKey(res) : state.inspect;
+        const [title, text] = STORY[k];
+        $("#pc-story-title").textContent = `${title}:`;
+        let verdict = "";
+        if (res.valid) {
+          const g = res.groups[k];
+          verdict = g.size <= 1 ? ` This axis is off (degree 1).` : ` Here: ${plural(g.list.length, "group")} of ${g.size} ranks, ${g.inter ? `each spanning up to ${g.maxNodes} nodes.` : "all within one node."}`;
+        }
+        $("#pc-story-text").textContent = text + verdict;
+      }
+
+      function renderMetrics(res) {
+        $("#pc-world").textContent = `${res.W} GPUs`;
+        $("#pc-world-note").textContent = `${state.nodes} × ${state.gpn} · TP${state.tp}·CP${state.cp}·PP${state.pp}·D${Number.isInteger(res.D) ? res.D : "?"}${state.ep > 1 ? ` (EP${state.ep})` : ""}`;
+        if (!res.valid) {
+          ["#pc-mem", "#pc-step", "#pc-batch"].forEach(id => { $(id).textContent = "—"; $(id).classList.remove("is-bad"); });
+          $("#pc-mem-note").textContent = "invalid layout"; $("#pc-step-note").textContent = "—"; $("#pc-batch-note").textContent = "—";
+          return;
+        }
+        const oom = res.worst.total > res.cap;
+        $("#pc-mem").textContent = fmtBytes(res.worst.total);
+        $("#pc-mem").classList.toggle("is-bad", oom);
+        $("#pc-mem-note").textContent = `${oom ? "OOM · " : ""}of ${res.hw.mem} GB · stage ${res.worst.stage}`;
+        $("#pc-step").textContent = fmtTime(res.step);
+        $("#pc-step").classList.toggle("is-bad", oom);
+        $("#pc-step-note").textContent = `MFU ≈ ${Math.round(res.mfu * 100)}% · ${fmtTokens(Math.round(res.tokens / res.step / res.W))} tok/s/GPU`;
+        $("#pc-batch").textContent = `${fmtTokens(res.tokens)} tok`;
+        $("#pc-batch-note").textContent = `B·s·A·D = ${state.mb}·${fmtTokens(state.seq)}·${state.accum}·${res.D}`;
+      }
+
+      function renderMap(res) {
+        const map = $("#pc-map"), cols = Math.min(state.gpn, 4);
+        const k = res.valid ? inspectKey(res) : null;
+        const g = k ? res.groups[k] : null;
+        const members = g ? new Set(g.list[g.index[state.selected]]) : new Set();
+        let html = "";
+        for (let n = 0; n < state.nodes; n++) {
+          html += `<div class="pc-node"><div class="pc-node-head"><span>node ${n}</span></div><div class="pc-node-grid" style="grid-template-columns:repeat(${cols},46px)">`;
+          for (let l = 0; l < state.gpn; l++) {
+            const r = n * state.gpn + l;
+            if (!res.valid) { html += `<button type="button" class="pc-gpu" data-rank="${r}" disabled><small>r${r}</small><b>?</b></button>`; continue; }
+            const c = res.coords[r];
+            const pos = k === "ep" ? c.ep : c[k];
+            const colorIdx = state.colorBy === "group" ? g.index[r] : pos;
+            const cls = ["pc-gpu", members.has(r) ? "is-member" : "is-dim", r === state.selected ? "is-selected" : ""].join(" ");
+            const tip = `rank ${r} · node ${n} GPU ${l} · tp${c.tp} cp${c.cp} dp${c.dp}${res.ep > 1 ? ` (ep${c.ep})` : ""} pp${c.pp}`;
+            html += `<button type="button" class="${cls}" data-rank="${r}" title="${tip}" style="background:${tileColor(colorIdx)}"><small>r${r}</small><b>${k}${pos}</b></button>`;
+          }
+          html += "</div></div>";
+        }
+        map.innerHTML = html;
+        requestAnimationFrame(() => drawLinks(res));
+      }
+
+      function drawLinks(res) {
+        const svg = $("#pc-overlay"), wrap = $("#pc-map-wrap");
+        if (!res.valid) { svg.innerHTML = ""; return; }
+        const k = inspectKey(res), g = res.groups[k];
+        const ranks = g.list[g.index[state.selected]];
+        if (!ranks || ranks.length < 2) { svg.innerHTML = ""; return; }
+        const wr = wrap.getBoundingClientRect();
+        svg.setAttribute("viewBox", `0 0 ${wr.width} ${wr.height}`);
+        const pts = ranks.map(r => {
+          const el = wrap.querySelector(`[data-rank="${r}"]`).getBoundingClientRect();
+          return { x: el.left - wr.left + el.width / 2, y: el.top - wr.top + el.height / 2, node: res.coords[r].node };
+        });
+        const pairs = [];
+        for (let i = 0; i < pts.length - 1; i++) pairs.push([pts[i], pts[i + 1]]);
+        if (k !== "pp" && pts.length > 2) pairs.push([pts[pts.length - 1], pts[0]]);
+        svg.innerHTML = pairs.map(([a, b], i) => {
+          const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+          const bend = Math.min(26, 10 + len * 0.08) * (i % 2 ? -1 : 1);
+          const cx = (a.x + b.x) / 2 - dy / len * bend, cy = (a.y + b.y) / 2 + dx / len * bend;
+          return `<path class="pc-link ${a.node === b.node ? "is-intra" : "is-inter"}" d="M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}"></path>`;
+        }).join("");
+      }
+
+      function renderInspector(res) {
+        const el = $("#pc-inspector");
+        if (!res.valid) { el.innerHTML = `<h3>Rank inspector</h3><div class="pc-rank-sub">Fix the layout errors above to map ranks onto GPUs.</div>`; return; }
+        const c = res.coords[state.selected], cur = inspectKey(res);
+        const coordChip = (a, v) => `<span class="pc-coord" style="--pc-axis-color:${AXES[a].color}">${a}=${v}</span>`;
+        const axes = ["tp", "cp", "ep", "dp", "pp"].filter(a => a !== "ep" || (res.m.E && res.ep > 1));
+        const fmtList = list => list.length > 16 ? `${list.slice(0, 14).join(", ")}, … (${list.length})` : list.join(", ");
+        el.innerHTML = `<h3>Rank inspector</h3>
+          <div class="pc-rank-title">Rank ${c.rank}</div>
+          <div class="pc-rank-sub">node ${c.node} · local GPU ${c.local} · stage ${c.pp} holds layers ${c.pp * res.Lp}–${Math.min(res.m.L, (c.pp + 1) * res.Lp) - 1}</div>
+          <div class="pc-coords">${axes.map(a => coordChip(a, c[a])).join("")}</div>
+          <div class="pc-group-list">${axes.map(a => {
+          const g = res.groups[a], list = g.list[g.index[c.rank]];
+          const nodes = new Set(list.map(r => res.coords[r].node)).size;
+          return `<div class="pc-group-item ${a === cur ? "is-active" : ""}" style="--pc-axis-color:${AXES[a].color}"><div><span>${AXES[a].name} group · ${list.length}</span><span class="${nodes > 1 ? "pc-span-inter" : "pc-span-ok"}">${list.length === 1 ? "—" : nodes > 1 ? `${nodes} nodes` : "1 node"}</span></div><code>${fmtList(list)}</code></div>`;
+        }).join("")}</div>`;
+      }
+
+      function renderComm(res) {
+        const body = $("#pc-comm");
+        if (!res.valid) { body.innerHTML = `<tr><td colspan="8" style="color:var(--pc-muted)">Invalid layout.</td></tr>`; return; }
+        const cur = inspectKey(res);
+        const all = [...res.rows, ...res.dpRows];
+        body.innerHTML = all.map(r => {
+          const active = r.deg > 1 && r.totalVol > 0;
+          const g = r.g;
+          const name = r.label || AXES[r.axis].name;
+          const place = !active ? "—" : r.place ? r.place : g.inter ? `<span class="pc-span-inter">spans ${g.maxNodes} nodes</span>` : `<span class="pc-span-ok">within a node</span>`;
+          const linkTxt = !active ? "—" : r.link || (g.inter ? `${res.hw.interName} ${res.hw.inter}` : `${res.hw.intraName} ${res.hw.intra}`);
+          return `<tr class="${active ? "" : "is-inactive"} ${r.axis === cur ? "is-focus" : ""}">
+            <td><span class="pc-axis-name" style="--pc-axis-color:${AXES[r.axis].color}">${name}</span></td>
+            <td>${r.deg > 1 ? `${g.list.length} × ${g.size}` : "off"}</td>
+            <td>${place}</td>
+            <td class="pc-coll">${active ? r.coll : "—"}</td>
+            <td class="pc-num">${active ? fmtBytes(r.totalVol) : "—"}</td>
+            <td class="pc-num">${active ? `${linkTxt} GB/s` : "—"}</td>
+            <td class="pc-num">${active ? fmtTime(r.stepT) : "—"}</td>
+            <td class="pc-num">${active ? fmtTime(r.stepExp) : "—"}</td>
+          </tr>`;
+        }).join("");
+      }
+
+      function renderStack(barId, legendId, parts, total, capValue) {
+        const scale = Math.max(total, capValue || 0) || 1;
+        let html = parts.map(p => `<span title="${p.label}: ${p.fmt(p.value)}" style="width:${p.value / scale * 100}%;background:${p.color}"></span>`).join("");
+        if (capValue) html += `<i class="pc-cap" style="left:calc(${capValue / scale * 100}% - 1px)"></i><span class="pc-cap-label" style="left:${capValue / scale * 100}%;transform:translateX(${capValue / scale > 0.8 ? -100 : -50}%)">${fmtBytes(capValue)} capacity</span>`;
+        $(barId).innerHTML = html;
+        $(legendId).innerHTML = parts.map(p => `<div><i style="background:${p.color}"></i><span>${p.label}</span><b>${p.fmt(p.value)}</b></div>`).join("");
+      }
+
+      function renderBars(res) {
+        if (!res.valid) {
+          ["#pc-mem-bar", "#pc-mem-legend", "#pc-time-bar", "#pc-time-legend"].forEach(id => { $(id).innerHTML = ""; });
+          $("#pc-mem-sub").textContent = "—"; $("#pc-time-sub").textContent = "—";
+          return;
+        }
+        const w = res.worst;
+        const shardTxt = state.zero === 0 ? "DDP: state replicated" : `ZeRO-${state.zero} over ${res.F * res.cp} ranks`;
+        $("#pc-mem-sub").textContent = `Stage ${w.stage} of ${res.pp} · ${res.Lp} layers · ${w.inflight} micro-batch${w.inflight === 1 ? "" : "es"} of activations in flight · ${shardTxt}`;
+        renderStack("#pc-mem-bar", "#pc-mem-legend", [
+          { label: "Weights (bf16)", value: w.weights, color: "var(--pc-m-weights)", fmt: fmtBytes },
+          { label: "Gradients (bf16)", value: w.grads, color: "var(--pc-m-grads)", fmt: fmtBytes },
+          { label: "Optimizer (fp32 ×3)", value: w.optim, color: "var(--pc-m-optim)", fmt: fmtBytes },
+          { label: "Activations + logits", value: w.acts, color: "var(--pc-m-acts)", fmt: fmtBytes },
+          { label: "ZeRO-3 gather buffers", value: w.buffers, color: "var(--pc-m-buffers)", fmt: fmtBytes },
+          { label: "Runtime overhead", value: w.overhead, color: "var(--pc-m-overhead)", fmt: fmtBytes }
+        ], w.total, res.cap);
+
+        const t = res.time;
+        $("#pc-time-sub").textContent = `One optimizer step · ${state.accum} micro-batches · compute ${fmtTime(res.tComp)} per micro-batch on the busiest stage`;
+        const pct = v => `${fmtTime(v)} · ${Math.round(100 * v / res.step)}%`;
+        renderStack("#pc-time-bar", "#pc-time-legend", [
+          { label: "Compute", value: t.compute, color: "var(--pc-c-compute)", fmt: pct },
+          { label: "Pipeline bubble", value: t.bubble, color: "var(--pc-c-bubble)", fmt: pct },
+          { label: "TP exposed", value: t.tp, color: "var(--pc-c-tp)", fmt: pct },
+          { label: "CP exposed", value: t.cp, color: "var(--pc-c-cp)", fmt: pct },
+          { label: "EP exposed", value: t.ep, color: "var(--pc-c-ep)", fmt: pct, moe: true },
+          { label: "PP sends", value: t.pp, color: "var(--pc-c-pp)", fmt: pct },
+          { label: "DP / ZeRO exposed", value: t.dp, color: "var(--pc-c-dp)", fmt: pct }
+        ].filter(p => !p.moe || res.m.E), res.step, 0);
+      }
+
+      let last = null;
+      function render() {
+        const res = compute();
+        if (res.valid && state.selected >= res.W) state.selected = 0;
+        if (!res.valid && state.selected >= res.W) state.selected = 0;
+        last = res;
+        renderControls(res); renderMessages(res); renderStory(res); renderMetrics(res);
+        renderMap(res); renderInspector(res); renderComm(res); renderBars(res);
+      }
+      onThemeChange = () => { if (last) render(); };
+
+      // ------------------------------------------------------------ annotations
+      const spanTxt = g => !g || g.size <= 1 ? "off" : `${plural(g.list.length, "group")} × ${g.size} ranks, ${g.inter ? `spanning up to ${g.maxNodes} nodes` : "each inside one node"}`;
+      const rowOf = (res, axis) => res.rows.find(r => r.axis === axis);
+      const commTxt = r => r && r.totalVol > 0 ? ` · ${fmtBytes(r.totalVol)}/GPU/step · ${fmtTime(r.stepExp)} exposed` : "";
+      const TIPS = {
+        hw: {
+          title: "Accelerator",
+          body: `<p>Sets four numbers: peak bf16 throughput, HBM capacity, the <b>intra-node</b> link each GPU has to its node peers (NVLink, or PCIe for the L40S), and the <b>per-GPU network</b> bandwidth to other nodes.</p><p>Any group that contains GPUs from two nodes runs at the network rate. Compare H100 with L40S to see what TP costs without NVLink.</p>`,
+          now: () => { const h = HW[state.hw]; return `${h.tflops} TFLOP/s · ${h.mem} GB · ${h.intraName} ${h.intra} GB/s · ${h.interName} ${h.inter} GB/s`; }
+        },
+        nodes: {
+          title: "Nodes",
+          body: `<p>Number of servers. Each node is drawn as a box in the cluster map; ranks are numbered node by node, so rank <code>r</code> lives on node <code>⌊r / GPUs-per-node⌋</code>.</p><p>World size <code>W = nodes × GPUs/node</code> must equal <code>TP·CP·PP·D</code>.</p>`,
+          now: () => `W = ${state.nodes} × ${state.gpn} = ${state.nodes * state.gpn} GPUs`
+        },
+        gpn: {
+          title: "GPUs per node",
+          body: `<p>Defines the node boundary: the set of GPUs that share the fast fabric. A group can stay inside a node only if it has at most this many ranks <b>and</b> its ranks are consecutive in the rank order.</p><p>Typical training servers have 8. This is also the usual upper bound for TP.</p>`
+        },
+        model: {
+          title: "Model",
+          body: `<p>Llama-style decoder: GQA attention, SwiGLU MLP, untied embedding and LM head. MoE models replace each MLP with <em>E</em> experts and route every token to the top-<em>k</em>.</p><p><b>Memory scales with total parameters; compute scales with active parameters.</b> That gap is why MoE needs EP.</p>`,
+          now: res => { const m = MODELS[state.model]; return `L=${m.L} h=${m.h} heads=${m.heads}/kv ${m.kv} ffn=${m.ffn}${m.E ? ` E=${m.E} k=${m.k}` : ""} · ${fmtCount(res.P.total)} total${m.E ? `, ${fmtCount(res.P.active)} active` : ""}`; }
+        },
+        seq: {
+          title: "Sequence length s",
+          body: `<p>Tokens per training sample. Stored activations grow linearly in <em>s</em> with flash attention (quadratically with eager attention), and attention FLOPs per token grow linearly, so per-sample attention cost grows as <em>s</em>².</p><p>CP is the axis that divides <em>s</em>.</p>`,
+          now: () => `tokens per CP rank = s / CP = ${fmtTokens(state.seq / state.cp)}`
+        },
+        mb: {
+          title: "Micro-batch B",
+          body: `<p>Sequences processed together in one forward/backward by each model replica. Larger <em>B</em> means larger matrix multiplies and proportionally more activation memory.</p><p>Each pipeline stage keeps activations for several micro-batches in flight, so <em>B</em> multiplies that cost.</p>`
+        },
+        tp: {
+          title: "Tensor parallelism (TP)",
+          body: `<p>Splits every weight matrix inside a layer: attention heads and MLP columns/rows are divided over the TP ranks. With sequence parallelism, norms and dropout are split along the sequence.</p><p><b>Divides:</b> weights, gradients, optimizer state, activations. <b>Costs:</b> 4 all-gathers + 4 reduce-scatters of activations per layer, blocking the compute. <b>Constraint:</b> heads divisible by TP.</p><p>Keep TP on the fastest fabric: innermost in the rank order, ≤ GPUs/node.</p>`,
+          now: res => res.valid ? spanTxt(res.groups.tp) + commTxt(rowOf(res, "tp")) : null
+        },
+        cp: {
+          title: "Context parallelism (CP)",
+          body: `<p>Splits the sequence across ranks through the whole layer. Ring attention passes K/V blocks around the group while each rank attends its local queries.</p><p><b>Divides:</b> activations and attention compute. <b>Does not divide weights:</b> CP ranks hold the same weights, so they join the gradient-sync and sharding groups (<code>D×CP</code>, <code>F×CP</code>).</p><p>Transfers overlap attention compute, so CP tolerates a slower link at long context.</p>`,
+          now: res => res.valid ? spanTxt(res.groups.cp) + commTxt(rowOf(res, "cp")) : null
+        },
+        pp: {
+          title: "Pipeline parallelism (PP)",
+          body: `<p>Splits the layers into consecutive stages. Stages exchange only boundary activations (forward) and their gradients (backward), point to point.</p><p><b>Divides:</b> weights and state by PP. <b>Costs:</b> a bubble of <code>(PP−1)/(A+PP−1)</code> of the step, and stage 0 stores activations for up to PP micro-batches under 1F1B.</p><p>Low traffic makes PP the usual axis to stretch across nodes.</p>`,
+          now: res => res.valid ? `${res.Lp} layers per stage · bubble ${Math.round(100 * res.time.bubble / res.step)}% · ${spanTxt(res.groups.pp)}` : null
+        },
+        dp: {
+          title: "Data parallelism (D)",
+          body: `<p>Replicas of the model slice that process different micro-batches. D, together with <em>B</em> and <em>A</em>, is what grows the global batch; TP, CP and PP never add samples.</p><p><i>auto</i> sets <code>D = W / (TP·CP·PP)</code>. Gradients are averaged over the <code>D×CP</code> ranks holding the same weights, once per optimizer step, overlapped with the last backward pass.</p><p>EP and the shard group F are carved out of D.</p>`,
+          now: res => res.valid ? `D = ${res.D} · gradient group ${res.D * res.cp} ranks · ${spanTxt(res.groups.dp)}` : null
+        },
+        ep: {
+          title: "Expert parallelism (EP)",
+          body: `<p>Distributes the experts of each MoE layer over EP ranks carved out of D (the innermost part of the DP coordinate). Each rank stores <code>E/EP</code> experts; attention weights stay replicated across EP.</p><p><b>Costs:</b> a dispatch and a combine all-to-all per MoE layer, forward and backward. Expert gradients sync over only <code>(D/EP)×CP</code> ranks.</p><p><b>Constraints:</b> MoE model, EP divides E and D.</p>`,
+          now: res => res.valid && res.m.E ? `${res.m.E / res.ep} experts per GPU · ${spanTxt(res.groups.ep)}${commTxt(rowOf(res, "ep"))}` : "dense model: no experts"
+        },
+        zero: {
+          title: "State sharding (ZeRO / FSDP)",
+          body: `<p>What each replica stops storing in full. Per parameter: bf16 weights 2 B, bf16 gradients 2 B, fp32 master + Adam m, v 12 B.</p><p><b>ZeRO-1</b> shards the 12 B optimizer state (same traffic as DDP). <b>ZeRO-2</b> also shards gradients (reduce-scatter per micro-batch). <b>ZeRO-3 / FSDP</b> also shards weights, gathering each layer before its forward and again before its backward: ≈1.5× DDP traffic, on every micro-batch.</p>`,
+          now: res => res.valid ? (state.zero === 0 ? "DDP: 16 B/param replicated on every replica" : `sharded over F×CP = ${res.F * res.cp} ranks`) : null
+        },
+        fsdp: {
+          title: "Shard group F (full vs hybrid)",
+          body: `<p><b>F = D</b>: full sharding across every data-parallel rank. Most memory saved, but per-micro-batch gathers span the whole DP group.</p><p><b>F &lt; D</b>: hybrid sharding (HSDP). State is sharded inside groups of F and replicated across <code>D/F</code> groups. Choose F so a shard group fits in a node: gathers stay on NVLink, and only a 1/F gradient shard is all-reduced across nodes each step.</p><p>With CP > 1 the shard group has <code>F×CP</code> ranks. Constraint: F divides D.</p>`,
+          now: res => res.valid && state.zero > 0 ? `F = ${res.F} · ${res.D / res.F} replica group${res.D / res.F === 1 ? "" : "s"} · ${spanTxt(res.groups.shard).replace("groups", "shard groups")}` : "enable a ZeRO stage to use F"
+        },
+        accum: {
+          title: "Micro-batches per step A",
+          body: `<p>Micro-batches accumulated before one optimizer step. They also feed the pipeline.</p><p>Larger <em>A</em>: smaller pipeline bubble, DP sync amortised over more compute, bigger global batch (<code>B·s·A·D</code> tokens), which may hurt optimisation beyond the critical batch size.</p>`,
+          now: res => res.valid ? `bubble (PP−1)/(A+PP−1) = ${res.pp - 1}/${state.accum + res.pp - 1}` : null
+        },
+        sched: {
+          title: "Pipeline schedule",
+          body: `<p><b>AFAB / GPipe</b>: all forwards, then all backwards. Every stage keeps activations for all <em>A</em> micro-batches.</p><p><b>1F1B</b>: after warm-up, alternate one forward and one backward. Stage <em>i</em> keeps at most <code>PP − i</code> micro-batches. Same ideal bubble, far less memory.</p><p>See the pipeline simulator for the timelines.</p>`
+        },
+        recomp: {
+          title: "Activation recomputation",
+          body: `<p><b>none · eager</b>: also stores the attention score matrices (≈5·heads·s²·B bytes per layer): explodes at long context.</p><p><b>selective · flash</b>: flash attention recomputes scores; stores ≈(16 + 6·ffn/h)·s·B·h bytes per layer, divided by TP and CP.</p><p><b>full</b>: keeps only each layer's input (2·s·B·h bytes) and re-runs its forward during backward: +33% compute. MFU does not count that extra work.</p>`
+        },
+        order: {
+          title: "Rank order",
+          body: `<p>How a global rank becomes coordinates: a mixed-radix number whose innermost axis varies fastest. The innermost axis's groups occupy consecutive ranks, so they land on the same node; the outermost axis's groups stride across nodes.</p><p>Rule of thumb: most frequent, blocking traffic innermost (TP), rarest outermost (PP or DP). EP always sits inside DP. Use the arrows to reorder.</p>`,
+          now: () => $("#pc-formula").textContent
+        },
+        "m-world": { title: "World size", body: `<p>Total GPUs, and how they factor into the independent axes <code>TP × CP × PP × D</code>. EP and F subdivide D; they never multiply the GPU count.</p>` },
+        "m-mem": {
+          title: "Peak memory per GPU",
+          body: `<p>Estimated for the most loaded pipeline stage: stage 0 holds the embedding and the most in-flight activations; the last stage holds the LM head and fp32 logits.</p><p>Includes weights, gradients, optimizer state, activations, ZeRO-3 gather buffers, and 3 GB of runtime overhead. Fragmentation and communication buffers are ignored, so treat &gt; 90% of capacity as not fitting.</p>`
+        },
+        "m-step": {
+          title: "Step time",
+          body: `<p><code>(A + PP − 1) × t<sub>µbatch</sub> + exposed DP sync</code>, where <code>t<sub>µbatch</sub></code> is compute on the busiest stage plus the exposed TP, CP, EP, PP, and ZeRO time of one micro-batch.</p><p><b>MFU</b> = model FLOPs ÷ (W × peak × step time). Compute alone runs at 55% of peak, so 55% is the ceiling.</p>`
+        },
+        "m-batch": { title: "Global batch", body: `<p>Tokens consumed per optimizer step: <code>B · s · A · D</code>. TP, CP, PP and EP change who computes each token, not how many tokens there are.</p>` },
+        "c-groups": { title: "Groups", body: `<p>Number of independent process groups × ranks per group. All groups of one axis run their collectives concurrently.</p>` },
+        "c-place": { title: "Placement", body: `<p>Whether the busiest group of this axis stays inside one node. For hybrid sharding, shard groups and replica groups are listed separately because they talk at different times.</p>` },
+        "c-coll": { title: "Collective", body: `<p>The communication pattern this axis needs. Ring all-gather / reduce-scatter send <code>(n−1)/n</code> of the tensor per rank; all-reduce sends twice that.</p>` },
+        "c-vol": { title: "Sent per GPU", body: `<p>Bytes each GPU sends during one optimizer step, summed over all <em>A</em> micro-batches. Ideal ring volumes, without protocol overhead.</p>` },
+        "c-link": { title: "Link", body: `<p>Bandwidth used for the estimate: the per-GPU intra-node link if the group stays inside a node, otherwise the per-GPU network bandwidth. The slowest link bounds a ring.</p>` },
+        "c-time": { title: "Comm time", body: `<p>Bytes ÷ link bandwidth + a fixed latency per collective (5 µs inside a node, 15 µs across). Latency matters for TP, which issues many small collectives.</p>` },
+        "c-exp": { title: "Exposed", body: `<p>Communication time left on the critical path after overlap. TP, EP and PP are treated as fully exposed. CP hides behind attention compute, DP behind the last backward pass, and ZeRO per-micro-batch gathers behind that micro-batch's compute.</p>` }
+      };
+      SCENARIOS.forEach(sc => { TIPS[`preset:${sc.id}`] = { title: sc.paper ? `${sc.label} (scaled-down layout)` : sc.label, body: `<p>${sc.desc}</p>` }; });
+      const FIELD_TIPS = { "pc-hw": "hw", "pc-nodes": "nodes", "pc-gpn": "gpn", "pc-model": "model", "pc-seq": "seq", "pc-mb": "mb", "pc-tp": "tp", "pc-cp": "cp", "pc-pp": "pp", "pc-dp": "dp", "pc-ep": "ep", "pc-zero": "zero", "pc-fsdp": "fsdp", "pc-accum": "accum", "pc-sched": "sched", "pc-recomp": "recomp" };
+      Object.entries(FIELD_TIPS).forEach(([id, key]) => {
+        const label = document.querySelector(`label[for="${id}"]`);
+        label.dataset.tip = key;
+        const icon = document.createElement("i");
+        Object.assign(icon, { className: "pc-info", tabIndex: 0, textContent: "?" });
+        icon.setAttribute("aria-label", `Explain ${label.textContent.trim()}`);
+        const value = label.querySelector("span");
+        value ? label.insertBefore(icon, value) : label.appendChild(icon);
+      });
+
+      const tip = $("#pc-tip");
+      let tipTarget = null;
+      function showTip(el) {
+        const t = TIPS[el.dataset.tip];
+        if (!t) return;
+        tipTarget = el;
+        let now = null;
+        try { now = t.now && last ? t.now(last) : null; } catch (e) { now = null; }
+        tip.innerHTML = `<h4>${t.title}</h4>${t.body}${now ? `<div class="pc-tip-now">now: ${now}</div>` : ""}`;
+        tip.hidden = false;
+        const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+        const left = Math.max(8, Math.min(r.left, innerWidth - tw - 8));
+        const below = r.bottom + 8, above = r.top - th - 8;
+        tip.style.left = `${left}px`;
+        tip.style.top = `${below + th > innerHeight - 8 && above > 8 ? above : below}px`;
+      }
+      function hideTip() { tip.hidden = true; tipTarget = null; }
+      document.addEventListener("mouseover", e => {
+        const el = e.target.closest("[data-tip]");
+        if (el && el !== tipTarget) showTip(el);
+        else if (!el && tipTarget) hideTip();
+      });
+      document.addEventListener("focusin", e => {
+        const el = e.target.closest(".pc-info, [data-tip]");
+        const host = el && (el.dataset.tip ? el : el.closest("[data-tip]"));
+        host ? showTip(host) : hideTip();
+      });
+      document.addEventListener("focusout", hideTip);
+      document.addEventListener("click", e => {
+        const icon = e.target.closest(".pc-info");
+        if (!icon) return;
+        e.preventDefault();
+        showTip(icon.closest("[data-tip]"));
+      });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+      window.addEventListener("scroll", hideTip, { passive: true });
+
+      // -------------------------------------------------------------- wiring
+      function syncInputs() {
+        fillSelect("#pc-hw", Object.entries(HW).map(([k, v]) => [k, v.label]), state.hw);
+        fillSelect("#pc-gpn", [1, 2, 4, 8].map(v => [v, v]), state.gpn);
+        $("#pc-nodes").value = state.nodes;
+        fillSelect("#pc-model", Object.entries(MODELS).map(([k, v]) => [k, v.label]), state.model);
+        fillSelect("#pc-seq", [2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576].map(v => [v, v >= 1024 ? `${v / 1024}k` : v]), state.seq);
+        fillSelect("#pc-mb", [1, 2, 4, 8].map(v => [v, v]), state.mb);
+        fillSelect("#pc-tp", [1, 2, 4, 8, 16].map(v => [v, v]), state.tp);
+        fillSelect("#pc-cp", [1, 2, 4, 8, 16, 32].map(v => [v, v]), state.cp);
+        fillSelect("#pc-pp", [1, 2, 3, 4, 6, 8, 12, 16].map(v => [v, v]), state.pp);
+        fillSelect("#pc-dp", [["auto", "auto (fill cluster)"], ...[1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256].map(v => [v, v])], state.dp);
+        fillSelect("#pc-ep", [1, 2, 4, 8, 16, 32, 64].map(v => [v, v]), state.ep);
+        fillSelect("#pc-zero", [[0, "none (DDP)"], [1, "ZeRO-1 · optimizer"], [2, "ZeRO-2 · + gradients"], [3, "ZeRO-3 / FSDP · + weights"]], state.zero);
+        fillSelect("#pc-fsdp", [["full", "F = D (shard across all DP ranks)"], ...[1, 2, 4, 8, 16, 32, 64].map(v => [v, `F = ${v}`])], state.fsdp);
+        fillSelect("#pc-accum", [1, 2, 4, 8, 16, 32, 64].map(v => [v, v]), state.accum);
+        fillSelect("#pc-sched", [["1f1b", "1F1B"], ["afab", "AFAB / GPipe"]], state.sched);
+        fillSelect("#pc-recomp", [["none", "none · eager attention (stores scores)"], ["selective", "selective · flash attention"], ["full", "full · keep only layer inputs"]], state.recomp);
+      }
+
+      const bind = (id, key, cast = v => +v) => $(id).addEventListener("input", e => { state[key] = cast(e.target.value); state.preset = null; render(); });
+      bind("#pc-hw", "hw", v => v); bind("#pc-nodes", "nodes"); bind("#pc-gpn", "gpn");
+      bind("#pc-model", "model", v => v); bind("#pc-seq", "seq"); bind("#pc-mb", "mb");
+      bind("#pc-tp", "tp"); bind("#pc-cp", "cp"); bind("#pc-pp", "pp");
+      bind("#pc-dp", "dp", v => (v === "auto" ? "auto" : +v)); bind("#pc-ep", "ep"); bind("#pc-zero", "zero");
+      bind("#pc-fsdp", "fsdp", v => (v === "full" ? "full" : +v)); bind("#pc-accum", "accum");
+      bind("#pc-sched", "sched", v => v); bind("#pc-recomp", "recomp", v => v);
+
+      const presetBtn = sc => `<button type="button" class="pc-tab" data-preset="${sc.id}" data-tip="preset:${sc.id}" aria-pressed="false">${sc.label}</button>`;
+      $("#pc-papers").innerHTML = SCENARIOS.filter(sc => sc.paper).map(presetBtn).join("");
+      $("#pc-presets").innerHTML = SCENARIOS.filter(sc => !sc.paper).map(presetBtn).join("");
+      const onPreset = e => {
+        const b = e.target.closest("[data-preset]"); if (!b) return;
+        const sc = SCENARIOS.find(x => x.id === b.dataset.preset);
+        Object.assign(state, sc.cfg, { order: [...sc.cfg.order], preset: sc.id, selected: 0 });
+        state.inspect = { cp: "cp", moe: "ep", fsdp: "dp", dp: "dp", dsv3: "ep", llama3: "pp" }[sc.id] || "tp";
+        syncInputs(); render();
+      };
+      $("#pc-presets").addEventListener("click", onPreset);
+      $("#pc-papers").addEventListener("click", onPreset);
+
+      $("#pc-order").addEventListener("click", e => {
+        const b = e.target.closest("[data-move]"); if (!b) return;
+        const i = +b.dataset.move, j = i + +b.dataset.dir;
+        [state.order[i], state.order[j]] = [state.order[j], state.order[i]];
+        state.preset = null; render();
+      });
+      $("#pc-axis-tabs").addEventListener("click", e => {
+        const b = e.target.closest("[data-axis]"); if (!b) return;
+        state.inspect = b.dataset.axis; render();
+      });
+      document.querySelectorAll("[data-color]").forEach(b => b.addEventListener("click", () => {
+        state.colorBy = b.dataset.color;
+        document.querySelectorAll("[data-color]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+        render();
+      }));
+      $("#pc-map").addEventListener("click", e => {
+        const b = e.target.closest("[data-rank]"); if (!b || b.disabled) return;
+        state.selected = +b.dataset.rank; render();
+      });
+      window.addEventListener("resize", () => { if (last) drawLinks(last); });
+
+      syncInputs();
+      render();
+    })();
+  </script>
+</body>
+
+</html>

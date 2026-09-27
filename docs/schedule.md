@@ -12,7 +12,7 @@ be split across more than one day.
 | Phase | Blocks | Sessions | Contact time | Main outcome |
 | --- | --- | ---: | ---: | --- |
 | Build | 3 | 12 | 15h | Minimal GPT architecture, end-to-end pretraining data pipeline, documented baseline checkpoint, and profiled/optimized single-GPU trainer |
-| Scale | 3 | 12 | 15h | Mid-course presentation, distributed DDP/FSDP scaling, multidimensional parallelism strategy, and Project Studios 1 & 2 |
+| Scale | 3 | 12 | 15h | Mid-course presentation, distributed DDP scaling and FSDP state-accounting, multidimensional parallelism strategy, and Project Studios 1 & 2 |
 | Serve and synthesize | 2 | 8 | 10h | KV-cached decoder, serving systems & live vLLM demonstration, frontier architecture analysis, Project Studios 3 & 4, and final defense |
 
 Each module (the 11 topics listed on the [module pages](modules/index.md))
@@ -23,19 +23,33 @@ shows exactly which sessions cover which module.
 ## Phase 1 — Build a language model
 
 !!! tip "Course presentation"
-    Download the [Course presentation slides (Lecture 0 PDF)](slides/00-introduction.pdf){ target="_blank" } covering course objectives, schedule, continuous laboratory, reproduction project, and assessment.
+    The [Course presentation slides (Lecture 0 PDF)](slides/00-introduction.pdf){ target="_blank" } are available for an overview of course objectives, schedule, continuous laboratory, reproduction project, and assessment.
 
-### Block 1 — Model and training loop
+### Block 1 — Build a GPT and its first training loop
 
 **6 sessions · 7h30 · [Module 1: Transformer from first principles](modules/01-transformer.md) ([slides](slides/01-transformer.pdf){ target="_blank" }, sessions 1–4), [Module 2: Training-loop anatomy and baseline GPT](modules/02-training-loop.md) ([slides](slides/02-training-loop.pdf){ target="_blank" }, sessions 5–6)**
 
+Teach these six 75-minute sessions as **three consecutive 2h30 working blocks**.
+
+#### Working block 1 — Kickoff, model map, and start building (sessions 1–2 · 2h30)
+
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 1 | Theory | Next-token prediction objective $P(x_1, \dots, x_T)$, recurrent sequential bottlenecks vs Transformer parallel revolution; Transformer anatomy: token and positional embeddings, causal self-attention, residual stream, pre-LN LayerNorm, MLP, and LM head with weight tying | Architecture specification & mathematical formulation |
-| 2 | Practice | PyTorch tensor mechanics & attention primitives: tensor broadcasting, stride/layout, `nn.Module` inspection; implement token and learned positional embeddings, scaled dot-product attention, and causal triangular masking | PyTorch foundations & tested causal attention primitives |
-| 3 | Practice | Multi-Head Attention (MHA) & Transformer sublayers: implement head projection splitting and output projection ($W_O$); build pre-LN LayerNorm and the GPT-2 MLP block ($4d$ expansion, GELU, contraction); compare modern variants after parity | Verified Multi-Head Attention and Transformer sublayer modules |
-| 4 | Practice | Assemble minimal GPT & checkpoint parity: integrate Transformer blocks, residual highways, and a tied LM head; load official GPT-2 weights through the provided converter; reproduce reference logits and a verified next-token log-probability | Student-built GPT implementation reproducing the official GPT-2 forward pass |
-| 5 | Theory | Training-loop anatomy: autograd DAG, operation order & silent failure catalog, cross-entropy loss, AdamW parameter grouping (2D weights vs 1D biases/norms), micro-batch accumulation ($1/A$), gradient norm clipping, warmup & cosine LR scheduling, and mixed precision (AMP) | Training-loop checklist & state transition diagram |
+| 1 | Kickoff + theory | Brief course presentation; next-token prediction objective $P(x_1, \dots, x_T)$, recurrent sequential bottlenecks vs Transformer parallelism, and a model map covering embeddings, attention, residual stream, pre-LN LayerNorm, MLP, and LM head | Course workflow and Transformer architecture map |
+| 2 | Practice | Set up the starter implementation; build token and learned positional embeddings, pre-LN and residual structure, and the GPT-2 MLP ($4d$ expansion, GELU, contraction). Use tensor shapes as needed while implementing | Working non-attention components with shape checks |
+
+#### Working block 2 — Multi-head attention through logits (sessions 3–4 · 2h30)
+
+| Session | Mode | Focus | Output |
+| ---: | --- | --- | --- |
+| 3 | Practice | Implement QKV projections, scaled dot-product attention, causal masking, head splitting/merging, and output projection ($W_O$) | Tested multi-head attention module |
+| 4 | Practice | Assemble the Transformer blocks and tied LM head; run a forward pass, inspect next-token logits, and compare against official GPT-2 reference logits using the provided checkpoint converter | Student-built GPT reproducing reference logits |
+
+#### Working block 3 — Explain and implement a simple training loop (sessions 5–6 · 2h30)
+
+| Session | Mode | Focus | Output |
+| ---: | --- | --- | --- |
+| 5 | Theory | Target shifting and cross-entropy; autograd and gradients; optimizer zeroing/update order; AdamW parameter groups, gradient clipping, accumulation, learning-rate schedule, mixed precision, and common silent failures | Training-loop checklist and update-order diagram |
 | 6 | Practice | Implement target shifting, optimizer grouping, backward/update ordering, gradient clipping, and checkpoint round-trip; overfit a small NanoLM on one fixed batch (`loss < 0.1`) | Minimal trainable NanoLM with verified checkpoint round-trip |
 
 !!! success "Exit criterion"
@@ -53,7 +67,7 @@ shows exactly which sessions cover which module.
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 7 | Theory | Raw web extraction (WARC vs WET, boilerplate tax), heuristic compute-conservation filtering, subword tokenization trade-offs, byte-level BPE from scratch, regex pre-tokenization splitting, sequence packing with `<|endoftext|>`, and zero-copy binary sharding with `np.memmap` | Ingestion pipeline design & tokenization trade-off analysis |
+| 7 | Theory | Raw web extraction (WARC vs WET, boilerplate tax), heuristic compute-conservation filtering, subword tokenization trade-offs, byte-level BPE from scratch, regex pre-tokenization splitting, sequence packing with `<|endoftext|>`, and memory-mapped binary sharding with `np.memmap` | Ingestion pipeline design & tokenization trade-off analysis |
 | 8 | Practice | Trace byte-level BPE merges using the provided implementation; implement document packing and shifted batches; verify round-trip fidelity, boundaries, and disjoint train/validation documents; inspect provided filters and memory-mapped loader | Validated end-to-end data pipeline and binary shards |
 
 !!! note "Assessment milestone"
@@ -77,14 +91,17 @@ shows exactly which sessions cover which module.
 
 ## Phase 2 — Scale
 
-### Block 4 — Mid-course paper presentations
+### Block 4 — Paper pitches and shared discussion
 
 **2 sessions · 2h30**
 
+Run the two sessions as one working block: groups give short paper pitches, then
+the class discusses together which claims are interesting and worth reproducing.
+
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 13 | Presentation | Group paper presentations: problem, central claims, mechanism, evidence and reproduction proposal | Presentation and peer questions |
-| 14 | Presentation | Remaining group presentations and cross-group discussion | Approved reproduction protocol per team |
+| 13 | Lightning presentations | A few-minute pitch per paper: problem, central claim, proposed mechanism, and key evidence; capture one candidate reproduction question per group | Shared set of candidate claims and questions |
+| 14 | Whole-class discussion | Compare the claims together: what is worth understanding or testing, what evidence would settle it, and which questions are feasible to reproduce; teams agree on a direction | Reproduction question and initial protocol per team |
 
 !!! success "Assessment milestone"
     **Mid-course paper presentation** (see [Reproduction project](reproduction-project.md)).
@@ -99,7 +116,7 @@ shows exactly which sessions cover which module.
 | 16 | Practice | DDP showcase & scaling benchmark: launch multi-GPU trainer with `torchrun`, verify rank synchronization and gradient accumulation via `no_sync`, and measure linear speedup limits | Verified multi-GPU trainer & scaling report |
 | 17 | Project Studio | **Reproduction Studio 1 — Baseline & Environment Setup**: Dedicated in-class team hackathon; set up paper codebases, download/preprocess initial datasets, verify baseline compute requirements, and unblock execution bottlenecks with instructor mentoring | Functioning reproduction repository & baseline test run |
 | 18 | Theory | FSDP and ZeRO: state redundancy in DDP ($16\Psi$ bytes/param), progressive state decomposition (ZeRO-1/2/3), all-gather and reduce-scatter collective timing, sharded residency vs temporary materialization, and auto-wrapping | Sharding plan & memory analysis |
-| 19 | Practice | FSDP showcase & memory comparison: apply FSDP auto-wrap policy on course model; benchmark per-GPU peak VRAM and throughput against DDP across ZeRO stages | FSDP benchmark report |
+| 19 | Practice | Work through the companion ZeRO state calculator; compare persistent-state predictions, inspect the FSDP wrapper and lifecycle, and identify measurements needed for a real DDP/FSDP comparison | Annotated memory worksheet with transient-memory exclusions |
 
 !!! note "Assessment milestone"
     Reproduction protocol and baseline fixed.
@@ -111,13 +128,13 @@ shows exactly which sessions cover which module.
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
 | 20 | Theory | Tensor and sequence parallelism: column/row matrix partitioning, intermediate collective elimination, GQA attention head divisibility, and sequence parallelism (SP) activation reduction | TP derivation & layout ledger |
-| 21 | Practice | FSDP distributed checkpointing & TP showcase: verify sharded state save/resume determinism; inspect minimal two-rank column/row sharded MLP using Gloo/NCCL and verify numerical equivalence | Resilient sharded checkpointing & TP equivalence verification |
-| 22 | Theory | Context, pipeline & expert parallelism: Sequence Parallelism vs Context Parallelism, Ring Attention with online softmax, 1F1B vs AFAB bubble ratios ([interactive simulator](demos/pipeline-parallelism.html){ target="_blank" }), Expert Parallelism (EP) All-to-All communication, and placement based on exposed communication and topology | Parallelism strategy rules & cost models |
+| 21 | Practice | Analyze checkpoint-format requirements for full, sharded, and distributed recovery; run actual two-rank TP forward/backward equivalence using Gloo | Checkpoint-format decision and verified TP gradients |
+| 22 | Theory | Context, pipeline & expert parallelism: Sequence Parallelism vs Context Parallelism, Ring Attention with online softmax, 1F1B vs AFAB bubble ratios ([interactive simulator](demos/pipeline-parallelism.html){ target="_blank" }), Expert Parallelism (EP) All-to-All communication, and placement based on exposed communication and topology ([parallelism composer](demos/parallelism-composer.html){ target="_blank" }) | Parallelism strategy rules & cost models |
 | 23 | Practice | Multidimensional cluster sizing: count independent rank axes in scaling cases ($G = P \times T_P \times C \times D$); map parallel dimensions to physical cluster network topologies; defend a feasible configuration with explicit assumptions | Multidimensional scaling design report |
 | 24 | Project Studio | **Reproduction Studio 2 — Scaling Experiments & Failure Diagnosis**: Dedicated team hackathon; launch scaling or ablation experiments on target claims, debug CUDA/distributed errors, and triage unexpected loss curves or throughput anomalies | Preliminary experimental results & ablation checkpoints |
 
 !!! note "Implementation boundary"
-    Students implement DDP, a focused FSDP experiment and a toy TP layer. CP,
+    Students implement DDP and a toy TP layer; FSDP is a guided state-accounting and implementation-reading exercise unless the teaching cluster supports a verified run. CP,
     PP, EP and multidimensional parallelism are taught through cost models, design
     exercises and production-code reading—not a fragile reimplementation of a
     production stack.
@@ -146,7 +163,7 @@ shows exactly which sessions cover which module.
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 28 | Theory | Continuous batching, request lifecycle state machine, paged KV-cache (block tables, fragmentation), decode priority vs chunked prefill, prefix caching, serving metrics (TTFT, ITL, goodput under SLOs), [interactive serving simulator](demos/continuous-batching.html){ target="_blank" }, and instructor-led live vLLM serving demonstration | Serving-system architecture model & live benchmark observation |
+| 28 | Theory | Trace the request lifecycle and continuous-batching schedule; compare paged KV allocation with reservation; interpret TTFT, ITL, and throughput in a prepared instructor demonstration ([simulator](demos/continuous-batching.html){ target="_blank" }). A live vLLM run is conditional on preflight; chunked prefill, prefix caching, and SLO goodput are extensions | Annotated scheduling trace and benchmark interpretation |
 | 29 | Project Studio | **Reproduction Studio 4 — Final Presentation & Defense Prep**: Dedicated team studio time; rehearse team presentation timing (8 min presentation + 4 min questions), finalize reproduction claim evidence charts, and anticipate individual technical defense questions with instructor coaching | Rehearsed presentation slides & defense readiness |
 | 30 | Theory | Three bottleneck comparisons: speculative decoding (verification cost), MLA (cache bytes), and recurrent state versus KV cache; diffusion, detailed MoE/MTP, and multimodality are optional reading | Frontier architecture analysis & compression evaluation |
 | 31 | Presentation | Final team demonstrations and technical defenses: present paper reproduction evidence, systems measurements, and failure postmortems | Project presentation & technical defense |

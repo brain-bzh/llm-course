@@ -30,7 +30,7 @@ documented baseline checkpoint
     ↓
 optimized single-GPU trainer (bf16, FlashAttention, compile)
     ↓
-distributed scaling (DDP, FSDP, tensor parallelism)
+distributed scaling (DDP), FSDP state accounting, and tensor parallelism
     ↓
 multidimensional parallelism & cluster sizing strategy
     ↓
@@ -47,7 +47,7 @@ instructor-led serving demonstration and benchmark interpretation
 | Data pipeline & ingestion | Disjoint document splits, tokenizer fidelity/compression, packing with `<\|endoftext\|>`, and measured memmap loader throughput |
 | Baseline checkpoint | Hyperparameter tuple, loss/grad-norm curves, verified resume determinism, and generated samples interpreted alongside held-out loss |
 | Single-GPU performance | Profiler trace comparison, bf16/SDPA/compile speedups, tokens/s, peak VRAM, and MFU calculation |
-| Distributed training | Multi-rank synchronization checks, `no_sync` gradient accumulation, FSDP memory savings, and TP numerical equivalence |
+| Distributed training | Multi-rank synchronization checks, `no_sync` gradient accumulation, FSDP state accounting and TP numerical equivalence |
 | Multidimensional strategy | Cluster sizing identity verification ($G = P \times T_P \times C \times D$) and explicit DP/FSDP/EP group definitions and topology justification |
 | Cached inference | Cached vs uncached logit/token equivalence, prefill vs per-token decode latency, and memory bandwidth analysis |
 | Serving interpretation | Explain TTFT, ITL, throughput, and memory for the declared workload in the instructor demonstration; no separate implementation or report |
