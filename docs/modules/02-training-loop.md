@@ -47,6 +47,8 @@ and [nanoGPT](https://github.com/karpathy/nanoGPT).
 
 The core of any PyTorch training loop consists of five sequential steps:
 
+<div class="formula-highlight" style="text-align: left;" markdown>
+
 ```python
 for x, y in dataloader:
     optimizer.zero_grad(set_to_none=True)  # 1. Clear gradients
@@ -54,6 +56,8 @@ for x, y in dataloader:
     loss.backward()                        # 3. Backward pass
     optimizer.step()                       # 4. Update model parameters
 ```
+
+</div>
 
 To understand why this sequence works—and what breaks if any line moves—we must
 examine the internal state transitions:
@@ -99,14 +103,14 @@ The table below catalogs these failure modes, grounded in the analysis from
 
 | Operation | Wrong placement | Consequence (Silent Failure) |
 | :--- | :--- | :--- |
-| `model.to(device)` | **After** `optimizer = AdamW(...)` | Casting or moving a module creates new `nn.Parameter` tensors. The optimizer retains references to the discarded host parameters, updating dead memory while the active GPU model never trains. |
-| `optimizer.zero_grad()` | **After** `loss.backward()` | Gradients from previous batches are not cleared; parameter updates use a growing sum of all historical batches, causing explosive divergence. |
-| `clip_grad_norm_()` | **Before** `loss.backward()` | At this point, `param.grad` is `None`. The clipping function finds zero norms and executes as a silent no-op. Gradients remain unclipped. |
-| `clip_grad_norm_()` | **After** `optimizer.step()` | Gradients are clipped *after* the optimizer has already applied unconstrained updates to weights. The clip is completely wasted. |
-| `scheduler.step()` | **Inside** micro-batch loop | The learning rate decays once per micro-step instead of once per optimizer step, causing the learning rate to collapse orders of magnitude too early. |
-| Omit `model.train()` | After running `model.eval()` | Dropout remains disabled and LayerNorm/BatchNorm tracking is frozen. The model continues training in evaluation mode without error. |
-| Omit `torch.no_grad()` | During validation loop | Autograd constructs computation graphs for every evaluation batch, holding all validation activations in VRAM until an Out-Of-Memory (OOM) crash occurs. |
-| Logging `loss` | Instead of `loss.item()` | Storing the tensor `loss` keeps a live reference to the entire computation graph, preventing Python garbage collection and steadily leaking memory across steps. |
+| `model.to(device)` | **After**&nbsp;`optimizer = AdamW(...)` | Casting or moving a module creates new `nn.Parameter` tensors. The optimizer retains references to the discarded host parameters, updating dead memory while the active GPU model never trains. |
+| `optimizer.zero_grad()` | **After**&nbsp;`loss.backward()` | Gradients from previous batches are not cleared; parameter updates use a growing sum of all historical batches, causing explosive divergence. |
+| `clip_grad_norm_()` | **Before**&nbsp;`loss.backward()` | At this point, `param.grad` is `None`. The clipping function finds zero norms and executes as a silent no-op. Gradients remain unclipped. |
+| `clip_grad_norm_()` | **After**&nbsp;`optimizer.step()` | Gradients are clipped *after* the optimizer has already applied unconstrained updates to weights. The clip is completely wasted. |
+| `scheduler.step()` | **Inside**&nbsp;micro-batch loop | The learning rate decays once per micro-step instead of once per optimizer step, causing the learning rate to collapse orders of magnitude too early. |
+| Omit `model.train()` | After&nbsp;running&nbsp;`model.eval()` | Dropout remains disabled and LayerNorm/BatchNorm tracking is frozen. The model continues training in evaluation mode without error. |
+| Omit `torch.no_grad()` | During&nbsp;validation&nbsp;loop | Autograd constructs computation graphs for every evaluation batch, holding all validation activations in VRAM until an Out-Of-Memory (OOM) crash occurs. |
+| Logging `loss` | Instead&nbsp;of&nbsp;`loss.item()` | Storing the tensor `loss` keeps a live reference to the entire computation graph, preventing Python garbage collection and steadily leaking memory across steps. |
 
 ---
 
@@ -366,7 +370,7 @@ The $12Ld^2$ term dominates as depth and width grow. For $L=12, d=768, V=50{,}25
 
 ## Initialization: Preserve the residual stream
 
-Standard linear layers are initialized with standard deviation $\sigma = 0.02$.
+Standard linear layers are initialized with standard deviation $\sigma = 0.02$.[^init-magic]
 However, each Transformer block adds two branches to the residual stream:
 attention and MLP:
 
@@ -378,6 +382,9 @@ gradient explosion across deep models, residual output projections (`c_proj` in 
 and MLP) are initialized with scaled variance:
 
 $$\sigma_{\text{resid}} = \frac{0.02}{\sqrt{2L}}.$$
+
+[^init-magic]:
+    If this value appears magic, it is! A fixed standard deviation of $0.02$ was adopted empirically by BERT and early GPT models as a round approximation to Xavier/Glorot variance for $d \approx 768$ ($\sqrt{1/768} \approx 0.036$). The depth-dependent scaling factor $\frac{1}{\sqrt{2L}}$ for residual projections was introduced in GPT-2 ([Radford et al., 2019](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)) and codified as the standard initialization recipe for large distributed Transformers by NVIDIA's Megatron-LM ([Shoeybi et al., 2019](https://arxiv.org/abs/1909.08053)).
 
 ### Pre-flight sanity checks
 
@@ -482,6 +489,31 @@ they are not required to establish that the Session 2 training path works.
   — the GPT-2 report: motivation, architecture, and zero-shot transfer;
 - [nanoGPT (Andrej Karpathy)](https://github.com/karpathy/nanoGPT)
   — minimal, readable GPT model and training harness.
+
+---
+
+## Module recap
+
+Assume `model`, an infinite `train_loader`, `optimizer`, and `scheduler` already
+exist. Each batch contains shifted `(input_tokens, target_tokens)` tensors.
+
+```python
+batches = iter(train_loader)
+for _ in range(max_steps):
+    optimizer.zero_grad(set_to_none=True)
+
+    # Accumulate normalized gradients across micro-batches.
+    for _ in range(grad_accum_steps):
+        x, y = next(batches)
+        x, y = x.to(device), y.to(device)
+        _, loss, _ = model(x, targets=y)
+        (loss / grad_accum_steps).backward()
+
+    # Clip after backward and before applying the update.
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    optimizer.step()
+    scheduler.step()
+```
 
 ---
 

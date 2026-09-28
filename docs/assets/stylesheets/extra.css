@@ -115,6 +115,10 @@
   background-color: rgb(255 255 255 / 0.14);
 }
 
+.md-grid {
+  max-width: 68rem;
+}
+
 .md-main__inner {
   margin-top: 1.75rem;
 }
@@ -303,6 +307,17 @@
 .md-typeset table:not([class]) tbody tr:hover {
   background: color-mix(in srgb, var(--course-teal) 5%, transparent);
   box-shadow: none;
+}
+
+/* Prevent inline code chips in tables from breaking across lines */
+.md-typeset table:not([class]) code {
+  white-space: nowrap;
+}
+
+/* Keep primary identifier/key column crisp and unwrapped */
+.md-typeset table:not([class]) th:first-child,
+.md-typeset table:not([class]) td:first-child {
+  white-space: nowrap;
 }
 
 /* ---- Admonitions: palette-aligned, flatter ---- */
