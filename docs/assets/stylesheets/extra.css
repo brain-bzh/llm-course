@@ -585,6 +585,126 @@
 
 /* ---- Small screens ---- */
 
+/* ---- Dated course schedule ---- */
+
+.schedule-calendar-scroll {
+  margin: 1.2rem 0 2rem;
+  overflow-x: auto;
+  border: 1px solid var(--course-border);
+  border-radius: 0.55rem;
+  background: var(--md-default-bg-color);
+  box-shadow: var(--course-shadow);
+}
+
+.md-typeset table.schedule-calendar {
+  display: table;
+  width: 100%;
+  min-width: 700px;
+  margin: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.md-typeset table.schedule-calendar caption {
+  padding: 0.75rem 0.85rem;
+  color: var(--md-default-fg-color);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.md-typeset table.schedule-calendar th {
+  padding: 0.45rem;
+  background: var(--course-panel);
+  color: var(--course-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.md-typeset table.schedule-calendar td {
+  min-width: 0;
+  height: 6.6rem;
+  padding: 0.45rem;
+  border: 1px solid var(--course-border);
+  vertical-align: top;
+  white-space: normal;
+}
+
+.md-typeset table.schedule-calendar td:nth-child(6),
+.md-typeset table.schedule-calendar td:nth-child(7) {
+  background: color-mix(in srgb, var(--course-panel) 48%, transparent);
+}
+
+.md-typeset table.schedule-calendar td.outside-month {
+  color: var(--md-default-fg-color--light);
+  background: var(--course-panel);
+}
+
+.calendar-day {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  color: var(--md-default-fg-color);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.calendar-day span {
+  color: var(--course-muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+}
+
+.md-typeset .calendar-events {
+  margin: 0.05rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-half-day {
+  margin-top: 0.35rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--course-border);
+}
+
+.calendar-period-label {
+  color: var(--course-muted);
+  font-size: 0.52rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.md-typeset .calendar-events li {
+  display: block;
+  margin: 0;
+  padding: 0.24rem 0;
+  font-size: 0.61rem;
+  line-height: 1.32;
+  overflow-wrap: break-word;
+}
+
+.calendar-events li time {
+  display: block;
+  color: var(--course-muted);
+  font-size: 0.57rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-bottom: 0.08rem;
+}
+
+.calendar-session {
+  color: var(--course-teal);
+  font-size: 0.56rem;
+  font-weight: 750;
+  white-space: nowrap;
+  margin-right: 0.15rem;
+}
+
 @media screen and (max-width: 700px) {
   .course-grid {
     grid-template-columns: 1fr;
@@ -607,5 +727,10 @@
   .md-typeset table:not([class]) th,
   .md-typeset table:not([class]) td {
     white-space: nowrap;
+  }
+
+  .md-typeset table.schedule-calendar th,
+  .md-typeset table.schedule-calendar td {
+    white-space: normal;
   }
 }

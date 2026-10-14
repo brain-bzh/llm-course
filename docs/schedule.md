@@ -20,6 +20,20 @@ spans one to four sessions, matched to how much theory and practice the topic
 needs — a module is a unit of content, not a unit of time. The table below
 shows exactly which sessions cover which module.
 
+## January 2027 calendar
+
+<div class="schedule-calendar-scroll">
+<table class="schedule-calendar">
+  <caption>Session dates and times · weekdays, January 4–22</caption>
+  <thead><tr><th scope="col">Mon</th><th scope="col">Tue</th><th scope="col">Wed</th><th scope="col">Thu</th><th scope="col">Fri</th></tr></thead>
+  <tbody>
+    <tr><td><div class="calendar-day"><time datetime="2027-01-04">4</time></div></td><td><div class="calendar-day"><time datetime="2027-01-05">5</time></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S01</span>Kickoff &amp; Transformer map</li><li><time>15:30–16:45</time><span class="calendar-session">S02</span>Build the GPT foundation</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-06">6</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S03</span>Implement multi-head attention</li><li><time>11:00–12:15</time><span class="calendar-session">S04</span>Assemble the GPT</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-07">7</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S05</span>Training-loop theory</li><li><time>11:00–12:15</time><span class="calendar-session">S06</span>Train a tiny NanoLM</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S07</span>Pretraining data pipeline · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S08</span>Build the data pipeline</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-08">8</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S09</span>Baseline training · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S10</span>Run baseline training</li></ul></div></td></tr>
+    <tr><td><div class="calendar-day"><time datetime="2027-01-11">11</time></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S11</span>Profile a GPU · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S12</span>Optimize the single-GPU trainer</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-12">12</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S13</span>Distributed data parallelism · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S14</span>DDP showcase &amp; scaling benchmark</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-13">13</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S15</span>Lightning paper pitches</li><li><time>11:00–12:15</time><span class="calendar-session">S16</span>Whole-class discussion</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S17</span>Reproduction Studio 1</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-14">14</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S18</span>FSDP and ZeRO · theory</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S19</span>FSDP guided exercise</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-15">15</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S20</span>Tensor &amp; sequence parallelism · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S21</span>Checkpointing &amp; TP practice</li></ul></div></td></tr>
+    <tr><td><div class="calendar-day"><time datetime="2027-01-18">18</time></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S22</span>CP, PP &amp; EP · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S23</span>Multidimensional cluster sizing</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-19">19</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S24</span>Reproduction Studio 2</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S25</span>KV-cached decoding · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S26</span>KV-cache showcase &amp; benchmark</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-20">20</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S27</span>Reproduction Studio 3</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S28</span>Serving systems</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-21">21</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S29</span>Reproduction Studio 4</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S30</span>Frontier architectures</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-22">22</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S31</span>Final project presentations</li><li><time>11:00–12:15</time><span class="calendar-session">S32</span>Course synthesis &amp; submission</li></ul></div></td></tr>
+  </tbody>
+</table>
+</div>
+
 ## Phase 1 — Build a language model
 
 !!! tip "Course presentation"
@@ -91,29 +105,30 @@ Teach these six 75-minute sessions as **three consecutive 2h30 working blocks**.
 
 ## Phase 2 — Scale
 
-### Block 4 — Paper pitches and shared discussion
+### Block 4 — Distributed data parallelism and paper discussion
 
-**2 sessions · 2h30**
+**4 sessions · 5h00 · [Module 5: Distributed data parallelism](modules/05-ddp.md) ([slides](slides/05-ddp.pdf){ target="_blank" }, sessions 13–14), mid-course paper presentation (sessions 15–16)**
 
-Run the two sessions as one working block: groups give short paper pitches, then
-the class discusses together which claims are interesting and worth reproducing.
+Start with DDP theory and a short implementation showcase. Students then have
+the distributed-training vocabulary and execution model to frame their paper
+pitches and discuss reproduction claims.
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 13 | Lightning presentations | A few-minute pitch per paper: problem, central claim, proposed mechanism, and key evidence; capture one candidate reproduction question per group | Shared set of candidate claims and questions |
-| 14 | Whole-class discussion | Compare the claims together: what is worth understanding or testing, what evidence would settle it, and which questions are feasible to reproduce; teams agree on a direction | Reproduction question and initial protocol per team |
+| 13 | Theory | DDP execution model: one process per GPU, parameter broadcast, synchronous SGD gradient averaging derivation, ring all-reduce, gradient bucketing, backward overlap, and global token accounting | DDP architecture specification |
+| 14 | Practice | DDP showcase & scaling benchmark: launch multi-GPU trainer with `torchrun`, verify rank synchronization and gradient accumulation via `no_sync`, and measure linear speedup limits | Verified multi-GPU trainer & scaling report |
+| 15 | Lightning presentations | A few-minute pitch per paper: problem, central claim, proposed mechanism, and key evidence; capture one candidate reproduction question per group | Shared set of candidate claims and questions |
+| 16 | Whole-class discussion | Compare the claims together: what is worth understanding or testing, what evidence would settle it, and which questions are feasible to reproduce; teams agree on a direction | Reproduction question and initial protocol per team |
 
 !!! success "Assessment milestone"
     **Mid-course paper presentation** (see [Reproduction project](reproduction-project.md)).
 
-### Block 5 — Distributed data parallelism, memory sharding & Project Studio 1
+### Block 5 — Reproduction Studio 1 and memory sharding
 
-**5 sessions · 6h15 · [Module 5: Distributed data parallelism](modules/05-ddp.md) ([slides](slides/05-ddp.pdf){ target="_blank" }, sessions 15–16), Project Studio 1 (session 17), [Module 6: FSDP and ZeRO](modules/06-fsdp.md) ([slides](slides/06-fsdp.pdf){ target="_blank" }, sessions 18–19)**
+**3 sessions · 3h45 · Project Studio 1 (session 17), [Module 6: FSDP and ZeRO](modules/06-fsdp.md) ([slides](slides/06-fsdp.pdf){ target="_blank" }, sessions 18–19)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 15 | Theory | DDP execution model: one process per GPU, parameter broadcast, synchronous SGD gradient averaging derivation, ring all-reduce, gradient bucketing, backward overlap, and global token accounting | DDP architecture specification |
-| 16 | Practice | DDP showcase & scaling benchmark: launch multi-GPU trainer with `torchrun`, verify rank synchronization and gradient accumulation via `no_sync`, and measure linear speedup limits | Verified multi-GPU trainer & scaling report |
 | 17 | Project Studio | **Reproduction Studio 1 — Baseline & Environment Setup**: Dedicated in-class team hackathon; set up paper codebases, download/preprocess initial datasets, verify baseline compute requirements, and unblock execution bottlenecks with instructor mentoring | Functioning reproduction repository & baseline test run |
 | 18 | Theory | FSDP and ZeRO: state redundancy in DDP ($16\Psi$ bytes/param), progressive state decomposition (ZeRO-1/2/3), all-gather and reduce-scatter collective timing, sharded residency vs temporary materialization, and auto-wrapping | Sharding plan & memory analysis |
 | 19 | Practice | Work through the companion ZeRO state calculator; compare persistent-state predictions, inspect the FSDP wrapper and lifecycle, and identify measurements needed for a real DDP/FSDP comparison | Annotated memory worksheet with transient-memory exclusions |
