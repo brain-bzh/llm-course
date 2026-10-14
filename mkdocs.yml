@@ -4,6 +4,7 @@ site_url: https://brain-bzh.github.io/llm-course/
 
 theme:
   name: material
+  logo: assets/favicon.svg
   favicon: assets/favicon.svg
   font:
     text: Source Sans 3
