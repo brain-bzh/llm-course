@@ -277,6 +277,15 @@ During autoregressive inference generation, tokens are generated one by one. The
 - **Multi-Query Attention (MQA; [Shazeer, 2019](https://arxiv.org/abs/1911.02150)):** Collapses all Key and Value heads into a single head shared across all $H$ Query heads. This reduces KV cache size by a factor of $H$, but can lead to quality degradation and training instability.
 - **Grouped-Query Attention (GQA; [Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)):** Groups $H_Q$ Query heads into $G$ groups, assigning one Key and Value head per group (where $1 < G < H_Q$). For instance, with 32 Query heads and 8 Key-Value groups ($G=8$), four Query heads share each Key-Value head ($4:1$ ratio). GQA delivers nearly the full quality of MHA while slashing KV-cache memory traffic by $4\times$ to $8\times$.
 
+??? info "Visual comparison: MHA, GQA and MQA"
+
+    ![Four query heads with four separate KV heads in MHA, two shared KV heads in GQA, and one shared KV head in MQA.](../assets/figures/mha-gqa-mqa.svg){ loading=lazy }
+
+    Each **K/V** box represents one key head and one value head. All three
+    examples keep four query heads; only the number of shared KV heads changes.
+    Cache sizes are relative to MHA, for the same sequence length and head dimension.
+    GQA sits between MHA and MQA ([Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)).
+
 ### 5. Output projection: Tied embeddings $\to$ Untied embeddings
 
 In early models like GPT-2, weight tying ($W_{\text{vocab}} = W_E^\top$) was favored to save parameter footprint ([Press & Wolf, 2017](https://arxiv.org/abs/1608.05859)). For GPT-2 Small ($d=768, V=50,257$), tying saved $\approx 38.6\text{M}$ parameters (over 30% of total parameters).
@@ -396,6 +405,14 @@ modern decoder-only LLMs use a pre-norm arrangement instead:
 
 Do not silently mix the two conventions. The placement of normalization changes
 the code path and training behaviour even when the same components are present.
+
+!!! tip "Interactive Visualization Lab"
+    Explore a decoder-only Transformer using LLaMA 3 8B as a reference. Zoom
+    into the decoder block to reveal GQA attention and the SwiGLU MLP on one
+    continuous canvas. Hover over elements for tensor shapes and follow activations through
+    the residual paths, from token IDs to vocabulary logits.
+
+    [:material-magnify: Explore the Decoder-Only Transformer](../demos/decoder-transformer.html){ .md-button .md-button--primary target="_blank" }
 
 ## Logits and next-token prediction
 

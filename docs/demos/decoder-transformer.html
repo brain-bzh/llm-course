@@ -1,0 +1,2198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inside a decoder-only Transformer · LLaMA 3</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f3ee;
+        --panel: #fffefa;
+        --ink: #243943;
+        --muted: #718187;
+        --line: #dedfd8;
+        --teal: #167d80;
+        --tint: #e8f5f4;
+        --orange: #bd7652;
+        --warm: #fff1e8;
+        --purple: #80669b;
+        --violet: #f3edf9;
+        --grid: #e7edf2;
+        --shadow: 0 10px 35px #14283e08;
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #101b23;
+        --panel: #172630;
+        --ink: #e8eee9;
+        --muted: #a0b3b7;
+        --line: #304253;
+        --teal: #77c9bf;
+        --tint: #17383f;
+        --orange: #f1a77e;
+        --warm: #392c27;
+        --purple: #c4a3ee;
+        --violet: #2b2440;
+        --grid: #1b2c3d;
+        --shadow: none;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.55 Inter,
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+      button,
+      select {
+        color: var(--ink);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 7px 11px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--teal);
+      }
+      button:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid var(--teal);
+        outline-offset: 3px;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      a {
+        color: var(--teal);
+      }
+      header {
+        max-width: 1600px;
+        margin: auto;
+        padding: 25px 32px 16px;
+      }
+      .topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        align-items: center;
+      }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--teal);
+        font-weight: 750;
+      }
+      h1 {
+        font-size: clamp(25px, 3vw, 38px);
+        letter-spacing: -0.035em;
+        margin: 7px 0;
+      }
+      header p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 850px;
+      }
+      .specs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .specs b {
+        color: var(--ink);
+      }
+      main {
+        max-width: 1600px;
+        margin: auto;
+        padding: 0 32px 28px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 16px;
+      }
+      .canvas-shell,
+      aside {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .views span {
+        align-self: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .breadcrumb button {
+        border: 0;
+        background: none;
+        padding: 3px 4px;
+        font-size: 12px;
+        color: var(--teal);
+      }
+      .node.expanded > rect {
+        fill: var(--panel);
+        stroke: var(--line);
+      }
+      .views {
+        display: flex;
+        gap: 5px;
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .views button {
+        border-color: transparent;
+        background: transparent;
+      }
+      .views button[aria-pressed="true"] {
+        background: var(--tint);
+        color: var(--teal);
+        border-color: var(--teal);
+      }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 15px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid var(--line);
+      }
+      .toolbar label {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .toolbar select {
+        padding: 4px;
+        font-size: 12px;
+      }
+      .zoom {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .zoom button {
+        padding: 3px 10px;
+      }
+      .zoom output {
+        min-width: 45px;
+        text-align: center;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+      .breadcrumb {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 10px 16px 0;
+      }
+      .stage {
+        height: 690px;
+        min-height: 440px;
+        position: relative;
+        overflow: hidden;
+        background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+        background-size: 18px 18px;
+        touch-action: none;
+        cursor: grab;
+      }
+      .stage:active {
+        cursor: grabbing;
+      }
+      .stage svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        user-select: none;
+      }
+      .hint {
+        position: absolute;
+        bottom: 8px;
+        left: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        pointer-events: none;
+        background: var(--panel);
+        border-radius: 5px;
+        padding: 3px 6px;
+      }
+      .node {
+        cursor: pointer;
+        outline: none;
+      }
+      .node > rect {
+        vector-effect: non-scaling-stroke;
+        fill: var(--panel);
+        stroke: var(--line);
+        stroke-width: 1.8;
+        transition:
+          stroke 0.15s,
+          fill 0.15s;
+      }
+      .node .label {
+        fill: var(--ink);
+        font-size: 21px;
+        font-weight: 650;
+      }
+      .node .sub {
+        fill: var(--muted);
+        font-size: 15px;
+      }
+      .node .shape {
+        fill: var(--teal);
+        font-size: 14px;
+        font-family: ui-monospace, monospace;
+      }
+      .node .drill {
+        fill: var(--teal);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .node.attn > rect {
+        fill: var(--tint);
+        stroke: var(--teal);
+      }
+      .node.ffn > rect {
+        fill: var(--violet);
+        stroke: var(--purple);
+      }
+      .node.cache > rect {
+        fill: var(--warm);
+        stroke: var(--orange);
+      }
+      .node.external > rect {
+        stroke-dasharray: 6 5;
+      }
+      .node.active > rect,
+      .node:focus-visible > rect {
+        stroke: var(--teal);
+        stroke-width: 4;
+      }
+      .node.active > .label {
+        fill: var(--teal);
+      }
+      .node.dim {
+        opacity: 0.72;
+      }
+      .edge {
+        vector-effect: non-scaling-stroke;
+        fill: none;
+        stroke: var(--muted);
+        stroke-width: 2;
+        opacity: 0.55;
+        marker-end: url(#arrow);
+      }
+      .edge.residual {
+        stroke: var(--orange);
+        stroke-dasharray: 7 5;
+      }
+      .edge.active {
+        stroke: var(--teal);
+        stroke-width: 3.5;
+        opacity: 1;
+        marker-end: url(#arrow-active);
+      }
+      .edge-label {
+        fill: var(--muted);
+        font:
+          14px ui-monospace,
+          monospace;
+        paint-order: stroke;
+        stroke: var(--panel);
+        stroke-width: 5;
+        stroke-linejoin: round;
+      }
+      .edge-label.residual {
+        fill: var(--orange);
+      }
+      .walkthrough {
+        padding: 13px 16px;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+      }
+      .trace-controls {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .primary {
+        background: var(--teal);
+        color: var(--panel);
+        border-color: var(--teal);
+      }
+      .trace-controls input {
+        flex: 1;
+        min-width: 90px;
+        accent-color: var(--teal);
+      }
+      #step-count {
+        font-size: 12px;
+        color: var(--muted);
+        min-width: 45px;
+        text-align: right;
+      }
+      .trace-caption {
+        margin: 9px 0 0;
+        font-size: 13px;
+        min-height: 40px;
+      }
+      .trace-caption b {
+        color: var(--teal);
+      }
+      aside {
+        padding: 22px;
+        align-self: start;
+        position: sticky;
+        top: 15px;
+        min-height: 430px;
+      }
+      aside .eyebrow {
+        font-size: 10px;
+      }
+      aside h2 {
+        font-size: 24px;
+        line-height: 1.25;
+        letter-spacing: -0.025em;
+        margin: 9px 0 13px;
+      }
+      aside p {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .tensor {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        margin: 17px 0;
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+      .tensor span {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .tensor code {
+        font-size: 12px;
+        color: var(--teal);
+      }
+      .formula {
+        font:
+          12px/1.8 ui-monospace,
+          monospace;
+        background: var(--bg);
+        border-left: 2px solid var(--purple);
+        padding: 10px;
+        overflow-wrap: anywhere;
+      }
+      .relation {
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
+        margin-top: 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      #explore {
+        margin-top: 14px;
+        width: 100%;
+      }
+      #unpin {
+        margin-top: 8px;
+        font-size: 11px;
+      }
+      .legend {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        font-size: 11px;
+        color: var(--muted);
+        margin: 14px 2px;
+      }
+      .legend span:before {
+        content: "";
+        display: inline-block;
+        width: 20px;
+        margin-right: 6px;
+        border-top: 2px solid var(--teal);
+        vertical-align: middle;
+      }
+      .legend .skip:before {
+        border-color: var(--orange);
+        border-top-style: dashed;
+      }
+      .legend .outside:before {
+        border-color: var(--muted);
+        border-top-style: dashed;
+      }
+      footer {
+        font-size: 11px;
+        color: var(--muted);
+        padding-top: 6px;
+      }
+      footer a {
+        margin-right: 10px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+      @media (max-width: 1000px) {
+        .workspace {
+          grid-template-columns: minmax(0, 1fr) 270px;
+        }
+        aside {
+          padding: 17px;
+        }
+        .stage {
+          height: 650px;
+        }
+        header,
+        main {
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+      }
+      @media (max-width: 740px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+        .stage {
+          height: 590px;
+        }
+        aside {
+          position: static;
+          min-height: 0;
+        }
+        .views span {
+          align-self: center;
+          font-size: 12px;
+          color: var(--muted);
+        }
+        .breadcrumb button {
+          border: 0;
+          background: none;
+          padding: 3px 4px;
+          font-size: 12px;
+          color: var(--teal);
+        }
+        .node.expanded > rect {
+          fill: var(--panel);
+          stroke: var(--line);
+        }
+        .views {
+          gap: 2px;
+          padding: 8px;
+        }
+        .views button {
+          font-size: 12px;
+          padding: 6px 8px;
+        }
+        .specs {
+          gap: 5px 14px;
+        }
+        .toolbar {
+          padding: 9px;
+        }
+        .hint {
+          font-size: 10px;
+        }
+        .topline a {
+          font-size: 12px;
+        }
+        header {
+          padding-top: 18px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+      }
+
+      /* A quiet field of instruments: warm paper, fine traces, colored modules. */
+      body {
+        background-image: radial-gradient(
+          ellipse at 15% 0%,
+          color-mix(in srgb, var(--teal) 5%, transparent),
+          transparent 52%
+        );
+      }
+      header {
+        padding-top: 30px;
+        padding-bottom: 22px;
+      }
+      h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 500;
+        font-size: clamp(30px, 3.5vw, 45px);
+        letter-spacing: -0.045em;
+        line-height: 1.15;
+        margin: 10px 0 14px;
+      }
+      .topline {
+        margin-bottom: 22px;
+      }
+      .topline > a {
+        text-decoration: none;
+        font-size: 12px;
+      }
+      .eyebrow {
+        color: var(--orange);
+        letter-spacing: 0.2em;
+        font-size: 10px;
+      }
+      header p {
+        max-width: 780px;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+      .specs {
+        gap: 0;
+        margin-top: 22px;
+        padding-top: 15px;
+        border-top: 1px solid var(--line);
+      }
+      .specs > span {
+        padding: 0 18px;
+        border-right: 1px solid var(--line);
+      }
+      .specs > span:first-child {
+        padding-left: 0;
+      }
+      .specs > span:last-child {
+        border: 0;
+      }
+      .specs b {
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+      }
+      .canvas-shell {
+        border-radius: 18px;
+        box-shadow: 0 12px 50px #172f3c08;
+      }
+      .views {
+        padding: 13px 18px;
+        gap: 14px;
+        align-items: center;
+      }
+      .views button {
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--tint);
+        border-radius: 6px;
+        color: var(--teal);
+      }
+      .views span {
+        font-size: 11px;
+        letter-spacing: 0.02em;
+      }
+      .toolbar {
+        background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+        padding: 10px 17px;
+      }
+      button {
+        transition:
+          background 0.18s,
+          border-color 0.18s,
+          transform 0.18s;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      .zoom button {
+        border-color: transparent;
+        background: transparent;
+      }
+      .zoom output {
+        min-width: 49px;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+      }
+      .breadcrumb {
+        min-height: 39px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+      }
+      .breadcrumb button {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .breadcrumb button:last-child {
+        color: var(--teal);
+        font-weight: 650;
+      }
+      .stage {
+        background-image:
+          radial-gradient(
+            ellipse at 25% 20%,
+            color-mix(in srgb, var(--teal) 4%, transparent),
+            transparent 65%
+          ),
+          radial-gradient(var(--grid) 0.7px, transparent 0.7px);
+        background-size:
+          100% 100%,
+          20px 20px;
+      }
+      .node > rect {
+        stroke-width: 1.2;
+        transition:
+          fill 0.25s,
+          stroke 0.25s,
+          stroke-width 0.25s;
+      }
+      .node > .summary .label {
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+      .node .sub {
+        font-weight: 400;
+        letter-spacing: 0.01em;
+      }
+      .node.attn > rect {
+        fill: color-mix(in srgb, var(--tint) 65%, var(--panel));
+      }
+      .node.ffn > rect {
+        fill: color-mix(in srgb, var(--violet) 60%, var(--panel));
+      }
+      .node.cache > rect {
+        fill: color-mix(in srgb, var(--warm) 75%, var(--panel));
+      }
+      .node.expanded > rect {
+        fill: color-mix(in srgb, var(--tint) 16%, var(--panel));
+        stroke: color-mix(in srgb, var(--teal) 24%, var(--line));
+      }
+      .node.ffn.expanded > rect {
+        fill: color-mix(in srgb, var(--violet) 22%, var(--panel));
+      }
+      .node.active > rect,
+      .node:focus-visible > rect {
+        stroke-width: 2;
+        stroke: var(--teal);
+      }
+      .node.dim {
+        opacity: 0.8;
+      }
+      .node {
+        transition: opacity 0.2s;
+      }
+      .node.active > .summary .label {
+        fill: var(--teal);
+      }
+      .node-signal {
+        fill: none;
+        stroke: var(--teal);
+        stroke-width: 2;
+        stroke-linecap: round;
+        vector-effect: non-scaling-stroke;
+        opacity: 0.55;
+      }
+      .ffn > .summary .node-signal {
+        stroke: var(--purple);
+      }
+      .cache > .summary .node-signal {
+        stroke: var(--orange);
+      }
+      .edge {
+        stroke-width: 1.25;
+        opacity: 0.5;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+        transition:
+          stroke 0.2s,
+          opacity 0.2s;
+      }
+      .edge.active {
+        stroke-width: 2;
+        opacity: 0.9;
+      }
+      .edge.residual {
+        stroke: var(--orange);
+        stroke-dasharray: 4 5;
+      }
+      .edge.residual.active {
+        stroke: var(--orange);
+      }
+      .edge-label {
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .playing .edge.active {
+        stroke-dasharray: 5 9;
+        animation: current-flow 1s linear infinite;
+      }
+      @keyframes current-flow {
+        to {
+          stroke-dashoffset: -28;
+        }
+      }
+      aside {
+        border-radius: 16px;
+        padding: 25px 24px;
+        box-shadow: 0 10px 35px #172f3c05;
+        border-top: 3px solid var(--teal);
+      }
+      aside h2 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 500;
+        font-size: 29px;
+        letter-spacing: -0.035em;
+      }
+      aside p {
+        line-height: 1.75;
+        font-size: 13px;
+      }
+      .tensor {
+        border: 0;
+        border-radius: 9px;
+        padding: 13px 14px;
+        background: color-mix(in srgb, var(--tint) 18%, var(--bg));
+        margin: 13px 0;
+      }
+      .tensor span {
+        font-size: 9px;
+        letter-spacing: 0.14em;
+      }
+      .tensor code {
+        font-size: 11px;
+      }
+      .formula {
+        border-left-color: var(--orange);
+        border-radius: 0 7px 7px 0;
+        line-height: 1.9;
+        font-size: 11px;
+        padding: 12px 14px;
+      }
+      .relation {
+        font-size: 11px;
+        line-height: 1.8;
+      }
+      .walkthrough {
+        background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+        padding: 16px 18px;
+      }
+      .trace-controls button {
+        font-size: 12px;
+        border-radius: 7px;
+      }
+      .trace-caption {
+        font-size: 12px;
+        line-height: 1.65;
+      }
+      .hint {
+        background: color-mix(in srgb, var(--panel) 85%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 5px 10px;
+        font-size: 10px;
+        left: 15px;
+        bottom: 13px;
+      }
+      @media (max-width: 740px) {
+        header {
+          padding-top: 18px;
+        }
+        .topline {
+          margin-bottom: 16px;
+        }
+        .specs {
+          gap: 9px 0;
+        }
+        .specs > span {
+          padding: 0 10px;
+        }
+        .specs > span:first-child {
+          padding-left: 10px;
+        }
+        .views {
+          gap: 8px;
+          padding: 10px;
+        }
+        .views span {
+          font-size: 10px;
+        }
+        aside {
+          padding: 20px;
+        }
+        .hint {
+          max-width: calc(100% - 30px);
+          border-radius: 8px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .playing .edge.active {
+          animation: none;
+        }
+        button,
+        .node,
+        .edge {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="topline">
+        <a href="../modules/01-transformer/">← Module 1</a
+        ><button id="theme" aria-label="Switch color theme">Dark mode</button>
+      </div>
+      <div class="eyebrow">Architecture explorer / LLaMA 3 8B</div>
+      <h1>Inside a decoder-only Transformer</h1>
+      <p>
+        Follow the activations and zoom into the architecture to reveal what
+        happens inside. One block stands for every layer; each layer has its own
+        weights.
+      </p>
+      <div class="specs">
+        <span><b>32</b> layers</span><span><b>4,096</b> hidden width</span
+        ><span><b>32 Q / 8 KV</b> heads</span><span><b>128</b> head width</span
+        ><span><b>14,336</b> MLP width</span
+        ><span><b>128,256</b> vocabulary</span>
+      </div>
+    </header>
+    <main>
+      <div class="workspace">
+        <section
+          class="canvas-shell"
+          aria-label="Interactive architecture diagram"
+        >
+          <div class="views">
+            <button id="home">Whole model</button
+            ><span>One canvas · zoom into a block to reveal its internals</span>
+          </div>
+          <div class="toolbar">
+            <label
+              >Forward pass
+              <select id="mode">
+                <option value="prefill">Prefill · 8 tokens</option>
+                <option value="decode">Decode · 1 new + 8 cached</option>
+              </select></label
+            ><label
+              ><input id="shapes" type="checkbox" checked /> Tensor
+              shapes</label
+            >
+            <div class="zoom">
+              <button id="zoom-out" aria-label="Zoom out">−</button
+              ><output id="zoom-value">100%</output
+              ><button id="zoom-in" aria-label="Zoom in">+</button
+              ><button id="fit">Fit</button>
+            </div>
+          </div>
+          <div class="breadcrumb" id="breadcrumb">Model</div>
+          <div class="stage" id="stage">
+            <svg
+              id="diagram"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-label="LLaMA 3 activation flow"
+            >
+              <defs>
+                <marker
+                  id="arrow"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="4.5"
+                  markerHeight="4.5"
+                  orient="auto"
+                >
+                  <path d="M0 0 10 5 0 10" fill="var(--muted)" />
+                </marker>
+                <marker
+                  id="arrow-active"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="4.5"
+                  markerHeight="4.5"
+                  orient="auto"
+                >
+                  <path d="M0 0 10 5 0 10" fill="var(--teal)" />
+                </marker>
+              </defs>
+              <g id="scene"></g>
+            </svg>
+            <div class="hint">
+              Scroll to zoom · drag to pan · double-click to zoom inside
+            </div>
+          </div>
+          <div class="walkthrough">
+            <div class="trace-controls">
+              <button class="primary" id="play">Play flow</button
+              ><button id="previous" aria-label="Previous activation step">
+                ←</button
+              ><button id="next" aria-label="Next activation step">→</button
+              ><label class="sr-only" for="trace">Activation step</label
+              ><input
+                id="trace"
+                type="range"
+                min="0"
+                max="5"
+                value="0"
+              /><output id="step-count"></output>
+            </div>
+            <p class="trace-caption" id="trace-caption" aria-live="polite"></p>
+          </div>
+        </section>
+        <aside aria-label="Element inspector">
+          <div class="eyebrow" id="inspect-kind">Inspect an element</div>
+          <h2 id="inspect-title">Token IDs</h2>
+          <p id="inspect-description"></p>
+          <div class="tensor">
+            <span>Input</span><code id="inspect-input"></code>
+          </div>
+          <div class="tensor">
+            <span>Output</span><code id="inspect-output"></code>
+          </div>
+          <div class="formula" id="inspect-formula"></div>
+          <div class="relation" id="inspect-relation"></div>
+          <button id="explore" hidden>Zoom inside →</button
+          ><button id="unpin" hidden>Unpin selection</button>
+          <p style="font-size: 11px">
+            Hover or focus any element to inspect it. Click to keep its
+            explanation visible.
+          </p>
+        </aside>
+      </div>
+      <div class="legend">
+        <span>Activation flow</span><span class="skip">Residual bypass</span
+        ><span class="outside">Outside the neural network</span>
+      </div>
+      <footer>
+        Architecture and shapes, not a numerical model run. B = batch, T = query
+        tokens, S = available context.
+        <a
+          href="https://github.com/meta-llama/llama3/blob/main/llama/model.py"
+          target="_blank"
+          rel="noopener"
+          >Meta reference implementation</a
+        ><a
+          href="https://huggingface.co/meta-llama/Meta-Llama-3-8B/blob/main/config.json"
+          target="_blank"
+          rel="noopener"
+          >8B configuration</a
+        >
+      </footer>
+    </main>
+    <script>
+      "use strict";
+      const $ = (id) => document.getElementById(id),
+        NS = "http://www.w3.org/2000/svg";
+      let view = "model",
+        mode = "prefill",
+        pinned = null,
+        selected = null,
+        step = 0,
+        timer = null,
+        camera = { x: 0, y: 0, scale: 1 },
+        fitScale = 1,
+        drag = null;
+      const tensor = () =>
+        mode === "prefill" ? "1 × 8 × 4096" : "1 × 1 × 4096";
+      const sharedKVShape = () =>
+        mode === "prefill" ? "1 × 32 × 8 × 128" : "1 × 32 × 9 × 128";
+      const qShape = () =>
+        mode === "prefill" ? "1 × 32 × 8 × 128" : "1 × 32 × 1 × 128";
+      const kvShape = () =>
+        mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 9 × 128";
+      const scoresShape = () =>
+        mode === "prefill" ? "1 × 32 × 8 × 8" : "1 × 32 × 1 × 9";
+      const ffnShape = () =>
+        mode === "prefill" ? "1 × 8 × 14336" : "1 × 1 × 14336";
+      const vocabShape = () =>
+        mode === "prefill" ? "1 × 8 × 128256" : "1 × 1 × 128256";
+      const info = {
+        tokens: [
+          "Input",
+          "Token IDs",
+          "The tokenizer turns text into integer vocabulary indices. Each position starts as one ID, not yet a learned vector.",
+          "Text, tokenized outside the network",
+          () => (mode === "prefill" ? "1 × 8 integer IDs" : "1 × 1 integer ID"),
+          "ids[b, t] ∈ {0, …, 128255}",
+        ],
+        embed: [
+          "Embedding",
+          "Token embedding",
+          "Look up one learned 4096-dimensional vector per token. Position is added later through RoPE inside attention.",
+          "B × T integer IDs",
+          tensor,
+          "X = embedding[ids]",
+        ],
+        decoder: [
+          "Repeated block",
+          "Decoder block ×32",
+          "Apply this block 32 times in sequence. The architecture repeats; the weights and KV cache are separate for each layer.",
+          tensor,
+          tensor,
+          "Xₗ₊₁ = blockₗ(Xₗ)",
+          "block",
+        ],
+        norm: [
+          "Normalization",
+          "Final RMSNorm",
+          "Normalize the final residual stream before predicting token scores. A learned scale acts on each feature.",
+          tensor,
+          tensor,
+          "Y = γ ⊙ X / √(mean(X²) + ε)",
+        ],
+        head: [
+          "Projection",
+          "Vocabulary projection",
+          "A bias-free linear map turns each hidden vector into 128256 vocabulary scores. LLaMA 3 uses separate embedding and output weights.",
+          tensor,
+          vocabShape,
+          "logits = Y W_vocab",
+        ],
+        logits: [
+          "Output",
+          "Next-token logits",
+          "One score per vocabulary entry at each position. During generation, use the final position to predict the next token.",
+          vocabShape,
+          vocabShape,
+          "logits[:, −1, :] → next-token scores",
+        ],
+        sample: [
+          "Generation",
+          "Choose the next token",
+          "Outside the Transformer: turn final-position logits into probabilities and sample, or choose the largest score. Append the new ID and run the model again.",
+          "1 × 128256 final-position logits",
+          "1 new token ID",
+          "probabilities = softmax(logits / temperature)",
+        ],
+        input: [
+          "Activation",
+          "Residual stream",
+          "Each token carries a vector of width 4096. This stream travels through all layers; attention and the MLP each add an update.",
+          tensor,
+          tensor,
+          "Xₗ ∈ ℝᴮˣᵀˣ⁴⁰⁹⁶",
+        ],
+        norm1: [
+          "Pre-normalization",
+          "Attention RMSNorm",
+          "Normalize each token independently before attention. The unchanged residual stream bypasses this operation.",
+          tensor,
+          tensor,
+          "U = RMSNorm(X)",
+        ],
+        attention: [
+          "Cross-token mixing",
+          "Grouped-query attention",
+          "Queries retrieve information from earlier positions. There are 32 query heads and 8 key/value heads: four queries share each KV head.",
+          tensor,
+          tensor,
+          "A = GQA(RMSNorm(X))",
+          "attention",
+        ],
+        add1: [
+          "Residual addition",
+          "Add the attention update",
+          "Add the attention output to the original, unnormalized stream. Both operands have the same shape.",
+          () => tensor() + " + " + tensor(),
+          tensor,
+          "H = X + Attention(RMSNorm(X))",
+        ],
+        norm2: [
+          "Pre-normalization",
+          "MLP RMSNorm",
+          "Normalize the updated stream before the feed-forward network. The residual bypass carries H directly to the second addition.",
+          tensor,
+          tensor,
+          "U = RMSNorm(H)",
+        ],
+        mlp: [
+          "Per-token transformation",
+          "SwiGLU MLP",
+          "Two parallel projections expand each token to 14336 features. A SiLU gate modulates the other branch, then a down projection restores width 4096.",
+          tensor,
+          tensor,
+          "MLP(U) = [SiLU(UW_gate) ⊙ UW_up]W_down",
+          "mlp",
+        ],
+        add2: [
+          "Residual addition",
+          "Add the MLP update",
+          "Add the MLP result to H. The next decoder layer receives the resulting residual stream.",
+          () => tensor() + " + " + tensor(),
+          tensor,
+          "Xₗ₊₁ = H + MLP(RMSNorm(H))",
+        ],
+        output: [
+          "Activation",
+          "To the next layer",
+          "This vector is the output of one decoder block. It becomes the next block’s input, or enters the final RMSNorm after layer 32.",
+          tensor,
+          tensor,
+          "Repeat the block with new layer weights",
+        ],
+        attInput: [
+          "Activation",
+          "Normalized attention input",
+          "The same normalized vector feeds three learned projections. Q and K decide where to look; V supplies the content.",
+          tensor,
+          tensor,
+          "U → W_Q, W_K, W_V",
+        ],
+        q: [
+          "Projection",
+          "Query heads",
+          "Project width 4096 to 32 query heads of width 128. Every query head forms its own attention distribution.",
+          tensor,
+          qShape,
+          "Q = reshape(U W_Q)",
+        ],
+        k: [
+          "Projection",
+          "Key heads",
+          "Project width 4096 to 8 key heads of width 128. These heads are shared by groups of four queries.",
+          tensor,
+          () => (mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 1 × 128"),
+          "K = reshape(U W_K)",
+        ],
+        v: [
+          "Projection",
+          "Value heads",
+          "Project to 8 value heads. Values carry the content that attention weights will combine. RoPE does not rotate values.",
+          tensor,
+          () => (mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 1 × 128"),
+          "V = reshape(U W_V)",
+        ],
+        ropeQ: [
+          "Position",
+          "RoPE on queries",
+          "Rotate pairs of query coordinates using their token position. This lets query–key dot products depend on relative position.",
+          qShape,
+          qShape,
+          "Qₜ ← R(t)Qₜ",
+        ],
+        ropeK: [
+          "Position",
+          "RoPE on keys",
+          "Apply the same positional rotation rule to keys, before they enter the cache. Query and key rotations work together.",
+          () => (mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 1 × 128"),
+          () => (mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 1 × 128"),
+          "Kₜ ← R(t)Kₜ",
+        ],
+        cache: [
+          "Inference state",
+          "Per-layer KV cache",
+          "Save rotated keys and unrotated values. Prefill writes the prompt; decode appends the new token and reads the earlier context. Queries are not cached.",
+          "New K and V",
+          () => kvShape() + " each for K and V",
+          "Prefill: S = 8 · Decode: S = 8 + 1",
+        ],
+        share: [
+          "Head sharing",
+          "4 queries per KV head",
+          "Map each group of four query heads to one key/value head. The cache keeps 8 KV heads, even though attention produces 32 query-head outputs.",
+          kvShape,
+          sharedKVShape,
+          "32 query heads / 8 KV heads = 4",
+        ],
+        scores: [
+          "Attention arithmetic",
+          "Query–key scores",
+          "For each query head, compare every query position against the available keys. Scale by √128 to control score magnitude.",
+          "Q and shared K",
+          scoresShape,
+          "scores = QKᵀ / √128",
+        ],
+        mask: [
+          "Causality",
+          "Causal mask",
+          "Block future positions by adding −∞ to their scores. During one-token decode, all cached positions and the current position are visible.",
+          scoresShape,
+          scoresShape,
+          "score[t, s] = −∞ when s > t",
+        ],
+        softmax: [
+          "Normalization",
+          "Attention probabilities",
+          "Softmax across key positions turns each score row into weights that sum to one.",
+          scoresShape,
+          scoresShape,
+          "P = softmax(scores + mask, axis=keys)",
+        ],
+        mix: [
+          "Cross-token mixing",
+          "Weighted value sum",
+          "Combine values using each query head’s probabilities. This is where information from different token positions is mixed.",
+          "Attention probabilities P and shared V",
+          qShape,
+          "Z = P V",
+        ],
+        concat: [
+          "Reshape",
+          "Concatenate heads",
+          "Join 32 head outputs of width 128 into one vector of width 4096 per token. This rearranges axes; it has no learned weights.",
+          qShape,
+          tensor,
+          "32 × 128 = 4096",
+        ],
+        wo: [
+          "Projection",
+          "Attention output projection",
+          "Mix head features with a learned 4096-by-4096 matrix. The result returns to the block’s first residual addition.",
+          tensor,
+          tensor,
+          "A = concat(heads) W_O",
+        ],
+        mlpInput: [
+          "Activation",
+          "Normalized MLP input",
+          "The second RMSNorm output enters both MLP branches. Each token is processed independently; no token mixing happens here.",
+          tensor,
+          tensor,
+          "U → W_gate and W_up",
+        ],
+        gate: [
+          "Projection",
+          "Gate projection",
+          "Expand from 4096 to 14336 features. This branch learns how strongly to pass the up-projection features.",
+          tensor,
+          ffnShape,
+          "G = U W_gate",
+        ],
+        up: [
+          "Projection",
+          "Up projection",
+          "A separate learned expansion provides the features modulated by the gate.",
+          tensor,
+          ffnShape,
+          "A = U W_up",
+        ],
+        silu: [
+          "Nonlinearity",
+          "SiLU gate",
+          "Apply a smooth nonlinear gate to the gate-projection output. SiLU is also called Swish.",
+          ffnShape,
+          ffnShape,
+          "SiLU(G) = G ⊙ sigmoid(G)",
+        ],
+        product: [
+          "Elementwise operation",
+          "Gated product",
+          "Multiply the two branches element by element. Both have width 14336; this is not a matrix multiplication.",
+          () => ffnShape() + " on both branches",
+          ffnShape,
+          "Z = SiLU(G) ⊙ A",
+        ],
+        down: [
+          "Projection",
+          "Down projection",
+          "Project the gated features back to width 4096. The output can now be added to the residual stream.",
+          ffnShape,
+          tensor,
+          "MLP(U) = Z W_down",
+        ],
+      };
+      // Coordinates are kept per level so a single representative block stays readable.
+      const node = (id, x, y, w = 300, h = 72, sub = "", kind = "") => ({
+        id,
+        x,
+        y,
+        w,
+        h,
+        sub,
+        kind,
+      });
+      const edge = (a, b, d, label = "", lx = 0, ly = 0, kind = "") => ({
+        a,
+        b,
+        d,
+        label,
+        lx,
+        ly,
+        kind,
+      });
+      const views = {
+        model: {
+          w: 770,
+          h: 965,
+          path: "Model",
+          nodes: [
+            node("tokens", 70, 30, 300, 72, "Integer vocabulary indices"),
+            node("embed", 70, 165, 300, 80, "128256 → 4096"),
+            node(
+              "decoder",
+              30,
+              310,
+              380,
+              140,
+              "GQA + SwiGLU · separate weights",
+              "attn",
+            ),
+            node("norm", 70, 520),
+            node("head", 70, 650, 300, 80, "4096 → 128256"),
+            node("logits", 70, 810),
+            node(
+              "sample",
+              510,
+              810,
+              240,
+              90,
+              "Outside the network",
+              "external",
+            ),
+          ],
+          edges: [
+            edge("tokens", "embed", "M220 102V165"),
+            edge("embed", "decoder", "M220 245V310", "B × T × 4096", 245, 278),
+            edge(
+              "decoder",
+              "norm",
+              "M220 450V520",
+              "32 layers in sequence",
+              250,
+              488,
+            ),
+            edge("norm", "head", "M220 592V650"),
+            edge("head", "logits", "M220 730V810", "B × T × 128256", 240, 777),
+            edge("logits", "sample", "M370 846H510"),
+          ],
+          steps: [
+            ["tokens"],
+            ["embed"],
+            ["decoder"],
+            ["norm"],
+            ["head"],
+            ["logits", "sample"],
+          ],
+        },
+        block: {
+          w: 1000,
+          h: 1030,
+          path: "Model / Decoder block ×32",
+          nodes: [
+            node("input", 350, 25),
+            node("norm1", 350, 155),
+            node(
+              "attention",
+              350,
+              285,
+              300,
+              90,
+              "32 query / 8 KV heads",
+              "attn",
+            ),
+            node("add1", 350, 435, 300, 65, "Residual + attention"),
+            node("norm2", 350, 565),
+            node("mlp", 350, 695, 300, 90, "14336 intermediate width", "ffn"),
+            node("add2", 350, 845, 300, 65, "Residual + MLP"),
+            node("output", 350, 955, 300, 60),
+          ],
+          edges: [
+            edge("input", "norm1", "M500 97V155"),
+            edge("norm1", "attention", "M500 227V285"),
+            edge("attention", "add1", "M500 375V435"),
+            edge(
+              "input",
+              "add1",
+              "M500 115H170V467H350",
+              "X bypass",
+              85,
+              300,
+              "residual",
+            ),
+            edge("add1", "norm2", "M500 500V565"),
+            edge("norm2", "mlp", "M500 637V695"),
+            edge("mlp", "add2", "M500 785V845"),
+            edge(
+              "add1",
+              "add2",
+              "M500 525H830V877H650",
+              "H bypass",
+              850,
+              705,
+              "residual",
+            ),
+            edge("add2", "output", "M500 910V955"),
+          ],
+          steps: [
+            ["input"],
+            ["norm1"],
+            ["attention"],
+            ["add1"],
+            ["norm2"],
+            ["mlp"],
+            ["add2"],
+            ["output"],
+          ],
+        },
+        attention: {
+          w: 1100,
+          h: 1190,
+          path: "Model / Decoder block / Grouped-query attention",
+          nodes: [
+            node("attInput", 410, 20, 280, 72),
+            node("q", 60, 155, 260, 80, "32 × 128"),
+            node("k", 420, 155, 260, 80, "8 × 128"),
+            node("v", 780, 155, 260, 80, "8 × 128"),
+            node("ropeQ", 60, 300, 260, 70),
+            node("ropeK", 420, 300, 260, 70),
+            node("cache", 770, 310, 280, 100, "8 heads · K and V", "cache"),
+            node(
+              "share",
+              560,
+              485,
+              420,
+              75,
+              "One KV head serves four Q heads",
+              "attn",
+            ),
+            node("scores", 60, 485, 300, 85, "QKᵀ / √128"),
+            node("mask", 60, 655, 300, 70),
+            node("softmax", 60, 800, 300, 70),
+            node("mix", 560, 800, 300, 70, "Probabilities × values", "attn"),
+            node("concat", 560, 945, 300, 70),
+            node("wo", 560, 1090, 300, 80, "Back to residual addition"),
+          ],
+          edges: [
+            edge("attInput", "q", "M550 92V120H190V155"),
+            edge("attInput", "k", "M550 92V155"),
+            edge("attInput", "v", "M550 120H910V155"),
+            edge("q", "ropeQ", "M190 235V300"),
+            edge("k", "ropeK", "M550 235V300"),
+            edge("v", "cache", "M910 235V310"),
+            edge("ropeK", "cache", "M680 335H770", "K", 715, 323),
+            edge("cache", "share", "M910 410V450H770V485"),
+            edge("ropeQ", "scores", "M190 370V485", "Q", 210, 435),
+            edge("share", "scores", "M560 525H360", "K", 460, 512),
+            edge("scores", "mask", "M210 570V655"),
+            edge("mask", "softmax", "M210 725V800"),
+            edge("softmax", "mix", "M360 835H560", "P", 460, 822),
+            edge("share", "mix", "M980 525H1050V835H860", "V", 1020, 690),
+            edge("mix", "concat", "M710 870V945"),
+            edge("concat", "wo", "M710 1015V1090"),
+          ],
+          steps: [
+            ["attInput"],
+            ["q", "k", "v"],
+            ["ropeQ", "ropeK"],
+            ["cache"],
+            ["share"],
+            ["scores"],
+            ["mask"],
+            ["softmax"],
+            ["mix"],
+            ["concat"],
+            ["wo"],
+          ],
+        },
+        mlp: {
+          w: 1000,
+          h: 880,
+          path: "Model / Decoder block / SwiGLU MLP",
+          nodes: [
+            node("mlpInput", 350, 30),
+            node("gate", 80, 190, 300, 80, "4096 → 14336", "ffn"),
+            node("up", 620, 190, 300, 80, "4096 → 14336", "ffn"),
+            node("silu", 80, 360, 300, 80, "G ⊙ sigmoid(G)", "ffn"),
+            node("product", 350, 540, 300, 85, "Elementwise multiply", "ffn"),
+            node("down", 350, 745, 300, 90, "14336 → 4096", "ffn"),
+          ],
+          edges: [
+            edge("mlpInput", "gate", "M500 102V145H230V190"),
+            edge("mlpInput", "up", "M500 145H770V190"),
+            edge("gate", "silu", "M230 270V360"),
+            edge("silu", "product", "M230 440V582H350"),
+            edge("up", "product", "M770 270V582H650"),
+            edge("product", "down", "M500 625V745", "B × T × 14336", 520, 691),
+          ],
+          steps: [
+            ["mlpInput"],
+            ["gate", "up"],
+            ["silu"],
+            ["product"],
+            ["down"],
+          ],
+        },
+      };
+      const value = (v) => (typeof v === "function" ? v() : v);
+      function svg(tag, attrs, text) {
+        const el = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+        if (text !== undefined) el.textContent = text;
+        return el;
+      }
+      // Every level lives inside its parent node in the same world coordinates.
+      // Only its drawing detail changes with the number of pixels available.
+      const placements = { model: { x: 0, y: 0, scale: 1, depth: 0 } };
+      const owners = {};
+      function placeChildren(key) {
+        const p = placements[key];
+        for (const n of views[key].nodes) {
+          owners[n.id] = key;
+          const child = info[n.id][6];
+          if (!child) continue;
+          const data = views[child];
+          const scale = Math.min((n.w - 24) / data.w, (n.h - 24) / data.h);
+          placements[child] = {
+            x: p.x + (n.x + (n.w - data.w * scale) / 2) * p.scale,
+            y: p.y + (n.y + (n.h - data.h * scale) / 2) * p.scale,
+            scale: p.scale * scale,
+            depth: p.depth + 1,
+            parent: key,
+            node: n,
+          };
+          placeChildren(child);
+        }
+      }
+      placeChildren("model");
+      let visibleGraphs = [],
+        activeIds = [],
+        inspectOwner = "model";
+      const stage = $("stage");
+      function inspect(id, owner = owners[id]) {
+        const changed = selected !== id;
+        selected = id;
+        inspectOwner = owner;
+        if (changed && !reducedMotion.matches)
+          $("inspect-title").animate(
+            [
+              { opacity: 0.4, transform: "translateY(3px)" },
+              { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: 180, easing: "ease-out" },
+          );
+        document.querySelector("aside").dataset.family = owner;
+        const d = info[id];
+        $("inspect-kind").textContent =
+          d[0] + (pinned === id ? " · pinned" : "");
+        $("inspect-title").textContent = d[1];
+        $("inspect-description").textContent = d[2];
+        $("inspect-input").textContent = value(d[3]);
+        $("inspect-output").textContent = value(d[4]);
+        $("inspect-formula").textContent = d[5];
+        const es = views[owner].edges;
+        const ins = es.filter((e) => e.b === id).map((e) => info[e.a][1]);
+        const outs = es.filter((e) => e.a === id).map((e) => info[e.b][1]);
+        $("inspect-relation").textContent =
+          (ins.length ? "Receives from: " + ins.join(", ") + ". " : "") +
+          (outs.length ? "Sends to: " + outs.join(", ") + "." : "");
+        $("explore").hidden = !d[6];
+        $("explore").textContent = "Zoom inside →";
+        $("explore").onclick = () => focusGraph(d[6]);
+        $("unpin").hidden = !pinned;
+        highlight([id]);
+      }
+      function highlight(ids) {
+        activeIds = ids;
+        const related = new Set(ids);
+        for (const e of views[inspectOwner].edges) {
+          if (ids.includes(e.a) || ids.includes(e.b)) {
+            related.add(e.a);
+            related.add(e.b);
+          }
+        }
+        document.querySelectorAll(".node").forEach((n) => {
+          n.classList.toggle("active", ids.includes(n.dataset.id));
+          n.classList.toggle(
+            "dim",
+            n.dataset.level === inspectOwner &&
+              n.dataset.expanded !== "true" &&
+              !related.has(n.dataset.id),
+          );
+        });
+        document
+          .querySelectorAll(".edge")
+          .forEach((p) =>
+            p.classList.toggle(
+              "active",
+              ids.includes(p.dataset.from) || ids.includes(p.dataset.to),
+            ),
+          );
+      }
+      function isVisible(p, data) {
+        const r = stage.getBoundingClientRect();
+        const x = camera.x + p.x * camera.scale,
+          y = camera.y + p.y * camera.scale;
+        return (
+          x < r.width &&
+          y < r.height &&
+          x + data.w * p.scale * camera.scale > 0 &&
+          y + data.h * p.scale * camera.scale > 0
+        );
+      }
+      const nodeElements = new Map();
+      let sceneBuilt = false;
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      let cameraTarget = { ...camera },
+        cameraFrame = 0,
+        lastFrame = 0;
+      // Round the elbows without changing the graph's connection points.
+      function roundedPath(path) {
+        const tokens = path.match(/[MLHV]|-?\d+(?:\.\d+)?/g),
+          points = [];
+        let x = 0,
+          y = 0,
+          i = 0;
+        while (i < tokens.length) {
+          const command = tokens[i++];
+          if (command === "M" || command === "L") {
+            x = Number(tokens[i++]);
+            y = Number(tokens[i++]);
+          } else if (command === "H") x = Number(tokens[i++]);
+          else if (command === "V") y = Number(tokens[i++]);
+          points.push([x, y]);
+        }
+        let d = `M${points[0].join(" ")}`;
+        for (let j = 1; j < points.length - 1; j++) {
+          const a = points[j - 1],
+            b = points[j],
+            c = points[j + 1];
+          const ab = Math.hypot(b[0] - a[0], b[1] - a[1]),
+            bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+          if (!ab || !bc) continue;
+          const r = Math.min(10, ab / 2, bc / 2);
+          const before = [
+            b[0] + ((a[0] - b[0]) * r) / ab,
+            b[1] + ((a[1] - b[1]) * r) / ab,
+          ];
+          const after = [
+            b[0] + ((c[0] - b[0]) * r) / bc,
+            b[1] + ((c[1] - b[1]) * r) / bc,
+          ];
+          d += `L${before.join(" ")}Q${b.join(" ")} ${after.join(" ")}`;
+        }
+        return d + `L${points[points.length - 1].join(" ")}`;
+      }
+      function drawGraph(key, container) {
+        const data = views[key],
+          p = placements[key];
+        for (const e of data.edges) {
+          container.append(
+            svg("path", {
+              d: roundedPath(e.d),
+              class: "edge " + e.kind,
+              "data-from": e.a,
+              "data-to": e.b,
+            }),
+          );
+          if (e.label && ($("shapes").checked || !e.label.startsWith("B ×")))
+            container.append(
+              svg(
+                "text",
+                { x: e.lx, y: e.ly, class: "edge-label " + e.kind },
+                e.label,
+              ),
+            );
+        }
+        for (const n of data.nodes) {
+          const d = info[n.id],
+            child = d[6];
+          const g = svg("g", {
+            class: "node " + n.kind,
+            transform: `translate(${n.x} ${n.y})`,
+            tabindex: 0,
+            role: "button",
+            "aria-label": d[1] + (child ? "; zoom inside" : ""),
+            "data-id": n.id,
+            "data-level": key,
+            "data-expanded": "false",
+          });
+          g.append(svg("rect", { width: n.w, height: n.h, rx: 12 }));
+          const summary = svg("g", { class: "summary" });
+          const title = d[1]
+            .replace("Grouped-query attention", "GQA attention")
+            .replace("Vocabulary projection", "LM head")
+            .replace("Attention RMSNorm", "RMSNorm")
+            .replace("MLP RMSNorm", "RMSNorm")
+            .replace("Add the attention update", "Add +")
+            .replace("Add the MLP update", "Add +")
+            .replace("Normalized attention input", "Normalized input")
+            .replace("Per-layer KV cache", "KV cache")
+            .replace("Attention probabilities", "Softmax")
+            .replace("Attention output projection", "Output projection")
+            .replace("Normalized MLP input", "Normalized input");
+          summary.append(
+            svg("path", {
+              class: "node-signal",
+              d: child ? "M14 15H29M14 20H23" : "M14 15H27",
+            }),
+          );
+          const text = (label, y, cls, size, max) => {
+            const t = svg(
+              "text",
+              {
+                x: n.w / 2,
+                y,
+                "text-anchor": "middle",
+                class: cls,
+                "data-size": size,
+                "data-max": max,
+              },
+              label,
+            );
+            summary.append(t);
+          };
+          text(title, n.sub ? 30 : 31, "label", 21, 30);
+          if (n.sub) text(n.sub, 54, "sub", 15, 20);
+          if (child) text("Zoom to reveal ↗", n.h - 15, "drill", 13, 18);
+          if ($("shapes").checked && !child && n.h >= 70 && !n.sub)
+            text(value(d[4]), 55, "shape", 14, 19);
+          g.append(summary);
+          let detail = null;
+          if (child) {
+            const cp = placements[child],
+              cd = views[child],
+              cs = cp.scale / p.scale;
+            const cx = (cp.x - p.x) / p.scale - n.x,
+              cy = (cp.y - p.y) / p.scale - n.y;
+            const first = cd.nodes[0],
+              last = cd.nodes[cd.nodes.length - 1];
+            detail = svg("g", {
+              class: "detail",
+              opacity: 0,
+              "pointer-events": "none",
+            });
+            detail.append(
+              svg("path", {
+                class: "edge",
+                d: `M${n.w / 2} 0L${cx + (first.x + first.w / 2) * cs} ${cy + first.y * cs}`,
+              }),
+            );
+            detail.append(
+              svg("path", {
+                class: "edge",
+                d: `M${cx + (last.x + last.w / 2) * cs} ${cy + (last.y + last.h) * cs}L${n.w / 2} ${n.h}`,
+              }),
+            );
+            const inside = svg("g", {
+              transform: `translate(${cx} ${cy}) scale(${cs})`,
+            });
+            drawGraph(child, inside);
+            detail.append(inside);
+            g.append(detail);
+          }
+          nodeElements.set(n.id, {
+            g,
+            summary,
+            detail,
+            child,
+            key,
+            texts: [...summary.querySelectorAll("text")],
+          });
+          g.addEventListener("pointerenter", () => {
+            if (
+              g.dataset.expanded !== "true" &&
+              !pinned &&
+              !timer &&
+              !drag &&
+              !cameraFrame
+            )
+              inspect(n.id, key);
+          });
+          g.addEventListener("focus", (e) => {
+            if (e.target === g && !pinned) inspect(n.id, key);
+          });
+          g.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (drag?.moved || g.dataset.expanded === "true") return;
+            pause();
+            pinned = pinned === n.id ? null : n.id;
+            inspect(n.id, key);
+          });
+          g.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
+            if (child) focusGraph(child);
+            else focusNode(n, key);
+          });
+          g.addEventListener("keydown", (e) => {
+            if (e.target !== g) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              pinned = n.id;
+              inspect(n.id, key);
+            }
+            if (e.key === "ArrowRight" && child) {
+              e.preventDefault();
+              focusGraph(child);
+            }
+          });
+          container.append(g);
+        }
+      }
+      function buildScene() {
+        nodeElements.clear();
+        $("scene").replaceChildren();
+        drawGraph("model", $("scene"));
+        sceneBuilt = true;
+      }
+      function updateDetail() {
+        visibleGraphs = ["model"];
+        // Draw once. Only transforms, type size and opacity change during zoom.
+        const levels = { model: 1 };
+        for (const key of ["block", "attention", "mlp"]) {
+          const p = placements[key],
+            t = Math.max(
+              0,
+              Math.min(
+                1,
+                Math.log((camera.scale * p.scale) / 0.18) /
+                  Math.log(0.34 / 0.18),
+              ),
+            );
+          levels[key] = t * t * (3 - 2 * t);
+          if (
+            levels[key] > 0.6 &&
+            levels[p.parent] > 0.6 &&
+            isVisible(p, views[key])
+          )
+            visibleGraphs.push(key);
+        }
+        for (const record of nodeElements.values()) {
+          const { g, summary, detail, child, key, texts } = record,
+            effective = camera.scale * placements[key].scale;
+          const progress = child ? levels[child] : 0;
+          g.dataset.expanded = String(progress > 0.6);
+          g.classList.toggle("expanded", progress > 0.6);
+          summary.setAttribute("opacity", 1 - progress);
+          summary.style.pointerEvents = progress > 0.6 ? "none" : "auto";
+          g.setAttribute("tabindex", levels[key] > 0.6 ? "0" : "-1");
+          if (detail) {
+            detail.setAttribute("opacity", progress);
+            detail.style.pointerEvents = progress > 0.6 ? "auto" : "none";
+            detail.setAttribute("aria-hidden", String(progress <= 0.6));
+          }
+          for (const text of texts)
+            text.style.fontSize =
+              Math.min(
+                Number(text.dataset.size),
+                Number(text.dataset.max) / effective,
+              ) + "px";
+        }
+      }
+      function moveCamera(next, immediate = false) {
+        cameraTarget = { ...next };
+        if (immediate || reducedMotion.matches) {
+          cancelAnimationFrame(cameraFrame);
+          cameraFrame = 0;
+          camera = { ...next };
+          render();
+          return;
+        }
+        if (!cameraFrame) {
+          lastFrame = performance.now();
+          cameraFrame = requestAnimationFrame(animateCamera);
+        }
+      }
+      function animateCamera(now) {
+        const r = stage.getBoundingClientRect(),
+          dt = Math.min(40, now - lastFrame);
+        lastFrame = now;
+        const fraction = 1 - Math.exp(-dt / 85);
+        const cx = (r.width / 2 - camera.x) / camera.scale,
+          cy = (r.height / 2 - camera.y) / camera.scale;
+        const tx = (r.width / 2 - cameraTarget.x) / cameraTarget.scale,
+          ty = (r.height / 2 - cameraTarget.y) / cameraTarget.scale;
+        const scale = Math.exp(
+          Math.log(camera.scale) +
+            (Math.log(cameraTarget.scale) - Math.log(camera.scale)) * fraction,
+        );
+        camera = {
+          scale,
+          x: r.width / 2 - (cx + (tx - cx) * fraction) * scale,
+          y: r.height / 2 - (cy + (ty - cy) * fraction) * scale,
+        };
+        const settled =
+          Math.abs(Math.log(scale / cameraTarget.scale)) < 0.0005 &&
+          Math.abs(camera.x - cameraTarget.x) < 0.15 &&
+          Math.abs(camera.y - cameraTarget.y) < 0.15;
+        if (settled) camera = { ...cameraTarget };
+        render();
+        cameraFrame = settled ? 0 : requestAnimationFrame(animateCamera);
+      }
+      function updateContext() {
+        const r = stage.getBoundingClientRect();
+        const x = (r.width / 2 - camera.x) / camera.scale,
+          y = (r.height / 2 - camera.y) / camera.scale;
+        let next = "model";
+        for (const key of visibleGraphs) {
+          const p = placements[key],
+            d = views[key];
+          if (
+            x >= p.x &&
+            x <= p.x + d.w * p.scale &&
+            y >= p.y &&
+            y <= p.y + d.h * p.scale &&
+            p.depth >= placements[next].depth
+          )
+            next = key;
+        }
+        if (next !== view) {
+          pause();
+          view = next;
+          step = 0;
+          pinned = null;
+          showStep(0);
+        }
+        const chain = [];
+        let key = view;
+        while (key) {
+          chain.unshift(key);
+          key = placements[key].parent;
+        }
+        if ($("breadcrumb").dataset.level === view) return;
+        $("breadcrumb").dataset.level = view;
+        $("breadcrumb").replaceChildren();
+        chain.forEach((key, i) => {
+          if (i) $("breadcrumb").append(" › ");
+          const b = document.createElement("button");
+          b.textContent =
+            key === "model"
+              ? "Model"
+              : key === "block"
+                ? "Decoder block ×32"
+                : key === "attention"
+                  ? "Attention"
+                  : "SwiGLU";
+          b.onclick = () => focusGraph(key);
+          $("breadcrumb").append(b);
+        });
+      }
+      function render() {
+        if (!sceneBuilt) buildScene();
+        updateDetail();
+        $("scene").setAttribute(
+          "transform",
+          `translate(${camera.x} ${camera.y}) scale(${camera.scale})`,
+        );
+        $("zoom-value").textContent =
+          (camera.scale / fitScale).toFixed(1) + "×";
+        updateContext();
+        highlight(activeIds);
+      }
+      function focusGraph(key, immediate = false) {
+        pause();
+        pinned = null;
+        const r = stage.getBoundingClientRect(),
+          p = placements[key],
+          d = views[key];
+        const scale = Math.min(
+          (r.width - 30) / (d.w * p.scale),
+          (r.height - 45) / (d.h * p.scale),
+        );
+        moveCamera(
+          {
+            x: r.width / 2 - (p.x + (d.w * p.scale) / 2) * scale,
+            y: r.height / 2 - (p.y + (d.h * p.scale) / 2) * scale,
+            scale,
+          },
+          immediate,
+        );
+      }
+      function fit() {
+        focusGraph(view);
+      }
+      function home() {
+        focusGraph("model");
+      }
+      function zoom(factor, cx, cy) {
+        const r = stage.getBoundingClientRect();
+        cx ??= r.width / 2;
+        cy ??= r.height / 2;
+        const base = cameraTarget,
+          scale = Math.max(
+            fitScale * 0.65,
+            Math.min(fitScale * 1000, base.scale * factor),
+          ),
+          ratio = scale / base.scale;
+        moveCamera({
+          x: cx - (cx - base.x) * ratio,
+          y: cy - (cy - base.y) * ratio,
+          scale,
+        });
+      }
+      function focusNode(n, key) {
+        const r = stage.getBoundingClientRect(),
+          p = placements[key];
+        const scale = Math.min(
+          r.width / ((n.w + 100) * p.scale),
+          r.height / ((n.h + 160) * p.scale),
+        );
+        moveCamera({
+          x: r.width / 2 - (p.x + (n.x + n.w / 2) * p.scale) * scale,
+          y: r.height / 2 - (p.y + (n.y + n.h / 2) * p.scale) * scale,
+          scale,
+        });
+      }
+      function showStep(i) {
+        step = Math.max(0, Math.min(views[view].steps.length - 1, Number(i)));
+        const ids = views[view].steps[step];
+        pinned = null;
+        inspect(ids[0], view);
+        highlight(ids);
+        $("trace").max = views[view].steps.length - 1;
+        $("trace").value = step;
+        $("step-count").textContent =
+          step + 1 + " / " + views[view].steps.length;
+        $("previous").disabled = step === 0;
+        $("next").disabled = step === views[view].steps.length - 1;
+        $("trace-caption").replaceChildren();
+        const b = document.createElement("b");
+        b.textContent = ids.map((id) => info[id][1]).join(" + ");
+        $("trace-caption").append(
+          b,
+          document.createTextNode(" — " + info[ids[0]][2]),
+        );
+      }
+      function pause() {
+        if (timer) clearInterval(timer);
+        timer = null;
+        stage.classList.remove("playing");
+        $("play").textContent = "Play flow";
+      }
+      $("play").onclick = () => {
+        if (timer) {
+          pause();
+          return;
+        }
+        if (step === views[view].steps.length - 1) showStep(0);
+        stage.classList.add("playing");
+        $("play").textContent = "Pause";
+        timer = setInterval(() => {
+          if (step < views[view].steps.length - 1) showStep(step + 1);
+          else pause();
+        }, 1500);
+      };
+      $("previous").onclick = () => {
+        pause();
+        showStep(step - 1);
+      };
+      $("next").onclick = () => {
+        pause();
+        showStep(step + 1);
+      };
+      $("trace").oninput = (e) => {
+        pause();
+        showStep(e.target.value);
+      };
+      $("mode").onchange = (e) => {
+        mode = e.target.value;
+        buildScene();
+        render();
+        inspect(selected || views[view].nodes[0].id);
+      };
+      $("shapes").onchange = () => {
+        buildScene();
+        render();
+        inspect(selected);
+      };
+      $("unpin").onclick = () => {
+        pinned = null;
+        inspect(selected);
+      };
+      $("home").onclick = home;
+      $("fit").onclick = fit;
+      $("zoom-in").onclick = () => zoom(1.4);
+      $("zoom-out").onclick = () => zoom(1 / 1.4);
+      stage.addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+          const r = stage.getBoundingClientRect();
+          zoom(
+            Math.exp(-e.deltaY * 0.0025),
+            e.clientX - r.left,
+            e.clientY - r.top,
+          );
+        },
+        { passive: false },
+      );
+      stage.addEventListener("pointerdown", (e) => {
+        const target = e.target.closest(".node");
+        if (e.button !== 0 || (target && target.dataset.expanded !== "true"))
+          return;
+        cancelAnimationFrame(cameraFrame);
+        cameraFrame = 0;
+        cameraTarget = { ...camera };
+        drag = {
+          x: e.clientX,
+          y: e.clientY,
+          ox: camera.x,
+          oy: camera.y,
+          moved: false,
+        };
+        stage.setPointerCapture(e.pointerId);
+      });
+      stage.addEventListener("pointermove", (e) => {
+        if (!drag) return;
+        drag.moved = true;
+        moveCamera(
+          {
+            ...camera,
+            x: drag.ox + e.clientX - drag.x,
+            y: drag.oy + e.clientY - drag.y,
+          },
+          true,
+        );
+      });
+      stage.addEventListener("pointerup", () => {
+        drag = null;
+      });
+      stage.addEventListener("pointercancel", () => {
+        drag = null;
+      });
+      const initialTheme =
+        localStorage.getItem("decoder-theme") ||
+        (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");
+      function theme(t) {
+        document.documentElement.dataset.theme = t;
+        $("theme").textContent = t === "dark" ? "Light mode" : "Dark mode";
+      }
+      theme(initialTheme);
+      $("theme").onclick = () => {
+        const t =
+          document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        theme(t);
+        localStorage.setItem("decoder-theme", t);
+      };
+      new ResizeObserver(() => {
+        const r = stage.getBoundingClientRect();
+        fitScale = Math.min(
+          (r.width - 30) / views.model.w,
+          (r.height - 45) / views.model.h,
+        );
+        focusGraph(view, true);
+        if (!selected) showStep(0);
+      }).observe(stage);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) pause();
+      });
+    </script>
+  </body>
+</html>

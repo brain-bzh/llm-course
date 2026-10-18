@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 290" role="img" aria-labelledby="title desc">
+  <title id="title">MHA, GQA and MQA: sharing key and value heads</title>
+  <desc id="desc">All three variants have four query heads. MHA gives each query its own key-value pair. GQA shares each of two key-value pairs between two queries. MQA shares one key-value pair across all four queries.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-anchor:middle}
+      .panel{fill:#f3f7fa;stroke:#d8e2e8;stroke-width:1.5}
+      .heading{fill:#10233f;font-size:25px;font-weight:700}
+      .label{fill:#10233f;font-size:19px;font-weight:600}
+      .note{fill:#526476;font-size:18px}
+      .query{fill:#e2f4f4;stroke:#007f86;stroke-width:1.5}
+      .kv{fill:#ffede5;stroke:#c16c46;stroke-width:1.5}
+      .flow{fill:none;stroke:#68798a;stroke-width:2;marker-end:url(#arrow)}
+      @media(prefers-color-scheme:dark){.panel{fill:#182534;stroke:#2c4052}.heading,.label{fill:#f3f7fa}.note{fill:#b9c8d5}.query{fill:#173b40;stroke:#54d2d8}.kv{fill:#493025;stroke:#ed9c78}}
+    </style>
+  </defs>
+  <g transform="translate(12 0)">
+    <rect class="panel" x="0" y="12" width="304" height="266" rx="12"/>
+    <text class="heading" x="152" y="48">MHA</text>
+    <text class="note" x="152" y="77">4 KV heads</text>
+    <path class="flow" d="M50 190L50 143"/>
+    <path class="flow" d="M118 190L118 143"/>
+    <path class="flow" d="M186 190L186 143"/>
+    <path class="flow" d="M254 190L254 143"/>
+    <rect class="kv" x="23" y="105" width="54" height="36" rx="6"/><text class="label" x="50" y="129">K/V</text>
+    <rect class="kv" x="91" y="105" width="54" height="36" rx="6"/><text class="label" x="118" y="129">K/V</text>
+    <rect class="kv" x="159" y="105" width="54" height="36" rx="6"/><text class="label" x="186" y="129">K/V</text>
+    <rect class="kv" x="227" y="105" width="54" height="36" rx="6"/><text class="label" x="254" y="129">K/V</text>
+    <rect class="query" x="25" y="192" width="50" height="36" rx="6"/><text class="label" x="50" y="216">Q1</text>
+    <rect class="query" x="93" y="192" width="50" height="36" rx="6"/><text class="label" x="118" y="216">Q2</text>
+    <rect class="query" x="161" y="192" width="50" height="36" rx="6"/><text class="label" x="186" y="216">Q3</text>
+    <rect class="query" x="229" y="192" width="50" height="36" rx="6"/><text class="label" x="254" y="216">Q4</text>
+    <text class="note" x="152" y="258">KV cache: 1×</text>
+  </g>
+  <g transform="translate(328 0)">
+    <rect class="panel" x="0" y="12" width="304" height="266" rx="12"/>
+    <text class="heading" x="152" y="48">GQA</text>
+    <text class="note" x="152" y="77">2 KV heads</text>
+    <path class="flow" d="M50 190L84 143"/>
+    <path class="flow" d="M118 190L84 143"/>
+    <path class="flow" d="M186 190L220 143"/>
+    <path class="flow" d="M254 190L220 143"/>
+    <rect class="kv" x="57" y="105" width="54" height="36" rx="6"/><text class="label" x="84" y="129">K/V</text>
+    <rect class="kv" x="193" y="105" width="54" height="36" rx="6"/><text class="label" x="220" y="129">K/V</text>
+    <rect class="query" x="25" y="192" width="50" height="36" rx="6"/><text class="label" x="50" y="216">Q1</text>
+    <rect class="query" x="93" y="192" width="50" height="36" rx="6"/><text class="label" x="118" y="216">Q2</text>
+    <rect class="query" x="161" y="192" width="50" height="36" rx="6"/><text class="label" x="186" y="216">Q3</text>
+    <rect class="query" x="229" y="192" width="50" height="36" rx="6"/><text class="label" x="254" y="216">Q4</text>
+    <text class="note" x="152" y="258">KV cache: ½×</text>
+  </g>
+  <g transform="translate(644 0)">
+    <rect class="panel" x="0" y="12" width="304" height="266" rx="12"/>
+    <text class="heading" x="152" y="48">MQA</text>
+    <text class="note" x="152" y="77">1 KV head</text>
+    <path class="flow" d="M50 190L152 143"/>
+    <path class="flow" d="M118 190L152 143"/>
+    <path class="flow" d="M186 190L152 143"/>
+    <path class="flow" d="M254 190L152 143"/>
+    <rect class="kv" x="125" y="105" width="54" height="36" rx="6"/><text class="label" x="152" y="129">K/V</text>
+    <rect class="query" x="25" y="192" width="50" height="36" rx="6"/><text class="label" x="50" y="216">Q1</text>
+    <rect class="query" x="93" y="192" width="50" height="36" rx="6"/><text class="label" x="118" y="216">Q2</text>
+    <rect class="query" x="161" y="192" width="50" height="36" rx="6"/><text class="label" x="186" y="216">Q3</text>
+    <rect class="query" x="229" y="192" width="50" height="36" rx="6"/><text class="label" x="254" y="216">Q4</text>
+    <text class="note" x="152" y="258">KV cache: ¼×</text>
+  </g>
+</svg>
