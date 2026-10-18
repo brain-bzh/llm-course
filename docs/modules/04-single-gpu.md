@@ -156,68 +156,217 @@ bandwidth- or latency-bound even though its large-batch form is compute-bound.
 
 ## Training memory: what occupies VRAM?
 
-Peak allocated memory is not just model weights:
+Training memory has two main components: **model state**, which scales with
+parameter count, and **activations**, which grow with batch and sequence length.
+Temporary workspaces add to the peak.
+
+### 1. Model state: parameters, gradients, and optimizer states
+
+For mixed-precision AdamW, use this standard budget for $N$ parameters:
+
+| State | Dtype | Bytes/parameter |
+| --- | --- | ---: |
+| Forward weights | BF16 / FP16 | 2 |
+| Gradients | BF16 / FP16 | 2 |
+| Master weights | FP32 | 4 |
+| Adam first moment | FP32 | 4 |
+| Adam second moment | FP32 | 4 |
+| **Total** | | **16** |
+
+Thus model state takes approximately **$16N$ bytes**. FP32 gradients raise
+this to $18N$ bytes. The exact layout depends on the training implementation,
+but $16N$ is a useful planning estimate.
+
+### 2. Dynamic memory: activation accounting per layer
+
+Let $B$ be the **resident micro-batch**, $T$ the sequence length, $d$ the hidden
+width, $h$ the number of attention heads, and $L$ the layer count. Consider
+ordinary multi-head attention and a two-linear-layer GELU MLP of width $4d$.
+
+Assume standard unfused attention with dropout, 16-bit activations and
+one-byte dropout masks. We count the main tensors saved for backward
+([Korthikanti et al., Section 4.1](https://arxiv.org/abs/2205.05198)):
+
+| Saved tensors | Bytes per layer |
+| --- | ---: |
+| Two normalization inputs | $4BTd$ |
+| Shared input to Q/K/V projections, counted once | $2BTd$ |
+| Q, K, V for attention backward | $6BTd$ |
+| Softmax probabilities and attention-dropout output | $4BhT^2$ |
+| Attention-dropout mask | $BhT^2$ |
+| Output-projection input and residual-dropout mask | $3BTd$ |
+| MLP up-projection input | $2BTd$ |
+| GELU input and down-projection input | $16BTd$ |
+| MLP residual-dropout mask | $BTd$ |
+| **Total** | **$34BTd + 5BhT^2$** |
+
+Softmax backward needs the probabilities, not the pre-softmax logits.
+Across $L$ layers, the estimate is
 
 \[
-M_{\text{peak}} = M_{\text{params}} + M_{\text{grads}} + M_{\text{optimizer}}
-+ M_{\text{activations}} + M_{\text{temporary}} + M_{\text{allocator}}.
+M_{\text{activations}} \approx LBT(34d+5hT)\text{ bytes}.
 \]
 
-For \(N\) parameters, a common AdamW mixed-precision budget is approximately:
+The key distinction is **linear growth with $B$** and a **quadratic attention
+term in $T$**. The vocabulary head and temporary workspaces add to this budget.
 
-| State | Example dtype | Bytes/parameter |
+#### The impact of memory optimizations
+
+- **FlashAttention:** avoids saving the full attention matrix, removing the
+  quadratic storage term. Attention activation memory becomes $O(BTd)$ per
+  layer, while attention compute remains quadratic in $T$. PyTorch SDPA can
+  select this efficient backend on supported hardware.
+- **Activation checkpointing:** saves block inputs and recomputes intermediate
+  activations during backward. Checkpointing every block reduces saved inputs
+  to roughly $2LBTd$ bytes, plus the current block's working memory. One extra
+  forward pass changes block compute from about $3F$ to $4F$: roughly **33%
+  more FLOPs**.
+- **Gradient accumulation:** uses smaller micro-batches to reach the same
+  effective batch size. Activation memory follows the resident micro-batch.
+
+Measure both **allocated** memory (live tensors) and **reserved** memory
+(allocator-managed storage) after warm-up. The measured peak includes temporary
+workspaces as well as the tensors in these estimates.
+
+---
+
+## First-principles FLOPs accounting: Attention vs. MLP
+
+To compute hardware utilization (MFU) and arithmetic intensity, we must count the theoretical floating-point operations required by the model.
+
+In digital arithmetic, a matrix multiply-accumulate (MAC) operation involves **1 multiplication and 1 addition**, which counts as **$2\text{ FLOPs}$**. Therefore, multiplying a matrix of shape $(M \times K)$ by a matrix of shape $(K \times N)$ requires:
+
+\[
+\text{FLOPs}_{\text{GEMM}} = 2 M K N.
+\]
+
+### 1. Forward pass FLOPs per token
+
+Count the dense matrix products for a training sequence and divide by its
+$BT$ tokens. Assume ordinary multi-head attention with $d_h=d/h$, a $4d$ GELU
+MLP, and count full $T\times T$ attention products. We focus on matrix
+multiplications, which dominate the FLOPs:
+
+| Component | Matrix products | Forward FLOPs/token |
 | --- | --- | ---: |
-| forward parameters | BF16 | 2 |
-| gradients | BF16 or FP32 | 2 or 4 |
-| FP32 master parameters | FP32 | 4 |
-| first moment | FP32 | 4 |
-| second moment | FP32 | 4 |
+| Q/K/V projections | Three $d\times d$ projections | $6d^2$ |
+| Attention output projection | One $d\times d$ projection | $2d^2$ |
+| Attention scores | $QK^\top$ across all heads | $2Td$ |
+| Attention over values | $SV$ across all heads | $2Td$ |
+| GELU MLP, width $4d$ | $d\to4d\to d$ | $16d^2$ |
+| SwiGLU MLP, width $8d/3$ | Two up projections, one down projection | $16d^2$ |
 
-The exact implementation may omit the master copy, accumulate gradients in a
-different dtype, or fuse optimizer state. Inspect the real optimizer rather
-than treating “16 bytes per parameter” as a law.
+For example, the batched Q/K/V projections cost $3(2BTd^2)$ FLOPs.
+The score product has shapes $(T\times d_h)(d_h\times T)$ per head;
+over $B$ sequences and $h$ heads it costs $2BhT^2d_h=2BT^2d$ FLOPs.
+Divide each by $BT$ to obtain its table entry.
 
-Activation memory depends on batch size, sequence length, width, layer count,
-attention implementation and what backward needs to save. It is the component
-most affected by:
+The SwiGLU row is an **alternative** to the GELU row, with
+$d_{\mathrm{ff}}=8d/3$ before rounding: $6d\,d_{\mathrm{ff}}=16d^2$ FLOPs.
+The main result is:
 
-- gradient accumulation, which reduces the resident micro-batch;
-- activation checkpointing, which trades recomputation for storage;
-- FlashAttention/SDPA, which avoids materializing the full attention matrix;
-- compilation and fusion, which can eliminate intermediates;
-- sequence length, which can make naive attention storage grow quadratically.
+- **Attention linear projections:** $6d^2 + 2d^2 = 8d^2$ FLOPs/token.
+- **MLP linear projections:** $8d^2 + 8d^2 = 16d^2$ FLOPs/token.
+- **The $1/3$ to $2/3$ rule:** In this block, the feed-forward MLP performs **twice as many FLOPs** as the attention projections ($16d^2$ vs $8d^2$), and holds twice as many parameters ($8d^2$ vs $4d^2$).
+- **The quadratic term:** The two attention products contribute $4Td$
+  FLOPs/token, or $4T^2d$ per sequence. Their ratio to the projection cost is
+  $T/(6d)$; they exceed all block projections when $T>6d$ under this convention.
 
-Measure both **allocated** and **reserved** memory. Framework allocators keep
-segments reserved for reuse, so an apparent gap is not necessarily a leak.
+### 2. The $2\times$ backward multiplier
+
+For every linear layer $Y = X W$ in the forward pass, the backward pass must compute two distinct matrix derivatives via the chain rule:
+
+**Gradient with respect to input activations:**
+
+\[
+\frac{\partial \mathcal{L}}{\partial X}
+= \frac{\partial \mathcal{L}}{\partial Y} W^\top
+\quad \implies 2MKN\text{ FLOPs}.
+\]
+
+**Gradient with respect to layer weights:**
+
+\[
+\frac{\partial \mathcal{L}}{\partial W}
+= X^\top \frac{\partial \mathcal{L}}{\partial Y}
+\quad \implies 2MKN\text{ FLOPs}.
+\]
+
+Backward therefore costs roughly twice as much as forward:
+
+\[
+\text{Backward FLOPs} \approx 2 \times \text{Forward FLOPs},
+\]
+
+Adding forward and backward gives:
+
+\[
+\text{Total Training FLOPs} = \text{Forward} + \text{Backward} \approx 3 \times \text{Forward FLOPs}.
+\]
+
+Embedding lookup is a gather, not a dense matrix multiply; token IDs do not
+receive gradients. A dense vocabulary head still incurs its full matrix cost
+when its weights are tied to the embedding table.
+
+### 3. Total training FLOPs per token
+
+Multiplying the forward matrix operations by 3 yields:
+
+- **Transformer blocks (per layer):** $3 \times (8d^2 + 16d^2) = 72 d^2$ FLOPs/token.
+- **Attention matrix products (per layer):** $3 \times (4 T d) = 12 T d$ FLOPs/token.
+- **Output vocabulary head:** $3 \times (2 d V) = 6 d V$ FLOPs/token.
+
+Summing across all $L$ layers:
+
+\[
+\text{Training FLOPs per token} \approx 72 L d^2 + 12 L d T + 6 d V.
+\]
+
+Ignoring biases and normalization parameters, the block matrix parameter count is $N_{\text{blocks}} = 12Ld^2$. The block projection term simplifies to:
+
+\[
+72 L d^2 = 6 N_{\text{blocks}}.
+\]
+
+Define $N_{\text{matrix}}=12Ld^2+dV$: the block matrix weights plus the
+vocabulary-head matrix, counted once even when tied. Then
+
+\[
+\text{FLOPs/token} \approx 6N_{\text{matrix}} + 12LdT.
+\]
+
+This matches the companion's
+[`compute_flops_per_token`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/profile_utils.py).
+Ignoring the smaller bias, normalization and positional-embedding terms,
+$N_{\text{matrix}}$ approximates the parameter count of a model with tied
+embeddings.
+
+For $D$ training tokens, the familiar rule of thumb is **$6ND$ FLOPs**, with
+$12LdTD$ added for the attention matrix products. For example, $L=12$, $d=768$,
+$V=50{,}304$, $T=1024$ gives about **855 million FLOPs/token**, including
+**113 million (13%)** for attention products.
+
+---
 
 ## FLOPs, tokens/s, MFU and time-to-train
-
-For a dense decoder-only Transformer away from extreme context lengths, a
-widely used first-order estimate for training compute is
-
-\[
-\text{training FLOPs} \approx 6NT,
-\]
-
-where \(N\) is non-embedding parameters and \(T\) training tokens. Attention
-adds a sequence-length-dependent term that should not be ignored for long
-contexts.
 
 Useful metrics answer different questions:
 
 | Metric | What it answers |
-| --- | --- |
-| tokens/s | how fast does this exact workload progress? |
-| step time | where did latency change? |
-| peak memory | what larger workload might fit? |
-| achieved FLOP/s | how much arithmetic ran per second? |
-| MFU | what fraction of theoretical peak performed model-required FLOPs? |
-| HFU | what fraction included recomputation and other hardware work? |
-| time-to-target | did the end-to-end experiment improve? |
+| :--- | :--- |
+| **tokens/s** | How fast does this exact workload progress? |
+| **step time** | Where did latency change? |
+| **peak memory** | What larger workload or micro-batch might fit? |
+| **achieved FLOP/s** | How much arithmetic ran per second? |
+| **MFU (Model FLOPs Utilization)** | What fraction of theoretical peak performed model-required FLOPs? |
+| **HFU (Hardware FLOPs Utilization)** | What fraction includes executed arithmetic such as recomputation? |
+| **time-to-target** | Did the end-to-end experiment improve? |
 
-An optimization can raise hardware utilization while slowing time-to-target,
-for example by adding unnecessary recomputation. Tokens/s and validation
-behavior remain the primary outcomes for this course.
+Compute MFU as model FLOPs/token times tokens/s divided by the GPU's peak
+FLOP/s at the training precision. MFU excludes checkpoint recomputation;
+HFU includes that extra arithmetic.
+
+An optimization can raise hardware utilization while slowing time-to-target, for example by adding unnecessary recomputation. Tokens/s and validation behavior remain the primary outcomes for this course.
 
 ## Read a profiler trace as a causal story
 
@@ -257,10 +406,11 @@ memory.
 
 ### 2. Precision
 
-BF16 halves parameter and activation bytes relative to FP32 and enables fast
-Tensor Core paths while retaining FP32-like exponent range. FP16 may need loss
-scaling. Precision changes require a loss/gradient comparison, not only a speed
-measurement.
+A tensor stored in BF16 takes half the bytes of FP32 and retains FP32-like
+exponent range. BF16 matrix products can use fast Tensor Core paths, but
+autocast does not halve every tensor or convert persistent FP32 parameters.
+FP16 may need loss scaling. Precision changes require a loss/gradient
+comparison, not only a speed measurement.
 
 ### 3. Scaled-dot-product attention
 

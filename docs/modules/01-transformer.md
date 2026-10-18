@@ -169,6 +169,19 @@ A common misconception is that self-attention performs all the computation in a 
 - **Self-attention:** Performs **cross-token communication**. It routes and mixes information across sequence positions (along the time/space axis), applying linear projections per token.
 - **Feed-Forward MLP:** Performs **per-token transformation**. It operates on each token representation independently (along the channel/feature axis), applying non-linear expansions and contractions to synthesize complex representations.
 
+### Parameter and compute division: The 1/3 to 2/3 rule
+
+For ordinary multi-head attention and a two-linear-layer MLP of width $4d$,
+counting a multiply-add as two FLOPs and ignoring biases and normalization:
+
+- **Self-attention:** The 4 projections ($W_Q, W_K, W_V, W_O \in \mathbb{R}^{d \times d}$) account for $4 d^2$ parameters and $8 d^2$ forward FLOPs per token per layer.
+- **Feed-Forward MLP (standard):** The 2 projections ($W_1 \in \mathbb{R}^{d \times 4d}, W_2 \in \mathbb{R}^{4d \times d}$) account for $8 d^2$ parameters and $16 d^2$ forward FLOPs per token per layer.
+
+Under these assumptions, the MLP holds **two-thirds** of the block matrix
+parameters and projection FLOPs; attention projections account for **one-third**.
+The attention matrix products add a context-dependent cost on top of these
+projections. A complete first-principles derivation of training FLOPs (including the backward pass and $QK^\top$ context matmuls) alongside activation memory accounting is developed in [Module 4: Single-GPU performance](04-single-gpu.md#first-principles-flops-accounting-attention-vs-mlp).
+
 ---
 
 ## The architectural lineage: From original encoder–decoder to legacy GPT-2
