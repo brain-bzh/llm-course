@@ -3,7 +3,7 @@
 This lab accompanies [Module 10: Serving systems](../modules/10-serving.md).
 
 !!! info "Live Demonstration & Optional Exploration"
-    In Session 28, serving architectures are demonstrated live by the instructor using production vLLM and educational implementations. There is no mandatory lab assignment or report to submit for this module, preserving student focus for [Reproduction Studio 4](../schedule.md#phase-3-serve-and-synthesize).
+    In Session 28, serving architectures are demonstrated live by the instructor using production vLLM and educational implementations. There is no mandatory lab assignment or report to submit for this module, preserving student focus for [Reproduction Studio 3](../schedule.md#phase-3-serve-and-synthesize).
     
     The simulation scripts below and [nano-vllm](https://github.com/GeeeekExplorer/nano-vllm) are provided as clean, readable references for students who want to explore iteration-level scheduling and paged memory allocation in Python.
 
