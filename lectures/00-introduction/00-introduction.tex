@@ -8,16 +8,44 @@
 \begin{document}
 \makelecturetitle[Training and Scaling Language Models: From First Principles to Efficient Serving]
 
-\begin{frame}{Context: Why distribute? The empirical mandate of scale}
+\begin{frame}{What can today's language models do?}
+  \begin{columns}[c]
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Read and transform}
+        Summarize, translate, compare, and extract information from text.
+      \end{block}
+      \vspace{5pt}
+      \begin{block}{Write and explain}
+        Draft, revise, answer questions, and adapt to instructions or examples.
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Work with code}
+        Generate, explain, debug, and modify programs.
+      \end{block}
+      \vspace{5pt}
+      \begin{block}{Solve structured tasks}
+        Follow multi-step instructions and use examples to tackle new tasks.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{5pt}
+  \begin{alertblock}{A striking change}
+    Early GPT-2-era models were often limited to short, simple continuations. Today's models can write code and handle complex tasks. \\
+    What drove this performance gap?
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Why do scaling laws matter? The empirical mandate of scale}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \textbf{Scaling laws (Compute laws)}
       \begin{itemize}
           \setlength{\itemsep}{4pt}
           \small
-        \item \textbf{Empirical power law}: Test loss drops predictably across $>8$ orders of magnitude:
+        \item \textbf{Empirical power law}: Test loss drops predictably as training compute grows:
           \\[2pt]
-          \centering\footnotesize $\mathbf{L(C) \approx (C_c / C)^{\alpha_C}}, \quad C \approx 6ND$
+          \centering\footnotesize $\mathbf{L(C) \propto C^{-\alpha_C}}$
           \raggedright
         \item \textbf{Predictable returns}: More FLOPs buys lower perplexity, reasoning, and benchmark accuracy.
         \item \textbf{Scaled performance}: Scaling compute unlocks capabilities smaller models cannot reach.
@@ -36,7 +64,7 @@
         \node[text=signaldark,font=\tiny\bfseries] at (3.25,3.1) {Distributed Cluster Required};
 
         % Axes
-        \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Compute $C$ (log scale FLOPs)};
+        \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Training compute $C$ (FLOPs, log scale)};
         \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\tiny] {Loss $L$ (log scale)};
 
         % Single GPU wall
@@ -72,12 +100,41 @@
       \end{tcolorbox}
     \end{column}
   \end{columns}
+  \vspace{10pt}
+  \centering\large\color{themenavy}\textbf{Let's scale models!}
+\end{frame}
+
+\begin{frame}{What makes large language models hard to build?}
+  As models grow, three limits shape what we can train and run:
+  \begin{columns}[t]
+    \begin{column}{0.31\linewidth}
+      \begin{block}{1. Compute}
+        \small
+        GPUs must perform an enormous number of calculations.
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{2. Memory}
+        \small
+        The model and its working data must fit in GPU memory.
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{3. Sharing work}
+        \small
+        When GPUs share the work, they need to exchange data quickly.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{4pt}
+  \begin{alertblock}{The question throughout this course}
+    How can we train and run useful language models with the time, memory, and hardware we have?
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{What will you build in this course?}
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
-      \textbf{Not an API-calling tutorial.}\\
       We open the engine from first principles:
       \begin{itemize}
           \setlength{\itemsep}{7pt}
@@ -102,37 +159,6 @@
       \end{tikzpicture}
     \end{column}
   \end{columns}
-\end{frame}
-
-\begin{frame}{The governing question}
-  Language models are limited by hardware physics, not just algorithms:
-  \begin{columns}[t]
-    \begin{column}{0.31\linewidth}
-      \begin{block}{1. Compute wall}
-        \small
-        Tensor Cores require high arithmetic intensity:
-        \vspace{1pt}
-        \centering\small $\frac{\text{FLOPs}}{\text{Bytes transferred}}$\par\vspace{2pt}
-        \raggedright Low intensity starves execution units.
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{2. Memory wall}
-        \small
-        Weights, optimizer states, activations, and KV cache compete for device RAM.
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{3. Network wall}
-        \small
-        NVLink and InfiniBand bandwidth limits distributed collective speed.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vspace{4pt}
-  \begin{alertblock}{The governing question throughout}
-    How do we turn raw text and finite compute into a language model that trains, scales, and serves efficiently?
-  \end{alertblock}
 \end{frame}
 
 \begin{frame}{The 3 phases of the course}
@@ -206,32 +232,34 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{The two projects}
+\begin{frame}{A shared course thread, one team research project}
+  \footnotesize
   \begin{columns}[t]
     \begin{column}{0.48\linewidth}
-      \begin{block}{1. The Continuous Laboratory}
-        \textbf{The shared codebase everyone builds}
+      \begin{block}{Continuous laboratory}
+        \textbf{The shared thread through the course}
         \begin{itemize}
-            \setlength{\itemsep}{5pt}
-          \item In-class hands-on backbone.
-          \item Every team builds the same evolving system from module 1 to 11.
-          \item Validated by unit tests, shape checks, and profiler reports.
-          \item Your sandbox and toolkit.
+            \setlength{\itemsep}{4pt}
+          \item The shared codebase grows with each module.
+          \item Practice building, testing, and measuring.
+          \item Keep working components and evidence as you go.
         \end{itemize}
       \end{block}
     \end{column}
     \begin{column}{0.48\linewidth}
-      \begin{block}{2. The Reproduction Project}
-        \textbf{The graded team challenge (65\%)}
+      \begin{block}{Reproduction project}
+        \textbf{Your team's research investigation (65\%)}
         \begin{itemize}
-            \setlength{\itemsep}{5pt}
-          \item Pick a recent top-tier research paper (systems, scaling, data, efficiency).
-          \item Scale down and verify \textbf{one precise claim} with controlled evidence.
-          \item Supported by 4 dedicated in-class studio hackathons with instructors.
+            \setlength{\itemsep}{4pt}
+          \item Choose a paper and test \textbf{one precise claim} at smaller scale.
+          \item Reuse or adapt course tools where they help.
+          \item Worth 65\%; developed during 4 in-class studio sessions.
         \end{itemize}
       \end{block}
     \end{column}
   \end{columns}
+  \vspace{4pt}
+  \centering\small\textbf{Connection:} The lab builds shared tools your team can use to test a research claim.
 \end{frame}
 
 \begin{frame}{Reproduction project: what we expect}

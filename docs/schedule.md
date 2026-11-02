@@ -49,7 +49,7 @@ Teach these six 75-minute sessions as **three consecutive 2h30 working blocks**.
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 1 | Kickoff + theory | Brief course presentation; next-token prediction objective $P(x_1, \dots, x_T)$, recurrent sequential bottlenecks vs Transformer parallelism, and a model map covering embeddings, attention, residual stream, pre-LN LayerNorm, MLP, and LM head | Course workflow and Transformer architecture map |
+| 1 | Kickoff + theory | Brief course presentation; next-token prediction objective $P(x_1, \dots, x_T)$ ([interactive demo](demos/next-token.html){ target="_blank" }), recurrent sequential bottlenecks vs Transformer parallelism, and a model map covering embeddings, attention, residual stream, pre-LN LayerNorm, MLP, and LM head | Course workflow and Transformer architecture map |
 | 2 | Practice | Set up the starter implementation; build token and learned positional embeddings, pre-LN and residual structure, and the GPT-2 MLP ($4d$ expansion, GELU, contraction). Use tensor shapes as needed while implementing | Working non-attention components with shape checks |
 
 #### Working block 2 — Multi-head attention through logits (sessions 3–4 · 2h30)

@@ -37,6 +37,12 @@ Multiple continuations are completely natural: *"soup"*, *"sauce"*, *"steak"*, o
 
 Because there is rarely a single "correct" continuation, a language model does not simply output a single word guess. Instead, it outputs a **probability distribution** over every possible candidate in its vocabulary $\mathcal{V}$, assigning higher probability mass to plausible continuations.
 
+!!! tip "Try it: one token at a time"
+    Choose a candidate continuation and watch it become part of the context for
+    the next prediction. The displayed probabilities are illustrative.
+
+    [:material-play-circle-outline: Explore next-token prediction](../demos/next-token.html){ .md-button target="_blank" }
+
 ### Formal formulation: The autoregressive factorization
 
 Formally, we represent a piece of text as an ordered sequence of discrete units called **tokens**, denoted $X = (x_1, x_2, \dots, x_T)$.

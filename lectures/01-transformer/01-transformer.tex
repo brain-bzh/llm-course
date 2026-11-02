@@ -22,6 +22,35 @@
   {Trace information through a pre-norm decoder block.}
   {Name the tests that make a minimal implementation trustworthy.}
 
+\begin{frame}{First, the task: predict one token at a time}
+  \centering
+  \small Start with the context: \textbf{The chef seasoned the}
+  \vspace{7pt}
+  \begin{columns}[t]
+    \begin{column}{0.46\linewidth}
+      \begin{block}{Possible next tokens}
+        \centering
+        \begin{tabular}{lr}
+          soup & 40\% \\
+          sauce & 27\% \\
+          steak & 17\% \\
+          vegetables & 12\% \\
+          refrigerator & 4\%
+        \end{tabular}
+      \end{block}
+    \end{column}
+    \begin{column}{0.50\linewidth}
+      \begin{block}{Choose “soup” and predict again}
+        New context: \textbf{The chef seasoned the soup}\\[5pt]
+        Next tokens: \textbf{with} (55\%), \textbf{and} (28\%), or \textbf{.} (17\%).
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small The probabilities are illustrative. In the demo, choose a continuation and watch the next prediction change.\\[4pt]
+  \href{https://brain-bzh.github.io/llm-course/demos/next-token.html}{\textcolor{themenavy}{\textbf{Explore the interactive demo}}}
+\end{frame}
+
 \section{Attention from first principles}
 
 \begin{frame}{Tokens become points in a shared space}
@@ -245,6 +274,8 @@
     \end{column}
   \end{columns}
 \end{frame}
+
+
 
 \section{Evidence before scale}
 

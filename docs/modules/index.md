@@ -23,6 +23,8 @@ assignment or report; project studios remain reserved for the reproduction.
 Slides and companion implementation guides are built from this material
 without replacing it.
 
+[Course kickoff and overview slides (PDF)](../slides/00-introduction.pdf){ target="_blank" }
+
 ## 1. Transformer from first principles
 
 **Understand:** causal attention, residual pathways, normalization, MLPs,
