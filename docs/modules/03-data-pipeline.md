@@ -23,13 +23,17 @@ examples to inspect and evaluate, not universal defaults.
 - **the tokenization trade-off:** characters versus words versus subwords;
 - **byte-level BPE:** eliminating out-of-vocabulary (`<unk>`) tokens with a 256-byte base vocabulary;
 - **pre-tokenization regex splitting:** preventing semantic boundary pollution across punctuation and numbers;
-- **vocabulary size trade-offs:** compression ratio (bits per byte) versus embedding table memory footprint;
+- **vocabulary size trade-offs:** tokens per byte versus embedding table memory footprint; bits per byte also accounts for model loss;
 - **contiguous sequence packing:** eliminating batch padding waste with `<|endoftext|>` delimiters;
 - **memory-mapped shards:** use the OS page cache while accounting for the copies required to assemble and transfer batches.
 
 <figure markdown="span">
-  ![End-to-end training data ingestion pipeline: raw text documents, regex pre-tokenization, BPE subword merges, document packing with end-of-text tokens, binary memory-mapped shards, and shifted next-token batching.](../assets/figures/bpe-data-pipeline.svg){ loading=lazy }
-  <figcaption>The pretraining data pipeline: from raw web archives to contiguous memory-mapped training batches.</figcaption>
+  <div style="overflow-x: auto;" markdown="1">
+
+  ![Raw documents are filtered and deduplicated, split by document, tokenized, packed and stored, then loaded as shifted input and target batches.](../assets/figures/bpe-data-pipeline.svg){ loading=lazy style="display: block; width: 100%; min-width: 680px;" }
+
+  </div>
+  <figcaption>The pretraining data pipeline. Fit the tokenizer on training documents, then process train and validation separately.</figcaption>
 </figure>
 
 ---
@@ -226,10 +230,10 @@ product gives bits per source byte:
 \text{bits per byte} = \text{bits per token} \times \text{tokens per byte}.
 \]
 
-<figure markdown="span">
-  ![Tokenizer fidelity is a hard requirement. Finer units produce more tokens per byte but easier token predictions, while coarser units shorten sequences but make each token harder to predict.](../assets/figures/tokenizer-efficiency.svg){ loading=lazy }
-  <figcaption>Sequence compression and prediction difficulty move in opposite directions. Bits per byte evaluates them together.</figcaption>
-</figure>
+For example, a model assigning a summed negative log-likelihood of 800 nats
+on 1,000 UTF-8 bytes has $800 / (1000\ln 2) \approx 1.15$ bits per byte.
+The tokenizer determines the segmentation; bits per byte also depends on the
+model's predictions.
 
 This comparison must use the same held-out byte corpus. Reporting only loss per
 token can make a fine tokenizer look artificially good because it asks many

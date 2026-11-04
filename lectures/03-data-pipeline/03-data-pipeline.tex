@@ -12,29 +12,70 @@
   \tableofcontents
   \vfill
   \begin{block}{Guiding question}
-    How do we turn irregular text into dense, reproducible GPU input without changing the learning task?
+    How do we turn raw documents into trustworthy next-token training batches?
   \end{block}
 \end{frame}
 
 \learninggoals
-{Explain byte-level BPE as a learned compression code.}
-{Reason about vocabulary size, sequence length, and parameter cost together.}
+{Trace raw documents through filtering, tokenization, packing and batching.}
+{Explain byte-level BPE and the vocabulary--sequence-length trade-off.}
 {Pack documents while keeping boundaries explicit.}
 {Verify binary storage, sampling, and the next-token shift.}
 
-\section{A tokenizer is a model design choice}
+\begin{frame}{The path from raw text to a training batch}
+  \centering
+  \begin{tikzpicture}[
+      every node/.style={font=\small,align=center},
+      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,
+                    minimum width=3.0cm,minimum height=.85cm,thick},
+      arrow/.style={-{Stealth},thick,draw=accentdark}]
+    \node[stage] (raw) at (0,1.7) {1. Collect\\documents};
+    \node[stage] (clean) at (3.75,1.7) {2. Filter and\\deduplicate};
+    \node[stage] (split) at (7.5,1.7) {3. Split by\\document};
+    \node[stage] (tok) at (0,0) {4. Tokenize\\text $\to$ IDs};
+    \node[stage] (pack) at (3.75,0) {5. Pack and\\store IDs};
+    \node[stage] (batch) at (7.5,0) {6. Load shifted\\input / target};
+    \draw[arrow] (raw)--(clean);
+    \draw[arrow] (clean)--(split);
+    \draw[arrow] (split.east)--++(.35,0)--++(0,-.85)--(-1.85,.85)--(-1.85,0)--(tok.west);
+    \draw[arrow] (tok)--(pack);
+    \draw[arrow] (pack)--(batch);
+  \end{tikzpicture}
+  \vfill
+  \small Fit the tokenizer on the training split; process training and validation separately.
+\end{frame}
 
-\begin{frame}{From raw documents to a training corpus}
+\section{From documents to tokens}
+
+\begin{frame}{Start with documents, not model inputs}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{A document}
+        A piece of text plus its source and identity: a book, article, web page, or other record.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{Extract usable text}
+        Keep content; remove or inspect navigation, markup, duplicated page furniture, and extraction errors.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{Where might web text come from?}
+    Web archives store captured pages and related records (WARC); extracted-text files (WET) provide a text-oriented starting point. Neither is automatically clean.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Filter, deduplicate, then split by document}
   \begin{enumerate}
     \setlength{\itemsep}{7pt}
-    \item Extract text and record the source. WARC preserves web records; WET provides extracted text.
-    \item Apply documented filters for empty, very short, or repetitive text; inspect what they discard.
-    \item Group duplicates and split by document before fitting tokenizer merges on training data.
-    \item Tokenize, add document boundaries, pack and store train and validation separately.
+    \item \textbf{Filter:} inspect rules for empty, short, or repetitive text; record what they remove.
+    \item \textbf{Deduplicate:} group repeated documents before splitting to reduce train--validation leakage.
+    \item \textbf{Split:} assign documents to train or validation, then keep their streams separate.
   \end{enumerate}
-  \begin{alertblock}{A dataset is a set of choices}
-    Filtering and extraction change the data distribution; record the rules and avoid train--validation leakage.
-  \end{alertblock}
+  \begin{block}{Fit only on training data}
+    Learn tokenizer merges on the training partition; apply the resulting tokenizer to both partitions.
+  \end{block}
 \end{frame}
 
 \begin{frame}{Granularity moves cost between vocabulary and sequence}
@@ -96,7 +137,7 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Pre-tokenization prevents pathological merges}
+\begin{frame}{Pre-tokenization constrains where BPE can merge}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \begin{alertblock}{Naive byte stream}
@@ -111,7 +152,7 @@
   \end{columns}
   \vfill
   \centering
-  \texttt{" the"} and \texttt{"the"} may become different learned tokens because leading-space behavior carries information.
+  \texttt{" the"} and \texttt{"the"} may become different tokens. GPT-2 uses pre-tokenization; the lab's simple BPE implementation does not.
 \end{frame}
 
 \begin{frame}{Vocabulary size has two opposing effects}
@@ -135,26 +176,22 @@
   \centering Weight tying avoids paying $Vd$ twice.
 \end{frame}
 
-\begin{frame}{Tokenizer efficiency in bits per byte}
-  \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize}]
-    \node[draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=10.6cm,minimum height=.72cm,font=\scriptsize\bfseries] at (5.3,4.35)
-    {fidelity gate: $\operatorname{decode}(\operatorname{encode}(s))=s$ for every UTF-8 input};
-    \draw[-{Stealth},thick] (.5,.75)--(10.2,.75);
-    \node[below,font=\scriptsize\bfseries] at (.9,.75) {fine units};
-    \node[below,font=\scriptsize\bfseries] at (9.8,.75) {coarse units};
-    \draw[very thick,themebluedraw] (1.0,3.25) .. controls (4.0,2.7) and (7.0,2.0) .. (9.7,1.35);
-    \node[text=accentdark,font=\scriptsize\bfseries] at (3.0,3.05) {tokens per byte decreases};
-    \draw[very thick,warningdraw] (1.0,1.35) .. controls (4.0,2.0) and (7.0,2.7) .. (9.7,3.25);
-    \node[text=warningdraw,font=\scriptsize\bfseries] at (7.55,3.05) {bits per token increases};
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (1.45,2.15) {bytes / characters\\long sequences};
-    \node[draw=warningdraw,fill=warningbg,rounded corners,align=center] at (9.25,2.15) {large subwords\\large vocabulary};
-  \end{tikzpicture}
+\begin{frame}{Bits per byte: compare on the same text}
+  \small
+  \begin{block}{Two different questions}
+    \textbf{Tokenizer compression:} how many tokens represent the text?\\[3pt]
+    \textbf{Model performance:} how much probability does the model assign to it?
+  \end{block}
+  For the same held-out text, express negative log-likelihood in \emph{bits per byte}:
   \[
-    \text{bits per byte}=\text{bits per token}\times\text{tokens per byte}
+    \text{bits / byte} =
+    \frac{\text{total negative log-likelihood (nats)}}{\ln 2\;\times\;\text{UTF-8 bytes}}
+    = \frac{\text{bits}}{\text{token}}\times\frac{\text{tokens}}{\text{byte}}.
   \]
-  \footnotesize Compare tokenizers on the same held-out byte corpus; loss per token alone is not comparable.
-  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 1 (2026)}
+  \begin{exampleblock}{Example}
+    1,000 bytes, 400 tokens, summed negative log-likelihood 800 nats $\Rightarrow$ $1.15$ bits / byte.
+  \end{exampleblock}
+  Compare on identical text and boundary policy. Lower is better; fewer tokens alone do not guarantee a lower model loss.
 \end{frame}
 
 \checkpoint{tokenizer choice}
@@ -162,23 +199,30 @@
 
 \section{Packing documents into examples}
 
-\begin{frame}{Padding turns document length variance into wasted FLOPs}
+\begin{frame}{Padding leaves unused positions}
+  \small
+  Suppose each example is padded to a 2,048-token window:
+  \vspace{6pt}
   \begin{center}
-    \begin{tikzpicture}[x=.0042cm,y=.65cm,every node/.style={font=\scriptsize}]
-      \fill[themebluecard] (0,2) rectangle (250,2.7);
-      \fill[neutralbg] (250,2) rectangle (2048,2.7);
-      \draw (0,2) rectangle (2048,2.7);
+    \begin{tikzpicture}[x=.004cm,y=.8cm,every node/.style={font=\small}]
       \node[left] at (0,2.35) {doc A};
-      \node at (1149,2.35) {88\% padding};
-      \fill[themebluecard] (0,1) rectangle (800,1.7);
-      \fill[neutralbg] (800,1) rectangle (2048,1.7);
-      \draw (0,1) rectangle (2048,1.7);
-      \node[left] at (0,1.35) {doc B};
-      \node at (1424,1.35) {61\% padding};
+      \fill[themenavy] (0,2) rectangle (250,2.7);
+      \fill[white] (250,2) rectangle (2048,2.7);
+      \draw[thick,themenavy] (0,2) rectangle (2048,2.7);
+      \node[text=themenavy] at (1149,2.35) {1,798 padding tokens (88\%)};
+      \node[left] at (0,1.25) {doc B};
+      \fill[themenavy] (0,.9) rectangle (800,1.6);
+      \fill[white] (800,.9) rectangle (2048,1.6);
+      \draw[thick,themenavy] (0,.9) rectangle (2048,1.6);
+      \node[text=themenavy] at (1424,1.25) {1,248 padding tokens (61\%)};
+      \fill[themenavy] (0,0) rectangle (100,.28);
+      \node[right] at (125,.14) {document tokens};
+      \draw[themenavy,thick] (930,0) rectangle (1030,.28);
+      \node[right] at (1055,.14) {padding};
     \end{tikzpicture}
   \end{center}
-  \begin{block}{Dense packing}
-    Concatenate documents with an explicit end-of-text token, then slice fixed-length training windows from the resulting token stream.
+  \begin{block}{Packing}
+    Concatenate documents with explicit boundaries and slice fixed-length windows. Padding overhead depends on the model and implementation.
   \end{block}
 \end{frame}
 
@@ -189,7 +233,7 @@
       \vspace{8pt}
       \begin{itemize}
           \setlength{\itemsep}{7pt}
-        \item Every position contributes to the loss.
+        \item Every non-masked target can contribute to the loss.
         \item Windows can cross a document boundary.
         \item Standard causal attention lets doc B see doc A.
       \end{itemize}
@@ -267,10 +311,10 @@
     \item Verify deterministic token IDs and special-token handling.
     \item Measure compression on representative languages and domains.
     \item Audit document-level split membership before packing.
-    \item Saturate a loader benchmark without the GPU waiting for input.
+    \item Measure loader throughput; check for GPU input stalls when a trace is available.
   \end{enumerate}
   \begin{alertblock}{Do not optimize a corrupt stream}
-    Decode sampled training windows back to text. Human inspection often reveals split leakage, repeated boilerplate, or broken boundaries immediately.
+    Decode sampled windows to inspect boilerplate and boundaries; compare document identities across splits to check leakage.
   \end{alertblock}
 \end{frame}
 

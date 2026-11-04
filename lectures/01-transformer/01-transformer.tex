@@ -39,9 +39,9 @@
 
     \draw[-{Stealth},thick,neutraldark] (t4.east) -- (dist.west);
 
-    \node[newtok] (t5) at (6.35,-1.55) {soup};
-    \draw[-{Stealth},thick,accentdarkdraw] (dist.south) |- (t5.east) node[pos=0.5,right=2pt,font=\tiny\bfseries,text=accentdark] {pick token};
-    \draw[-{Stealth},thick,accentdarkdraw,dashed] (t5.west) -| (t4.south) node[pos=0.5,below=2pt,font=\tiny\bfseries,text=accentdark] {3. append \& repeat};
+    \node[newtok] (t5) at (6.35,-2.5) {soup};
+    \draw[-{Stealth},thick,accentdarkdraw] (dist.south) |- (t5.east) node[pos=0.35,right=4pt,font=\scriptsize\bfseries,text=accentdark] {pick token};
+    \draw[-{Stealth},thick,accentdarkdraw,dashed] (t5.west) -| (t4.south) node[pos=0.62,left=5pt,font=\scriptsize\bfseries,text=accentdark] {3. append \& repeat};
   \end{tikzpicture}
   \vfill
   \small At every step, use the prefix to score the vocabulary $\mathcal{V}$, append one token, and repeat.\\[4pt]
@@ -76,27 +76,27 @@
 \begin{frame}{Same task, two ways to process the sequence}
   \centering
   \small At every position $t$, predict $P(x_{t+1}\mid x_{\le t})$ from the prefix so far.
-  \vspace{2pt}
+  \vspace{8pt}
   \begin{columns}[t]
     \begin{column}{0.48\linewidth}
       \centering\footnotesize\textbf{Recurrent model: inherently sequential}
-      \vspace{1pt}
+      \vspace{10pt}
       \begin{tikzpicture}[
-          x=0.82cm, y=0.62cm,
+          x=0.85cm, y=0.80cm,
           every node/.style={font=\scriptsize,align=center},
-          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.82cm,minimum height=.40cm},
-          cell/.style={draw=leafreddraw,fill=leafredbg,rounded corners,minimum width=0.88cm,minimum height=.44cm,font=\scriptsize\bfseries},
-          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.95cm,minimum height=.42cm}
+          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.88cm,minimum height=.44cm},
+          cell/.style={draw=leafreddraw,fill=leafredbg,rounded corners,minimum width=0.92cm,minimum height=.46cm,font=\scriptsize\bfseries},
+          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.98cm,minimum height=.44cm}
         ]
         \node[token] (x1) at (0,0) {$x_1$};
         \node[token] (x2) at (1.9,0) {$x_2$};
         \node[token] (x3) at (3.8,0) {$x_3$};
-        \node[cell] (h1) at (0,1.08) {$h_1$};
-        \node[cell] (h2) at (1.9,1.08) {$h_2$};
-        \node[cell] (h3) at (3.8,1.08) {$h_3$};
-        \node[output] (p1) at (0,2.16) {$P(x_2)$};
-        \node[output] (p2) at (1.9,2.16) {$P(x_3)$};
-        \node[output] (p3) at (3.8,2.16) {$P(x_4)$};
+        \node[cell] (h1) at (0,1.18) {$h_1$};
+        \node[cell] (h2) at (1.9,1.18) {$h_2$};
+        \node[cell] (h3) at (3.8,1.18) {$h_3$};
+        \node[output] (p1) at (0,2.36) {$P(x_2)$};
+        \node[output] (p2) at (1.9,2.36) {$P(x_3)$};
+        \node[output] (p3) at (3.8,2.36) {$P(x_4)$};
         \draw[-{Stealth},thick,neutraldark] (x1)--(h1);
         \draw[-{Stealth},thick,neutraldark] (x2)--(h2);
         \draw[-{Stealth},thick,neutraldark] (x3)--(h3);
@@ -106,28 +106,28 @@
         \draw[-{Stealth},very thick,leafreddraw] (h1)--(h2);
         \draw[-{Stealth},very thick,leafreddraw] (h2)--(h3);
       \end{tikzpicture}
-      \par\vspace{1pt}
+      \par\vspace{10pt}
       \footnotesize $h_t = f(h_{t-1}, x_t)$: step $t$ waits on step $t-1$.
     \end{column}
     \begin{column}{0.48\linewidth}
       \centering\footnotesize\textbf{Causal Transformer: inherently parallel}
-      \vspace{1pt}
+      \vspace{10pt}
       \begin{tikzpicture}[
-          x=0.82cm, y=0.62cm,
+          x=0.85cm, y=0.80cm,
           every node/.style={font=\scriptsize,align=center},
-          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.82cm,minimum height=.40cm},
-          attn/.style={draw=themeteal,fill=accentdarkbg,rounded corners,minimum width=0.88cm,minimum height=.44cm,font=\scriptsize\bfseries,text=accentdark},
-          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.95cm,minimum height=.42cm}
+          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.88cm,minimum height=.44cm},
+          attn/.style={draw=themeteal,fill=accentdarkbg,rounded corners,minimum width=0.92cm,minimum height=.46cm,font=\scriptsize\bfseries,text=accentdark},
+          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.98cm,minimum height=.44cm}
         ]
         \node[token] (u1) at (0,0) {$x_1$};
         \node[token] (u2) at (1.9,0) {$x_2$};
         \node[token] (u3) at (3.8,0) {$x_3$};
-        \node[attn] (a1) at (0,1.08) {$h_1$};
-        \node[attn] (a2) at (1.9,1.08) {$h_2$};
-        \node[attn] (a3) at (3.8,1.08) {$h_3$};
-        \node[output] (q1) at (0,2.16) {$P(x_2)$};
-        \node[output] (q2) at (1.9,2.16) {$P(x_3)$};
-        \node[output] (q3) at (3.8,2.16) {$P(x_4)$};
+        \node[attn] (a1) at (0,1.18) {$h_1$};
+        \node[attn] (a2) at (1.9,1.18) {$h_2$};
+        \node[attn] (a3) at (3.8,1.18) {$h_3$};
+        \node[output] (q1) at (0,2.36) {$P(x_2)$};
+        \node[output] (q2) at (1.9,2.36) {$P(x_3)$};
+        \node[output] (q3) at (3.8,2.36) {$P(x_4)$};
         \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a1.south);
         \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a2.south);
         \draw[-{Stealth},thin,inkmuted!70] (u2.north)--(a2.south);
@@ -138,10 +138,11 @@
         \draw[-{Stealth},thick,neutraldark] (a2)--(q2);
         \draw[-{Stealth},thick,neutraldark] (a3)--(q3);
       \end{tikzpicture}
-      \par\vspace{1pt}
+      \par\vspace{10pt}
       \footnotesize No $h_{t-1}\to h_t$ wait: every position gathers $x_{\le t}$ directly via attention in one pass.
     \end{column}
   \end{columns}
+  \vfill
   \smallsource{Elman (1990); Hochreiter \& Schmidhuber (1997); Pascanu et al. (2013); Vaswani et al. (2017)}
 \end{frame}
 
