@@ -1,7 +1,7 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
 
-\title[TSLM -- Module 3]{Module 3: Pretraining Data Pipeline\\[4pt]
+\title[TASLLM -- Module 3]{Module 3: Pretraining Data Pipeline\\[4pt]
 \normalsize\itshape From Raw Documents to Verified Token Batches}
 \date{\today}
 
@@ -17,10 +17,10 @@
 \end{frame}
 
 \learninggoals
-  {Explain byte-level BPE as a learned compression code.}
-  {Reason about vocabulary size, sequence length, and parameter cost together.}
-  {Pack documents while keeping boundaries explicit.}
-  {Verify binary storage, sampling, and the next-token shift.}
+{Explain byte-level BPE as a learned compression code.}
+{Reason about vocabulary size, sequence length, and parameter cost together.}
+{Pack documents while keeping boundaries explicit.}
+{Verify binary storage, sampling, and the next-token shift.}
 
 \section{A tokenizer is a model design choice}
 
@@ -46,7 +46,7 @@
 
 \begin{frame}{BPE learns a greedy compression hierarchy}
   \begin{enumerate}
-    \setlength{\itemsep}{6pt}
+      \setlength{\itemsep}{6pt}
     \item Start from byte IDs and reserved special tokens.
     \item Count adjacent token pairs in the training corpus.
     \item Merge the most frequent pair into one new token.
@@ -68,15 +68,15 @@
   Corpus: \texttt{low low lower}
   \vspace{4pt}
   \begin{center}
-  \begin{tabular}{lll}
-    \toprule
-    Round & frequent pair & stream fragment \\
-    \midrule
-    0 & -- & \texttt{l o w | l o w | l o w e r} \\
-    1 & \texttt{l o} & \texttt{lo w | lo w | lo w e r} \\
-    2 & \texttt{lo w} & \texttt{low | low | low e r} \\
-    \bottomrule
-  \end{tabular}
+    \begin{tabular}{lll}
+      \toprule
+      Round & frequent pair & stream fragment \\
+      \midrule
+      0 & -- & \texttt{l o w | l o w | l o w e r} \\
+      1 & \texttt{l o} & \texttt{lo w | lo w | lo w e r} \\
+      2 & \texttt{lo w} & \texttt{low | low | low e r} \\
+      \bottomrule
+    \end{tabular}
   \end{center}
   \begin{alertblock}{What the table hides}
     Real byte-level training also defines deterministic tie-breaking, special-token policy, and merge boundaries. These are part of the tokenizer artifact.
@@ -126,7 +126,7 @@
   \centering
   \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize}]
     \node[draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=10.6cm,minimum height=.72cm,font=\scriptsize\bfseries] at (5.3,4.35)
-      {fidelity gate: $\operatorname{decode}(\operatorname{encode}(s))=s$ for every UTF-8 input};
+    {fidelity gate: $\operatorname{decode}(\operatorname{encode}(s))=s$ for every UTF-8 input};
     \draw[-{Stealth},thick] (.5,.75)--(10.2,.75);
     \node[below,font=\scriptsize\bfseries] at (.9,.75) {fine units};
     \node[below,font=\scriptsize\bfseries] at (9.8,.75) {coarse units};
@@ -145,7 +145,7 @@
 \end{frame}
 
 \checkpoint{tokenizer choice}
-  {A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters. Which training and serving measurements would decide whether this is a good trade?}
+{A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters. Which training and serving measurements would decide whether this is a good trade?}
 
 \section{Packing documents into examples}
 
@@ -175,7 +175,7 @@
       \texttt{[doc A][EOT][doc B][EOT][doc C]}
       \vspace{8pt}
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item Every position contributes to the loss.
         \item Windows can cross a document boundary.
         \item Standard causal attention lets doc B see doc A.
@@ -195,7 +195,7 @@
 
 \begin{frame}{The end-of-text token has two roles}
   \begin{enumerate}
-    \setlength{\itemsep}{9pt}
+      \setlength{\itemsep}{9pt}
     \item It preserves a recoverable boundary in a contiguous stream.
     \item It teaches the model that one document ended and another may begin.
   \end{enumerate}
@@ -210,7 +210,7 @@
   \begin{columns}[c]
     \begin{column}{0.55\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{8pt}
+          \setlength{\itemsep}{8pt}
         \item Pre-tokenize once and store integer IDs contiguously.
         \item Use \texttt{uint16} only when every ID fits below $65{,}536$.
         \item Open shards with memory mapping and let the OS page cache serve workers.
@@ -249,7 +249,7 @@
 
 \begin{frame}{A data pipeline needs end-to-end evidence}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Encode and decode arbitrary Unicode text losslessly.
     \item Verify deterministic token IDs and special-token handling.
     \item Measure compression on representative languages and domains.
@@ -262,12 +262,12 @@
 \end{frame}
 
 \checkpoint{pipeline audit}
-  {A training run is fast, but validation loss is implausibly low. List three document- or token-level checks that distinguish a good model from split contamination.}
+{A training run is fast, but validation loss is implausibly low. List three document- or token-level checks that distinguish a good model from split contamination.}
 
 \takeaways
-  {Byte-level BPE guarantees coverage, while merges trade vocabulary size for shorter sequences.}
-  {Pre-tokenization and special-token rules are part of the learned tokenizer.}
-  {Packing removes padding waste but requires an explicit document-boundary policy.}
-  {Binary shards are useful only when their schema, split, and target shift are verified.}
+{Byte-level BPE guarantees coverage, while merges trade vocabulary size for shorter sequences.}
+{Pre-tokenization and special-token rules are part of the learned tokenizer.}
+{Packing removes padding waste but requires an explicit document-boundary policy.}
+{Binary shards are useful only when their schema, split, and target shift are verified.}
 
 \end{document}

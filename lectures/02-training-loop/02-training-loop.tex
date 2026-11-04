@@ -1,7 +1,7 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
 
-\title[TSLM -- Module 2]{Module 2: Training-Loop Anatomy\\[4pt]
+\title[TASLLM -- Module 2]{Module 2: Training-Loop Anatomy\\[4pt]
 \normalsize\itshape Every State Change Behind One Optimizer Update}
 \date{\today}
 
@@ -17,10 +17,10 @@
 \end{frame}
 
 \learninggoals
-  {Separate graph construction, gradient accumulation, and parameter updates.}
-  {Compute an effective token batch under accumulation and data parallelism.}
-  {Place AMP, clipping, scheduling, evaluation, and checkpointing correctly.}
-  {Audit a loop through invariants instead of trusting a decreasing loss.}
+{Separate graph construction, gradient accumulation, and parameter updates.}
+{Compute an effective token batch under accumulation and data parallelism.}
+{Place AMP, clipping, scheduling, evaluation, and checkpointing correctly.}
+{Audit a loop through invariants instead of trusting a decreasing loss.}
 
 \section{One optimizer update}
 
@@ -28,7 +28,7 @@
   \begin{columns}[c]
     \begin{column}{0.53\linewidth}
       \begin{enumerate}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item clear parameter gradient buffers
         \item build a forward computation graph
         \item accumulate derivatives into \texttt{.grad}
@@ -78,7 +78,7 @@
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item $K$ micro-batches contribute to one update.
         \item Divide each equal-size micro-loss by $K$.
         \item Clip and step only at the update boundary.
@@ -147,7 +147,7 @@
     \min\!\left(1,\frac{M}{\lVert g\rVert_2+\epsilon}\right)
   \]
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item All parameter gradients receive the same multiplier.
     \item Log the pre-clip norm and whether clipping activated.
     \item Frequent saturation is evidence of instability, not proof that clipping fixed it.
@@ -196,7 +196,7 @@
 \end{frame}
 
 \checkpoint{repair the step}
-  {Put these operations in order: clip, autocast forward, scaler update, scaled backward, unscale, optimizer step, scheduler step, gradient reset. Which operations occur only once per accumulated update?}
+{Put these operations in order: clip, autocast forward, scaler update, scaled backward, unscale, optimizer step, scheduler step, gradient reset. Which operations occur only once per accumulated update?}
 
 \section{Evaluation and recovery}
 
@@ -240,7 +240,7 @@
 
 \begin{frame}{A loop audit asks for evidence at boundaries}
   \begin{enumerate}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item Count valid tokens per update.
     \item Verify each parameter belongs to one optimizer group.
     \item Log learning rate and pre-clip gradient norm at update boundaries.
@@ -250,9 +250,9 @@
 \end{frame}
 
 \takeaways
-  {A training loop is a sequence of state transitions, not a four-line ritual.}
-  {Accumulation changes the batch while clipping and scheduling remain update-level operations.}
-  {AMP is safe only when gradients are unscaled before norm measurement and clipping.}
-  {Validation and checkpoint recovery need explicit invariants of their own.}
+{A training loop is a sequence of state transitions, not a four-line ritual.}
+{Accumulation changes the batch while clipping and scheduling remain update-level operations.}
+{AMP is safe only when gradients are unscaled before norm measurement and clipping.}
+{Validation and checkpoint recovery need explicit invariants of their own.}
 
 \end{document}

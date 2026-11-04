@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 8]{Module 8: Context, Pipeline and Expert Parallelism\\[4pt]
+\title[TASLLM -- Module 8]{Module 8: Context, Pipeline and Expert Parallelism\\[4pt]
 \normalsize\itshape Splitting Sequence Length and Model Depth}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Distinguish context parallelism from sequence parallelism.}
-  {Explain exact ring attention through online softmax.}
-  {Compute pipeline bubbles for a micro-batch schedule.}
-  {Map parallel dimensions to a real cluster topology.}
+{Distinguish context parallelism from sequence parallelism.}
+{Explain exact ring attention through online softmax.}
+{Compute pipeline bubbles for a micro-batch schedule.}
+{Map parallel dimensions to a real cluster topology.}
 
 \section{Context parallelism}
 
@@ -42,7 +42,7 @@
 \begin{frame}{Most layers are local after token sharding}
   With $T$ split over $C$ context ranks, each rank owns roughly $T/C$ positions.
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item tokenwise normalization and MLPs operate locally
     \item residual additions operate locally
     \item attention needs remote key-value blocks
@@ -109,15 +109,15 @@
 
 \begin{frame}{Pipeline parallelism assigns layer ranges to stages}
   \begin{center}
-  \begin{tikzpicture}[node distance=.30cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,align=center,minimum width=2.3cm,minimum height=.7cm}]
-    \node[box] (s0) {stage 0\\ layers 0--5};
-    \node[box,right=of s0] (s1) {stage 1\\ layers 6--11};
-    \node[box,right=of s1] (s2) {stage 2\\ layers 12--17};
-    \node[box,right=of s2] (s3) {stage 3\\ layers 18--23};
-    \draw[-{Stealth},thick] (s0)--(s1);
-    \draw[-{Stealth},thick] (s1)--(s2);
-    \draw[-{Stealth},thick] (s2)--(s3);
-  \end{tikzpicture}
+    \begin{tikzpicture}[node distance=.30cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,align=center,minimum width=2.3cm,minimum height=.7cm}]
+      \node[box] (s0) {stage 0\\ layers 0--5};
+      \node[box,right=of s0] (s1) {stage 1\\ layers 6--11};
+      \node[box,right=of s1] (s2) {stage 2\\ layers 12--17};
+      \node[box,right=of s2] (s3) {stage 3\\ layers 18--23};
+      \draw[-{Stealth},thick] (s0)--(s1);
+      \draw[-{Stealth},thick] (s1)--(s2);
+      \draw[-{Stealth},thick] (s2)--(s3);
+    \end{tikzpicture}
   \end{center}
   \begin{block}{Why micro-batches?}
     Split a global batch into $M$ micro-batches so different stages can work on different micro-batches concurrently.
@@ -160,7 +160,7 @@
     t_{\text{cycle}}\approx\max_s t_s
   \]
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Equal layer counts need not mean equal work.
     \item Embeddings, output projection, and activation sizes can skew stages.
     \item Stage boundaries determine activation communication volume.
@@ -169,13 +169,13 @@
 \end{frame}
 
 \checkpoint{schedule arithmetic}
-  {For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
+{For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
 
 \section{Expert parallelism}
 
 \begin{frame}{Routing tokens to distributed experts}
   \begin{enumerate}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item A router selects top-$k$ of $E$ expert MLPs for each token.
     \item Dispatch sends tokens to ranks hosting those experts.
     \item Local experts compute and return outputs for weighted combination.
@@ -208,7 +208,7 @@
 
 \begin{frame}{Subgroups reuse existing devices}
   \begin{itemize}
-    \setlength{\itemsep}{9pt}
+      \setlength{\itemsep}{9pt}
     \item $D$ counts the total data-parallel degree.
     \item FSDP degree $F$ divides $D$: $D/F$ groups replicate state shards.
     \item EP degree $E_P$ can divide $D$: each expert has $D/E_P$ replicas.
@@ -223,7 +223,7 @@
 
 \begin{frame}{Map the chattiest group to the fastest fabric}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Start by placing frequent TP collectives on a fast fabric.
     \item Add context parallelism when token activations or attention exceed local memory.
     \item Use pipeline parallelism when model depth spans nodes.
@@ -249,11 +249,11 @@
 \end{frame}
 
 \checkpoint{cluster design}
-  {Design a layout for 32 GPUs arranged as four 8-GPU nodes. State the memory constraint, proposed $D,T_p,C,P$, and which communication crosses node boundaries.}
+{Design a layout for 32 GPUs arranged as four 8-GPU nodes. State the memory constraint, proposed $D,T_p,C,P$, and which communication crosses node boundaries.}
 
 \takeaways
-  {Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
-  {Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
-  {Load balance matters across causal context blocks and pipeline stages.}
-  {Count independent axes once and test placement against measured memory and communication.}
+{Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
+{Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
+{Load balance matters across causal context blocks and pipeline stages.}
+{Count independent axes once and test placement against measured memory and communication.}
 \end{document}

@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 6]{Module 6: FSDP and ZeRO\\[4pt]
+\title[TASLLM -- Module 6]{Module 6: FSDP and ZeRO\\[4pt]
 \normalsize\itshape Trading Redundant Memory for Collective Communication}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Account for DDP's replicated model-state memory.}
-  {Explain ZeRO stages as progressive sharding.}
-  {Trace one FSDP unit through forward and backward.}
-  {Choose wrapping, precision, and checkpoint strategies from evidence.}
+{Account for DDP's replicated model-state memory.}
+{Explain ZeRO stages as progressive sharding.}
+{Trace one FSDP unit through forward and backward.}
+{Choose wrapping, precision, and checkpoint strategies from evidence.}
 
 \section{From replication to sharding}
 
@@ -70,7 +70,7 @@
     \node[left,font=\scriptsize\bfseries,text=warningdraw] at (0,3.8) {full unit};
     \node[left,font=\scriptsize\bfseries,text=accentdark] at (0,1.45) {$1/W$ shard};
     \fill[themebluebg,draw=themebluedraw,very thick]
-      (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
+    (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
     \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (1.35,-.8) {all-gather\\parameters};
     \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (3.20,-.8) {forward};
     \node[draw=warningdraw,fill=warningbg,rounded corners,font=\tiny] at (4.85,-.8) {reshard};
@@ -103,7 +103,7 @@
 
 \begin{frame}{Communication volume and exposure are different}
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item \textbf{Volume}: total bytes transferred by all-gathers and reduce-scatters.
     \item \textbf{Exposure}: communication time that remains visible after overlap with compute.
     \item \textbf{Frequency}: number of collectives and their message sizes.
@@ -115,15 +115,15 @@
 
 \begin{frame}{Prefetching tries to move the next unit early}
   \begin{center}
-  \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
-    \draw[->] (0,0)--(10.2,0) node[right]{time};
-    \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
-    \node at (2.8,.7) {compute unit $\ell$};
-    \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
-    \node at (3.8,1.55) {gather $\ell+1$};
-    \fill[themebluecard] (4.8,.4) rectangle (8.6,1.0);
-    \node at (6.7,.7) {compute unit $\ell+1$};
-  \end{tikzpicture}
+    \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
+      \draw[->] (0,0)--(10.2,0) node[right]{time};
+      \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
+      \node at (2.8,.7) {compute unit $\ell$};
+      \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
+      \node at (3.8,1.55) {gather $\ell+1$};
+      \fill[themebluecard] (4.8,.4) rectangle (8.6,1.0);
+      \node at (6.7,.7) {compute unit $\ell+1$};
+    \end{tikzpicture}
   \end{center}
   \begin{alertblock}{Constraint}
     Prefetching improves overlap but raises transient memory because current and next full units may coexist.
@@ -163,7 +163,7 @@
 \end{frame}
 
 \checkpoint{wrapping policy}
-  {A run fits in memory but launches hundreds of tiny all-gathers and scales poorly. What wrapping change would you test, and which memory and timing quantities could regress?}
+{A run fits in memory but launches hundreds of tiny all-gathers and scales poorly. What wrapping change would you test, and which memory and timing quantities could regress?}
 
 \section{Checkpointing and fair comparison}
 
@@ -243,7 +243,7 @@
 
 \begin{frame}{Choose FSDP when memory is the binding constraint}
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item Prefer DDP when the model fits comfortably and communication simplicity wins.
     \item Prefer FSDP when replicated state blocks model size, batch size, or context.
     \item Tune wrapping and prefetch from traces, not from a universal recipe.
@@ -252,11 +252,11 @@
 \end{frame}
 
 \checkpoint{memory prediction}
-  {Estimate idealized model-state memory per rank for $P$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
+{Estimate idealized model-state memory per rank for $P$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
 
 \takeaways
-  {ZeRO stages progressively shard optimizer state, gradients, and parameters.}
-  {FSDP materializes one wrapped unit through all-gather and returns sharded gradients.}
-  {Wrapping controls peak memory, collective size, frequency, and overlap.}
-  {Checkpoint format and a matched DDP baseline are part of the system claim.}
+{ZeRO stages progressively shard optimizer state, gradients, and parameters.}
+{FSDP materializes one wrapped unit through all-gather and returns sharded gradients.}
+{Wrapping controls peak memory, collective size, frequency, and overlap.}
+{Checkpoint format and a matched DDP baseline are part of the system claim.}
 \end{document}

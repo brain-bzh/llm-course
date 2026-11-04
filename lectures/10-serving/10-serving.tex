@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 10]{Module 10: Serving Systems\\[4pt]
+\title[TASLLM -- Module 10]{Module 10: Serving Systems\\[4pt]
 \normalsize\itshape Scheduling Tokens under Latency and Memory Constraints}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Trace a request through scheduler, cache manager, model runner, and output path.}
-  {Explain continuous batching and chunked prefill at iteration granularity.}
-  {Connect paged KV memory, admission control, and preemption.}
-  {Design a serving benchmark with explicit workload and latency metrics.}
+{Trace a request through scheduler, cache manager, model runner, and output path.}
+{Explain continuous batching and chunked prefill at iteration granularity.}
+{Connect paged KV memory, admission control, and preemption.}
+{Design a serving benchmark with explicit workload and latency metrics.}
 
 \section{From model forward to inference engine}
 
@@ -25,7 +25,7 @@
   \begin{columns}[c]
     \begin{column}{0.52\linewidth}
       \begin{enumerate}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item request queue and admission policy
         \item iteration-level token scheduler
         \item KV-block allocator and prefix index
@@ -62,7 +62,7 @@
 \begin{frame}{Speculative decoding}
   \centering
   \begin{tikzpicture}[x=1cm,y=1cm,scale=.90,transform shape,every node/.style={font=\scriptsize},
-    stage/.style={rounded corners,minimum height=.78cm,align=center,font=\scriptsize\bfseries},
+      stage/.style={rounded corners,minimum height=.78cm,align=center,font=\scriptsize\bfseries},
     token/.style={rounded corners,minimum width=.58cm,minimum height=.58cm,font=\scriptsize\bfseries}]
     \node[stage,draw=accentdark,fill=accentdark,text=white,minimum width=1.6cm] (ctx) at (.8,2.4) {accepted\\context};
     \node[stage,draw=warningdraw,fill=warningbg,minimum width=1.9cm] (draft) at (3.15,3.55) {small draft\\proposes $\gamma$ tokens};
@@ -80,7 +80,7 @@
     \draw[-{Stealth},thick] (target.south)--(6.1,2.55);
     \draw[-{Stealth},thick] (7.15,2.25)--(commit);
     \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=8.4cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries] at (5.4,.75)
-      {speedup needs high acceptance, cheap drafting, and efficient block verification};
+    {speedup needs high acceptance, cheap drafting, and efficient block verification};
   \end{tikzpicture}
   \par\vspace{2pt}
   \footnotesize Correct rejection sampling preserves the target distribution; measure accepted tokens per target step and TPOT.\par
@@ -89,16 +89,16 @@
 
 \begin{frame}{Static batching waits for the slowest request}
   \begin{center}
-  \begin{tikzpicture}[x=.7cm,y=.55cm,every node/.style={font=\scriptsize}]
-    \foreach \y/\name in {3/A,2/B,1/C}{\node[left] at (0,\y+.25) {\name};}
-    \fill[themebluecard] (0,3) rectangle (4,3.5);
-    \fill[neutralbg] (4,3) rectangle (8,3.5);
-    \fill[themebluecard] (0,2) rectangle (8,2.5);
-    \fill[themebluecard] (0,1) rectangle (2.5,1.5);
-    \fill[neutralbg] (2.5,1) rectangle (8,1.5);
-    \draw (0,3) rectangle (8,3.5); \draw (0,2) rectangle (8,2.5); \draw (0,1) rectangle (8,1.5);
-    \node at (6,3.25) {idle padding}; \node at (5.25,1.25) {idle padding};
-  \end{tikzpicture}
+    \begin{tikzpicture}[x=.7cm,y=.55cm,every node/.style={font=\scriptsize}]
+      \foreach \y/\name in {3/A,2/B,1/C}{\node[left] at (0,\y+.25) {\name};}
+      \fill[themebluecard] (0,3) rectangle (4,3.5);
+      \fill[neutralbg] (4,3) rectangle (8,3.5);
+      \fill[themebluecard] (0,2) rectangle (8,2.5);
+      \fill[themebluecard] (0,1) rectangle (2.5,1.5);
+      \fill[neutralbg] (2.5,1) rectangle (8,1.5);
+      \draw (0,3) rectangle (8,3.5); \draw (0,2) rectangle (8,2.5); \draw (0,1) rectangle (8,1.5);
+      \node at (6,3.25) {idle padding}; \node at (5.25,1.25) {idle padding};
+    \end{tikzpicture}
   \end{center}
   \begin{alertblock}{Head-of-line effect}
     Completed sequences occupy batch slots until the longest member finishes. New work cannot enter even when capacity is available.
@@ -145,7 +145,7 @@
     N_{\text{decode}}+N_{\text{prefill}}\le N_{\max}
   \]
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item Every active decode sequence usually asks for one token.
     \item Remaining capacity can admit prompt tokens.
     \item Cache-block availability may be the tighter constraint.
@@ -174,7 +174,7 @@
 
 \begin{frame}{Paged KV allocation matches irregular lifetimes}
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Divide KV memory into fixed-size physical blocks.
     \item Map each request's logical token blocks to any free physical blocks.
     \item Allocate as the sequence grows and return blocks on completion.
@@ -208,7 +208,7 @@
 \begin{frame}{Admission control prevents memory collapse}
   Before admitting work, estimate required blocks from prompt length, current cache, and maximum generation policy.
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item queue when safe cache capacity is unavailable
     \item reject or cap requests outside the service contract
     \item preempt lower-priority work only under a declared policy
@@ -236,7 +236,7 @@
 \end{frame}
 
 \checkpoint{schedule by hand}
-  {An iteration budget is 16 tokens. Ten sequences need decode, one waiting prompt has length 20, and cache capacity is available. Propose the next two iterations under a decode-first chunked-prefill policy.}
+{An iteration budget is 16 tokens. Ten sequences need decode, one waiting prompt has length 20, and cache capacity is available. Propose the next two iterations under a decode-first chunked-prefill policy.}
 
 \section{Measure the service, not a toy loop}
 
@@ -277,7 +277,7 @@
 
 \begin{frame}{A useful benchmark sweeps the operating curve}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item choose a representative request-length distribution
     \item increase arrival rate or concurrency gradually
     \item record TTFT, inter-token latency, throughput, cache occupancy, and preemptions
@@ -291,7 +291,7 @@
 
 \begin{frame}{Read metrics as one coupled system}
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item rising queue time with stable GPU time means admission is saturated
     \item TTFT spikes with stable decode latency suggest long prefills or queueing
     \item growing preemptions suggest cache overcommit
@@ -301,11 +301,11 @@
 \end{frame}
 
 \checkpoint{serving report}
-  {Define a workload, one service-level objective, the policy under test, a baseline, and the five measurements needed to explain both throughput and tail latency.}
+{Define a workload, one service-level objective, the policy under test, a baseline, and the five measurements needed to explain both throughput and tail latency.}
 
 \takeaways
-  {An inference engine schedules token work and cache state at every iteration.}
-  {Continuous batching removes static slots, while chunked prefill controls head-of-line blocking.}
-  {Paged memory, prefix reuse, admission, and preemption jointly determine capacity.}
-  {Serving claims require representative arrivals plus throughput and tail-latency evidence.}
+{An inference engine schedules token work and cache state at every iteration.}
+{Continuous batching removes static slots, while chunked prefill controls head-of-line blocking.}
+{Paged memory, prefix reuse, admission, and preemption jointly determine capacity.}
+{Serving claims require representative arrivals plus throughput and tail-latency evidence.}
 \end{document}

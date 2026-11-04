@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 9]{Module 9: KV-Cached Decoding\\[4pt]
+\title[TASLLM -- Module 9]{Module 9: KV-Cached Decoding\\[4pt]
 \normalsize\itshape Reuse, Memory Growth, and Exact Autoregressive State}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Explain the redundant work removed by a KV cache.}
-  {Compute cache shapes and memory for MHA, GQA, and MQA.}
-  {Reason about decode bandwidth and cache layout.}
-  {Test cached generation against a full-prefix reference.}
+{Explain the redundant work removed by a KV cache.}
+{Compute cache shapes and memory for MHA, GQA, and MQA.}
+{Reason about decode bandwidth and cache layout.}
+{Test cached generation against a full-prefix reference.}
 
 \section{From full-prefix recomputation to reuse}
 
@@ -53,8 +53,8 @@
 \begin{frame}{Cached attention at one layer}
   \centering
   \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},
-    box/.style={draw=neutrallight,fill=neutralbg,rounded corners,minimum width=1.55cm,minimum height=.72cm,align=center},
-    new/.style={draw=warningdraw,fill=warningbg,rounded corners,minimum width=1.35cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries},
+      box/.style={draw=neutrallight,fill=neutralbg,rounded corners,minimum width=1.55cm,minimum height=.72cm,align=center},
+      new/.style={draw=warningdraw,fill=warningbg,rounded corners,minimum width=1.35cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries},
     cache/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=4.8cm,minimum height=1.22cm,align=center}]
     \node[box] (past) at (1.45,3.2) {past tokens\\$x_1\ldots x_{t-1}$};
     \node[new] (xt) at (1.45,1.55) {new token\\$x_t$};
@@ -174,13 +174,13 @@
 \end{frame}
 
 \checkpoint{capacity calculation}
-  {Recompute the worked example with eight KV heads. How many 4096-token requests fit in 32 GiB if 24 GiB is available for cache after weights and workspaces?}
+{Recompute the worked example with eight KV heads. How many 4096-token requests fit in 32 GiB if 24 GiB is available for cache after weights and workspaces?}
 
 \section{Correctness and benchmarking}
 
 \begin{frame}{The cache must preserve logical positions}
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item The new token uses its absolute or rotary position $t$.
     \item The causal mask covers the valid cached prefix and current token.
     \item Padding and per-request lengths cannot expose uninitialized cache entries.
@@ -194,7 +194,7 @@
 \begin{frame}{Full-prefix decoding is the reference oracle}
   For fixed weights, prompt, and token sequence:
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item run a full-prefix forward pass for each step
     \item run cached prefill plus single-token decode
     \item compare next-token logits at every step
@@ -223,11 +223,11 @@
 \end{frame}
 
 \checkpoint{cache debugging}
-  {Cached logits match for short prompts but diverge immediately after a page boundary. Which state and indexing checks isolate layout bugs from positional-encoding bugs?}
+{Cached logits match for short prompts but diverge immediately after a page boundary. Which state and indexing checks isolate layout bugs from positional-encoding bugs?}
 
 \takeaways
-  {KV caching reuses past key and value projections exactly.}
-  {Cache memory grows with layers, KV heads, requests, cached tokens, head width, and precision.}
-  {Decode is commonly bandwidth-bound, so cache architecture and layout shape performance.}
-  {Full-prefix logit equivalence is the primary correctness test before benchmarking.}
+{KV caching reuses past key and value projections exactly.}
+{Cache memory grows with layers, KV heads, requests, cached tokens, head width, and precision.}
+{Decode is commonly bandwidth-bound, so cache architecture and layout shape performance.}
+{Full-prefix logit equivalence is the primary correctness test before benchmarking.}
 \end{document}

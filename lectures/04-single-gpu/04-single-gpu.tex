@@ -1,7 +1,7 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
 
-\title[TSLM -- Module 4]{Module 4: Single-GPU Performance\\[4pt]
+\title[TASLLM -- Module 4]{Module 4: Single-GPU Performance\\[4pt]
 \normalsize\itshape Hardware, Rooflines, Memory, and Measurement}
 \date{\today}
 
@@ -17,10 +17,10 @@
 \end{frame}
 
 \learninggoals
-  {Explain execution from threads and warps up to streaming multiprocessors.}
-  {Use memory hierarchy and arithmetic intensity to predict bottlenecks.}
-  {Account for training memory beyond the weights.}
-  {Profile and benchmark optimizations with a causal protocol.}
+{Explain execution from threads and warps up to streaming multiprocessors.}
+{Use memory hierarchy and arithmetic intensity to predict bottlenecks.}
+{Account for training memory beyond the weights.}
+{Profile and benchmark optimizations with a causal protocol.}
 
 \section{The machine beneath the tensor}
 
@@ -28,7 +28,7 @@
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item A kernel launches a grid of threads.
         \item Threads execute in warps, commonly 32 lanes.
         \item Warps are scheduled onto streaming multiprocessors (SMs).
@@ -175,7 +175,7 @@
 \end{frame}
 
 \checkpoint{roofline diagnosis}
-  {An optimization halves the FLOP count of a normalization kernel but runtime barely moves. Which roofline quantity explains the result, and what change is more promising?}
+{An optimization halves the FLOP count of a normalization kernel but runtime barely moves. Which roofline quantity explains the result, and what change is more promising?}
 
 \section{Memory and measurement}
 
@@ -235,7 +235,7 @@
 
 \begin{frame}{Read a profiler trace as a causal story}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Is the GPU idle between steps? Inspect input loading and synchronization.
     \item Are there many tiny kernels? Inspect fusion and compilation opportunities.
     \item Do copies overlap compute? Inspect pinned memory and asynchronous transfer.
@@ -246,7 +246,7 @@
 
 \begin{frame}{Apply optimizations in an evidence-driven order}
   \begin{enumerate}
-    \setlength{\itemsep}{5pt}
+      \setlength{\itemsep}{5pt}
     \item verify correctness and stabilize the benchmark
     \item keep the input pipeline ahead of the GPU
     \item use BF16 or FP16 safely
@@ -261,12 +261,12 @@
 \end{frame}
 
 \checkpoint{one-change ablation}
-  {Choose one slow trace pattern. State the bottleneck hypothesis, the single intervention, the expected profiler change, and the correctness check that must remain unchanged.}
+{Choose one slow trace pattern. State the bottleneck hypothesis, the single intervention, the expected profiler change, and the correctness check that must remain unchanged.}
 
 \takeaways
-  {GPU speed comes from parallel regular work and data reuse, not from clock speed alone.}
-  {Roofline reasoning separates bandwidth-bound from compute-bound operations.}
-  {Peak memory includes activations, optimizer state, temporaries, and allocator behavior.}
-  {A trustworthy speedup needs a stable workload, correctness checks, and causal profiling evidence.}
+{GPU speed comes from parallel regular work and data reuse, not from clock speed alone.}
+{Roofline reasoning separates bandwidth-bound from compute-bound operations.}
+{Peak memory includes activations, optimizer state, temporaries, and allocator behavior.}
+{A trustworthy speedup needs a stable workload, correctness checks, and causal profiling evidence.}
 
 \end{document}

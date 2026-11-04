@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 5]{Module 5: Distributed Data Parallelism\\[4pt]
+\title[TASLLM -- Module 5]{Module 5: Distributed Data Parallelism\\[4pt]
 \normalsize\itshape Replicas, Collectives, and Global Invariants}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Derive the averaged gradient computed by data parallelism.}
-  {Reason about ring all-reduce cost and overlap.}
-  {Keep accumulation, sampling, logging, and checkpointing rank-aware.}
-  {Measure both numerical equivalence and scaling efficiency.}
+{Derive the averaged gradient computed by data parallelism.}
+{Reason about ring all-reduce cost and overlap.}
+{Keep accumulation, sampling, logging, and checkpointing rank-aware.}
+{Measure both numerical equivalence and scaling efficiency.}
 
 \section{The data-parallel contract}
 
@@ -25,7 +25,7 @@
   \begin{columns}[c]
     \begin{column}{0.53\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
+          \setlength{\itemsep}{7pt}
         \item one process controls one GPU
         \item parameters begin identical on all ranks
         \item local batches are disjoint parts of a global batch
@@ -130,15 +130,15 @@
   Backward produces gradients from later layers first. DDP groups parameters into buckets and launches a collective as each bucket becomes ready.
   \vspace{6pt}
   \begin{center}
-  \begin{tikzpicture}[x=.82cm,y=.65cm,every node/.style={font=\scriptsize}]
-    \draw[->] (0,0)--(10.4,0) node[right]{time};
-    \fill[themebluecard] (0,.4) rectangle (8,1.0);
-    \node at (4,.7) {backward compute};
-    \fill[warningbg] (2.0,1.25) rectangle (4.0,1.85);
-    \fill[warningbg] (4.1,1.25) rectangle (6.1,1.85);
-    \fill[warningbg] (6.2,1.25) rectangle (8.8,1.85);
-    \node at (5.4,1.55) {bucket all-reduces};
-  \end{tikzpicture}
+    \begin{tikzpicture}[x=.82cm,y=.65cm,every node/.style={font=\scriptsize}]
+      \draw[->] (0,0)--(10.4,0) node[right]{time};
+      \fill[themebluecard] (0,.4) rectangle (8,1.0);
+      \node at (4,.7) {backward compute};
+      \fill[warningbg] (2.0,1.25) rectangle (4.0,1.85);
+      \fill[warningbg] (4.1,1.25) rectangle (6.1,1.85);
+      \fill[warningbg] (6.2,1.25) rectangle (8.8,1.85);
+      \node at (5.4,1.55) {bucket all-reduces};
+    \end{tikzpicture}
   \end{center}
   \begin{alertblock}{Tail exposure}
     Communication that remains after backward completes is visible step-time overhead.
@@ -149,7 +149,7 @@
   \begin{columns}[c]
     \begin{column}{0.53\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{8pt}
+          \setlength{\itemsep}{8pt}
         \item Early micro-steps accumulate locally under \texttt{no\_sync()}.
         \item The final micro-step triggers the bucket all-reduces.
         \item Loss normalization still targets the global mean.
@@ -168,7 +168,7 @@
 
 \begin{frame}{Distributed sampling is part of correctness}
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item Each rank needs a disjoint subset within an epoch or sampling interval.
     \item All ranks must agree on the shuffle seed and epoch counter.
     \item Dropping or padding the tail changes sample multiplicity.
@@ -196,13 +196,13 @@
 \end{frame}
 
 \checkpoint{batch accounting}
-  {With $W=8$, micro-batch 2, context 2048, and four accumulated micro-steps, compute tokens per update. How many gradient synchronizations should occur?}
+{With $W=8$, micro-batch 2, context 2048, and four accumulated micro-steps, compute tokens per update. How many gradient synchronizations should occur?}
 
 \section{Correctness before scaling}
 
 \begin{frame}{A five-rung correctness ladder}
   \begin{enumerate}
-    \setlength{\itemsep}{5pt}
+      \setlength{\itemsep}{5pt}
     \item parameters are identical immediately after initialization
     \item one global-batch update matches a single-process reference
     \item parameters remain synchronized after the update
@@ -236,7 +236,7 @@
 
 \begin{frame}{A trace explains poor scaling}
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item long exposed collectives suggest insufficient compute overlap or slow links
     \item rank skew suggests data loading, imbalance, or stragglers
     \item many small collectives suggest poor bucketing
@@ -246,11 +246,11 @@
 \end{frame}
 
 \checkpoint{equivalence failure}
-  {A two-GPU run has the expected throughput, but its first update differs sharply from the single-process reference. Give a check order covering initialization, data, loss normalization, reduction, and optimizer state.}
+{A two-GPU run has the expected throughput, but its first update differs sharply from the single-process reference. Give a check order covering initialization, data, loss normalization, reduction, and optimizer state.}
 
 \takeaways
-  {DDP is equivalent to a global mean update only when data and normalization invariants hold.}
-  {Ring all-reduce spreads bandwidth cost, while buckets hide part of it behind backward.}
-  {Sampling, metrics, side effects, and resume logic must all understand rank.}
-  {Correctness comparisons come before speedup and efficiency measurements.}
+{DDP is equivalent to a global mean update only when data and normalization invariants hold.}
+{Ring all-reduce spreads bandwidth cost, while buckets hide part of it behind backward.}
+{Sampling, metrics, side effects, and resume logic must all understand rank.}
+{Correctness comparisons come before speedup and efficiency measurements.}
 \end{document}

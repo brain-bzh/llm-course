@@ -1,6 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
-\title[TSLM -- Module 7]{Module 7: Tensor Parallelism\\[4pt]
+\title[TASLLM -- Module 7]{Module 7: Tensor Parallelism\\[4pt]
 \normalsize\itshape Splitting Matrix Multiplication Inside Each Layer}
 \date{\today}
 
@@ -14,10 +14,10 @@
   \end{block}
 \end{frame}
 \learninggoals
-  {Derive column- and row-parallel linear layers from matrix multiplication.}
-  {Track replicated and sharded tensor layouts through an MLP and attention block.}
-  {Connect forward collectives with their backward counterparts.}
-  {Choose tensor-parallel degree from layer shapes and topology.}
+{Derive column- and row-parallel linear layers from matrix multiplication.}
+{Track replicated and sharded tensor layouts through an MLP and attention block.}
+{Connect forward collectives with their backward counterparts.}
+{Choose tensor-parallel degree from layer shapes and topology.}
 
 \section{Start from one matrix multiplication}
 
@@ -42,7 +42,9 @@
   \[
     X=[X_1\;X_2\;\cdots\;X_p],
     \qquad
-    W=\begin{bmatrix}W_1\\W_2\\\vdots\\W_p\end{bmatrix}
+    W=
+    \begin{bmatrix}W_1\\W_2\\\vdots\\W_p
+    \end{bmatrix}
   \]
   \[
     Y=\sum_{i=1}^{p}X_iW_i
@@ -55,8 +57,8 @@
 \begin{frame}{Column then row parallelism forms an efficient sandwich}
   \centering
   \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},
-    op/.style={draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=1.72cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries},
-    shard/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.55cm,minimum height=.66cm,align=center},
+      op/.style={draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=1.72cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries},
+      shard/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.55cm,minimum height=.66cm,align=center},
     collective/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=1.8cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries}]
     \node[anchor=east,font=\scriptsize\bfseries] at (1.45,3.25) {materialize $H$};
     \node[op] (m1) at (2.55,3.25) {$W_1$\\column};
@@ -86,7 +88,7 @@
 
 \begin{frame}{Attention naturally shards by heads}
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item Column-shard the fused $QKV$ projection so each rank owns a subset of heads.
     \item Compute attention locally for those heads.
     \item Row-shard the output projection and all-reduce its partial residual update.
@@ -149,7 +151,7 @@
 \end{frame}
 
 \checkpoint{layout trace}
-  {Trace replicated or sharded status through a column-parallel MLP expansion, activation, row-parallel contraction, and residual add. At which point is communication unavoidable?}
+{Trace replicated or sharded status through a column-parallel MLP expansion, activation, row-parallel contraction, and residual add. At which point is communication unavoidable?}
 
 \section{Cost and placement}
 
@@ -159,7 +161,7 @@
     S_{\text{act}}=B\,T\,d\,s
   \]
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Larger batch and context increase collective payload.
     \item Higher TP degree shrinks local matmuls and can reduce arithmetic efficiency.
     \item Collective latency and link bandwidth set the exposed cost.
@@ -185,7 +187,7 @@
 
 \begin{frame}{Choose the smallest degree that solves the constraint}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Determine whether a layer's weights or activations fail to fit on one GPU.
     \item Check head, hidden, and MLP divisibility for candidate degrees.
     \item Map the group to the strongest available links.
@@ -195,11 +197,11 @@
 \end{frame}
 
 \checkpoint{degree selection}
-  {A model fits with TP=2, but TP=8 gives lower throughput. Explain the result using local matrix shapes, collective frequency, and topology.}
+{A model fits with TP=2, but TP=8 gives lower throughput. Explain the result using local matrix shapes, collective frequency, and topology.}
 
 \takeaways
-  {Column parallelism shards output features, while row parallelism sums partial outputs.}
-  {Their composition keeps intermediate MLP and attention shards local.}
-  {A layout ledger and unsharded numerical reference are essential correctness tools.}
-  {Tensor parallelism is a fine-grained method that needs large local work and fast links.}
+{Column parallelism shards output features, while row parallelism sums partial outputs.}
+{Their composition keeps intermediate MLP and attention shards local.}
+{A layout ledger and unsharded numerical reference are essential correctness tools.}
+{Tensor parallelism is a fine-grained method that needs large local work and fast links.}
 \end{document}
