@@ -2,8 +2,9 @@
 
 This lab accompanies [Module 11: Frontier architectures and efficient generation](../modules/11-frontier-architectures.md).
 
-!!! info "Lecture & Optional Exploration"
-    Session 30 is a theory lecture covering frontier architectures and inference acceleration, leading directly into final project presentations and defenses (Sessions 31–32). There is no mandatory lab assignment or report to submit for this module, preserving full team bandwidth for [Reproduction Project Defenses](../schedule.md#phase-3-serve-and-synthesize).
+!!! note "Open session"
+    Session 27 is reserved for content to be decided. This page and the
+    exploration script are optional material; there is no required lab.
 
     The exploration scripts and unit tests below are provided as optional reference implementations for self-paced study or for teams incorporating frontier techniques into their reproduction project.
 

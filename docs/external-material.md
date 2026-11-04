@@ -31,7 +31,7 @@ This page collects the references behind the course. We thank the many authors o
 
 ## Model and training foundations
 
-_Sessions 1, 2 and 4._
+_Sessions 1–8._
 
 ### Papers
 
@@ -56,7 +56,7 @@ _Sessions 1, 2 and 4._
 
 ## Tokenization and data
 
-_Sessions 3 and 5._
+_Sessions 9–10._
 
 - **[minBPE](https://github.com/karpathy/minbpe)** — A minimal implementation
   and exercise set for byte-level BPE.
@@ -72,7 +72,7 @@ _Sessions 3 and 5._
 
 ## Single-GPU efficiency
 
-_Session 6._
+_Sessions 11–12._
 
 - **[How to Think About GPUs](https://jax-ml.github.io/scaling-book/gpus/)** —
   The main hardware reference for SMs, warps, Tensor Cores, the memory
@@ -84,7 +84,7 @@ _Session 6._
 
 ## Distributed training
 
-_Sessions 7–10._
+_Sessions 13–23._
 
 - **[The Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook)**
   — A visual, interactive guide from single-GPU memory accounting through data,
@@ -109,7 +109,7 @@ _Sessions 7–10._
 - **[ZeRO](https://arxiv.org/abs/1910.02054)** — The memory accounting and
   sharding stages behind zero-redundancy training.
 - **[Megatron-LM model parallelism](https://arxiv.org/abs/1909.08053)** — The
-  column- and row-parallel linear-layer construction used in Session 9.
+  column- and row-parallel linear-layer construction used in Session 20.
 - **[PyTorch tensor-parallel tutorial](https://docs.pytorch.org/tutorials/intermediate/TP_tutorial.html)**
   — A current implementation of column-wise, row-wise and sequence-parallel
   layouts.
@@ -165,7 +165,7 @@ We recomend watching those videos to get a better understanding of distributed t
 
 ## Efficient inference and serving
 
-_Sessions 25–28 (Modules 9 and 10)._
+_Sessions 25–26 and 28 (Modules 9 and 10)._
 
 - **[KV Cache Explained Intuitively](https://medium.com/@saad.ahmed1926q/kv-cache-explained-intuitively-2b425a36dfc7)**
   — A visual introduction to repeated autoregressive work, prefill and cached
@@ -193,7 +193,7 @@ _Sessions 25–28 (Modules 9 and 10)._
 
 ## Frontier architectures and efficient generation
 
-_Session 30 (Module 11)._
+_Session 27 (optional Module 11 material)._
 
 - **[Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192)**
   — Foundational draft-and-verify paradigm and proof of provably unbiased rejection sampling.

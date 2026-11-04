@@ -29,7 +29,7 @@ uv run pytest tests/test_module_03_data.py -v
 uv run python scripts/03_prepare_dataset.py
 ```
 
-## Session 8 protocol — 75 minutes
+## Session 10 protocol — 75 minutes
 
 **Prepare:** read the module sections on BPE, document boundaries, and shifted
 batches. Run the quickstart before class. The reference tokenizer, filters, and

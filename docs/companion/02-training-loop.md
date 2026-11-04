@@ -109,10 +109,9 @@ The final test and `scripts/02_overfit.py` load the checkpoint into a fresh mode
 and require bit-identical logits on the fixed input. Reloading only the model
 weights is not sufficient for resuming training.
 
-## Part B — Baseline experiment (sessions 9–10)
+## Part B — Baseline experiment (session 8)
 
-The fixed-batch exercise is the session 6 milestone. After the data pipeline
-module, run a separate baseline on disjoint training and validation documents.
+The fixed-batch exercise is the session 7 milestone. Before the data pipeline module, run a separate baseline on disjoint training and validation documents.
 The baseline uses a fixed UTF-8 byte vocabulary plus EOT (257 tokens), keeping
 this experiment independent of tokenizer training and network downloads.
 
@@ -123,7 +122,7 @@ uv run python scripts/02_train_baseline.py --output runs/smoke --steps 10
 uv run pytest tests/test_module_02_baseline.py -q
 ```
 
-For the course experiment, prepare two JSONL files, one document per line:
+For the course experiment, use two instructor-prepared JSONL files, one document per line:
 
 ```json
 {"text": "A complete document from the declared source."}
@@ -174,7 +173,7 @@ uninterrupted run, including final weights and optimizer states. CUDA execution
 requires its own deterministic-kernel verification; equivalence across devices
 or software releases is not promised.
 
-### Session 10 protocol
+### Session 8 protocol
 
 - **0–15 min:** inspect disjoint document hashes, configuration, token budget, and initial loss.
 - **15–35 min:** run the smoke test and interrupt/resume comparison.
@@ -189,7 +188,7 @@ can supplement the loss analysis; fluency is not a passing threshold.
 quality on a real corpus remains unmeasured. Avoid presenting smoke loss as a
 pretraining result.
 
-## Definition of done — Part A (session 6)
+## Definition of done — Part A (session 7)
 
 You are finished when:
 
@@ -203,5 +202,5 @@ The first two modules form one continuous result:
 
 ```text
 Module 1 (sessions 1–4): implement the architecture → reproduce GPT-2 inference
-Module 2 (sessions 5–6): implement the training loop → overfit a small NanoLM locally
+Module 2 (sessions 5–8): implement the training loop → overfit a small NanoLM locally
 ```

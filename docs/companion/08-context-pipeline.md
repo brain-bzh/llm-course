@@ -66,7 +66,7 @@ not execute the full logical mesh or measure GPU/network performance.
 - **25–40 min:** compare EP and FSDP as alternative subdivisions of DP at the same device count; inspect the meta-device parameter/TP-shard shapes and idealized persistent-state estimates.
 - **40–55 min:** use the pipeline simulator to compare AFAB and 1F1B at fixed stages and micro-batches. Report idle/total and activation residency separately.
 - **55–70 min:** defend the chosen layout and one alternative, including network placement, an explicit limitation, and the measurements needed to choose between them.
-- **70–75 min:** if the environment is ready, temporarily switch to pure TP=2 and run the Gloo DDP/TP checks; otherwise record them as unverified and use the reference results from Sessions 16 and 21.
+- **70–75 min:** if the environment is ready, temporarily switch to pure TP=2 and run the Gloo DDP/TP checks; otherwise record them as unverified and use the reference results from Sessions 14 and 21.
 
 **Definition of done:** submit a rank-layout diagram or printed map; show two
 valid configurations with the same device count and global tokens/update;

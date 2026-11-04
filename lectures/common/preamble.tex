@@ -75,7 +75,8 @@
 
 % ---- Concept Highlight Card Utility ----
 \newcommand{\conceptcard}[3]{%
-  \begin{coursebox}{#1}{#2}#3\end{coursebox}%
+  \begin{coursebox}{#1}{#2}#3
+  \end{coursebox}%
 }
 
 % ---- Reusable teaching-slide components ----
@@ -100,7 +101,7 @@
 }
 
 \newcommand{\takeaways}[4]{%
-  \begin{frame}{The durable ideas}
+  \begin{frame}{Key takeaways}
     \begin{enumerate}
         \setlength{\itemsep}{8pt}
       \item #1
@@ -149,7 +150,7 @@
     \settitlelogos{%
       \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{IMT_Atlantique_logo.png}}%
       \hspace{1.2em}%
-      \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{brain.pdf}}}
+    \raisebox{-0.5\height}{\includegraphics[height=1.15cm]{brain.pdf}}}
     \def\insertauthor{BRAIN team}
     \def\insertdate{January 2027}
     \begin{frame}[plain]

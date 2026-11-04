@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 390" role="img" aria-labelledby="title desc">
+<title id="title">Forward, backward, and optimizer update</title>
+<desc id="desc">A forward pass produces activations and a loss; backward uses saved activations to compute gradients; the optimizer uses those gradients and its state to update parameters and state.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#617787"/></marker><style>text{font-family:Inter,system-ui,sans-serif;fill:#16405a;font-size:19px}.small{font-size:15px;fill:#52697a}.head{font-size:15px;font-weight:700;fill:#007d86}.box{fill:#eef6fa;stroke:#9fc5d5;stroke-width:2}.back{fill:#fdf0ea;stroke:#d9a88d;stroke-width:2}.state{fill:#f2eef8;stroke:#b5a5c9;stroke-width:2}.line{fill:none;stroke:#617787;stroke-width:2}.dash{stroke-dasharray:5 4}</style></defs>
+<text class="head" x="24" y="42">FORWARD</text>
+<rect class="box" x="150" y="15" width="130" height="52" rx="8"/><text x="215" y="47" text-anchor="middle">Tokens</text>
+<rect class="box" x="325" y="15" width="155" height="52" rx="8"/><text x="402" y="47" text-anchor="middle">Model · θₜ</text>
+<rect class="box" x="525" y="15" width="145" height="52" rx="8"/><text x="598" y="47" text-anchor="middle">Logits</text>
+<rect class="box" x="715" y="15" width="160" height="52" rx="8"/><text x="795" y="47" text-anchor="middle">Loss ℒ</text>
+<path class="line" d="M280 41H325M480 41H525M670 41H715"/>
+<text class="small" x="795" y="88" text-anchor="middle">+ targets</text>
+<text class="head" x="24" y="157">BACKWARD</text>
+<rect class="back" x="335" y="124" width="190" height="52" rx="8"/><text x="430" y="156" text-anchor="middle">Saved activations</text>
+<rect class="back" x="580" y="124" width="145" height="52" rx="8"/><text x="652" y="156" text-anchor="middle">Backward</text>
+<rect class="back" x="770" y="124" width="175" height="52" rx="8"/><text x="857" y="156" text-anchor="middle">Gradients gₜ</text>
+<path class="line dash" d="M402 67V104H430V124"/><path class="line" d="M525 150H580M795 67V100H652V124M725 150H770"/>
+<text class="head" x="24" y="286">OPTIMIZER</text>
+<rect class="state" x="335" y="252" width="190" height="52" rx="8"/><text x="430" y="284" text-anchor="middle">State mₜ₋₁, vₜ₋₁</text>
+<rect class="state" x="580" y="252" width="145" height="52" rx="8"/><text x="652" y="284" text-anchor="middle">Update</text>
+<rect class="box" x="770" y="231" width="175" height="52" rx="8"/><text x="857" y="263" text-anchor="middle">New weights θₜ₊₁</text>
+<rect class="state" x="770" y="301" width="175" height="52" rx="8"/><text x="857" y="333" text-anchor="middle">New state mₜ, vₜ</text>
+<path class="line" d="M525 278H580M857 176V205H652V252M725 267H770M725 289H744V327H770"/>
+<path class="line" d="M350 67V90H300V216H555V278H580"/><text class="small" x="410" y="209" text-anchor="middle">current weights θₜ</text>
+<text class="small" x="430" y="235" text-anchor="middle">Adam example</text>
+<text class="small" x="652" y="369" text-anchor="middle">Plain SGD: no moment state</text>
+<polygon fill="#617787" points="325,41 316,36 316,46"/><polygon fill="#617787" points="525,41 516,36 516,46"/><polygon fill="#617787" points="715,41 706,36 706,46"/><polygon fill="#617787" points="430,124 425,115 435,115"/><polygon fill="#617787" points="580,150 571,145 571,155"/><polygon fill="#617787" points="652,124 647,115 657,115"/><polygon fill="#617787" points="770,150 761,145 761,155"/><polygon fill="#617787" points="580,278 571,273 571,283"/><polygon fill="#617787" points="652,252 647,243 657,243"/><polygon fill="#617787" points="770,267 761,262 761,272"/><polygon fill="#617787" points="770,327 761,322 761,332"/>
+</svg>

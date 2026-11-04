@@ -1,51 +1,74 @@
 # Module 2 — Training-loop anatomy and baseline GPT
 
-## Purpose
+This module follows one batch from predictions to a parameter update. We first
+introduce gradient descent and optimizer state, then examine the base PyTorch
+loop, add three common training features, and estimate compute and memory costs.
+The [companion lab](../companion/02-training-loop.md) applies these ideas to a
+small GPT model.
 
-Understand every state change between a batch of tokens and an optimizer update,
-and turn the components from Modules 1 and 2 into the first controlled language-model
-experiment.
+## Optimizer 101
 
-A deep learning training loop appears deceptively simple on the surface, but
-getting operations in the correct order is remarkably fragile. Most mistakes in
-PyTorch training loops do not throw errors or raise exceptions; instead, they
-fail silently—causing runaway GPU memory consumption, stale parameter updates,
-unintended gradient accumulation, or numerical divergence.
+### Loss, gradients, and gradient descent
 
-Furthermore, training a baseline language model is not merely making a loss
-curve decrease: it is knowing what was trained, why the run is credible, how to
-diagnose failures from curves, and which checkpoint should become the baseline
-for every subsequent systems or data comparison.
+Let $\theta$ denote all trainable parameters. The model transforms input tokens
+through intermediate **activations** into logits; cross-entropy compares those
+logits with the next-token targets and produces a scalar loss $\mathcal L(\theta)$.
+The loss measures the model's error on this batch. Backpropagation uses saved
+activations and the chain rule to calculate the gradient
+$g_t = \nabla_\theta \mathcal L_t(\theta_t)$: one derivative per parameter.
+The gradient tells us how the loss changes locally as each parameter changes.
 
-This module deconstructs the training loop from first principles, grounds the
-mechanics in [The Annotated PyTorch Training Loop](https://idlemachines.co.uk/essays/pytorch-training-loop),
-and establishes the first end-to-end baseline run inspired by the
-[GPT-2 report](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
-and [nanoGPT](https://github.com/karpathy/nanoGPT).
+**Gradient descent** updates the parameters in the opposite direction to the
+gradient:
+
+$$\theta_{t+1} = \theta_t - \eta_t g_t.$$
+
+The **learning rate** $\eta_t$ controls the size of that step. Too large a value
+can make updates unstable; too small a value can make progress slow. The update
+is based on local information and does not guarantee that the loss falls on every
+batch.
+
+**Stochastic gradient descent (SGD)** estimates the gradient from a sampled
+example or mini-batch rather than the entire dataset. Plain SGD applies the rule
+above using that mini-batch gradient. A different batch produces a different
+estimate, so individual steps can be noisy.
+
+### From activations to optimizer state
+
+The forward pass creates activations and the loss; backward uses those activations
+to compute parameter gradients; the optimizer reads the gradients and updates
+parameters. The scalar loss is **not** passed to a standard optimizer directly,
+and activations are not optimizer state. Some optimizers also keep persistent
+state across updates:
+
+| Quantity | Created or updated by | Lifetime and role |
+| :--- | :--- | :--- |
+| Activations | Forward pass | Intermediate values; some are saved until backward to compute derivatives. |
+| Loss | Loss function | Scalar objective used to start backward. |
+| Gradients | Backward pass | Per-parameter derivatives accumulated in `.grad`; cleared at the next update boundary. |
+| Parameters | Initialization and optimizer step | Persistent model weights changed by the optimizer. |
+| Optimizer state | Optimizer step | Persistent history used by an optimizer; plain SGD without momentum has none per parameter. |
+
+For example, Adam keeps a first moment $m_t$ and second moment $v_t$ for each
+parameter. Starting from zero, it updates them from the current gradient:
+
+$$m_t = \beta_1m_{t-1} + (1-\beta_1)g_t,\qquad
+v_t = \beta_2v_{t-1} + (1-\beta_2)g_t^2.$$
+
+Adam corrects the moments for their initialization, then takes an adaptive step:
+
+$$\hat m_t=\frac{m_t}{1-\beta_1^t},\quad
+\hat v_t=\frac{v_t}{1-\beta_2^t},\quad
+\theta_{t+1}=\theta_t-\eta_t\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}.$$
+
+AdamW additionally applies **decoupled weight decay**. The lab uses AdamW;
+its moments are optimizer state and should be saved when a run is resumed.
 
 ---
 
-## Key ideas
+## Base loop
 
-- autograd computation graph construction and vector-Jacobian backpropagation;
-- decoupled weight decay (AdamW) and parameter grouping (2D weights vs 1D biases/norms);
-- gradient accumulation and exact loss normalization across micro-batches;
-- global gradient norm clipping to prevent attention instability;
-- warmup and cosine learning-rate schedules parameterized by optimizer steps;
-- strict isolation between training and evaluation states (`model.eval()` vs `torch.no_grad()`);
-- deterministic checkpointing and full optimizer state recovery (momentum buffers);
-- automatic mixed precision (AMP, `bfloat16` vs `float16`) and pinned host-to-device streaming;
-- the causal next-token language modeling hypothesis and parameter-count scaling;
-- residual stream preservation through depth-scaled initialization ($1/\sqrt{2L}$);
-- token accounting identities: tokens per update, global tokens, and wall-clock budgets;
-- reading training vs validation curves, perplexity interpretation, and failure triage;
-- autoregressive sampling as a qualitative diagnostic tool.
-
----
-
-## The minimal training loop
-
-The core of any PyTorch training loop consists of five sequential steps:
+The core of any PyTorch training loop has four statements, corresponding to five state transitions:
 
 <div class="formula-highlight" style="text-align: left;" markdown>
 
@@ -86,77 +109,29 @@ examine the internal state transitions:
    **Parameters change here and nowhere else.**
 
 <figure markdown="span">
-  ![Data flow and state transitions in an LLM training loop: micro-batch forward and backward accumulation, gradient clipping, AdamW parameter updates, and gradient reset.](../assets/figures/training-loop-anatomy.svg){ loading=lazy }
-  <figcaption>The anatomy of an LLM training step: micro-batch gradient accumulation, gradient norm clipping, and the AdamW update cycle.</figcaption>
+  ![Forward creates activations and loss; backward produces gradients; the optimizer updates weights and Adam's moments.](../assets/figures/training-update-flow.svg){ loading=lazy }
+  <figcaption>One update: saved activations support backward; Adam's moments persist between updates. Inspired by the [Ultra-Scale Playbook](https://nanotron-ultrascale-playbook.static.hf.space/index.html).</figcaption>
 </figure>
 
 ---
 
-## Where order really matters: The silent failure catalog
-
-The single most dangerous property of a PyTorch training loop is that
-**misplaced lines rarely raise an exception**. The script executes cleanly, but the
-mathematical or computational behavior is completely broken.
-
-The table below catalogs these failure modes, grounded in the analysis from
-[The Annotated PyTorch Training Loop](https://idlemachines.co.uk/essays/pytorch-training-loop):
-
-| Operation | Wrong placement | Consequence (Silent Failure) |
-| :--- | :--- | :--- |
-| `model.to(device)` | **After**&nbsp;`optimizer = AdamW(...)` | Casting or moving a module creates new `nn.Parameter` tensors. The optimizer retains references to the discarded host parameters, updating dead memory while the active GPU model never trains. |
-| `optimizer.zero_grad()` | **After**&nbsp;`loss.backward()` | Gradients from previous batches are not cleared; parameter updates use a growing sum of all historical batches, causing explosive divergence. |
-| `clip_grad_norm_()` | **Before**&nbsp;`loss.backward()` | At this point, `param.grad` is `None`. The clipping function finds zero norms and executes as a silent no-op. Gradients remain unclipped. |
-| `clip_grad_norm_()` | **After**&nbsp;`optimizer.step()` | Gradients are clipped *after* the optimizer has already applied unconstrained updates to weights. The clip is completely wasted. |
-| `scheduler.step()` | **Inside**&nbsp;micro-batch loop | The learning rate decays once per micro-step instead of once per optimizer step, causing the learning rate to collapse orders of magnitude too early. |
-| Omit `model.train()` | After&nbsp;running&nbsp;`model.eval()` | Dropout remains disabled and LayerNorm/BatchNorm tracking is frozen. The model continues training in evaluation mode without error. |
-| Omit `torch.no_grad()` | During&nbsp;validation&nbsp;loop | Autograd constructs computation graphs for every evaluation batch, holding all validation activations in VRAM until an Out-Of-Memory (OOM) crash occurs. |
-| Logging `loss` | Instead&nbsp;of&nbsp;`loss.item()` | Storing the tensor `loss` keeps a live reference to the entire computation graph, preventing Python garbage collection and steadily leaking memory across steps. |
-
 ---
 
-## Layering production features
+## Additional training features
 
-A bare 5-line loop cannot train a modern Transformer stably or efficiently.
-We progressively layer on the necessary features:
+The base loop already performs gradient descent. The following features adjust
+how much data contributes to an update, limit unusually large gradients, and
+change the learning rate over a run. They all operate around the same update
+boundary; none changes the fundamental forward → loss → backward → step sequence.
 
-### 1. Decoupled weight decay (AdamW) & parameter grouping
+### Gradient accumulation
 
-Standard L2 regularization adds a penalty $\frac{\lambda}{2} \|W\|_2^2$ to the loss.
-For SGD, this is mathematically equivalent to weight decay. However, for adaptive
-gradient optimizers like Adam, L2 regularization scales the decay by the running
-gradient variance $\sqrt{v_t}$:
+<figure markdown="span">
+  ![Three sequential micro-batches contribute scaled gradients before a single optimizer update.](../assets/figures/training-accumulation-flow.svg){ loading=lazy }
+  <figcaption>Three equal-size micro-batches contribute to one update. Each backward pass adds a third of its gradient; weights and optimizer state stay fixed until the step.</figcaption>
+</figure>
 
-$$W_{t+1} = W_t - \eta \frac{g_t + \lambda W_t}{\sqrt{v_t} + \epsilon}$$
-
-Parameters with large historical gradients receive *less* decay than parameters
-with sparse gradients. Loshchilov & Hutter (2017) demonstrated that true weight
-decay must be **decoupled** from the gradient update:
-
-$$W_{t+1} = W_t - \eta \left( \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon} + \lambda W_t \right)$$
-
-Furthermore, weight decay should **only** apply to matrix multiplications and
-embedding weights. Decaying 1D tensors (such as LayerNorm/RMSNorm scale $\gamma$,
-bias $\beta$, and linear biases) degrades training stability:
-
-```python
-def configure_optimizers(model, weight_decay=0.1, lr=6e-4, betas=(0.9, 0.95)):
-    # Partition parameters: 2D weights get decay, 1D vectors do not
-    decay_params = [p for p in model.parameters() if p.requires_grad and p.dim() >= 2]
-    nodecay_params = [p for p in model.parameters() if p.requires_grad and p.dim() < 2]
-
-    optim_groups = [
-        {"params": decay_params, "weight_decay": weight_decay},
-        {"params": nodecay_params, "weight_decay": 0.0},
-    ]
-    return torch.optim.AdamW(optim_groups, lr=lr, betas=betas)
-```
-
-### 2. Gradient accumulation
-
-Language models require large batch sizes (e.g., $0.5\text{M}$ to $4\text{M}$ tokens)
-for smooth gradient estimates and stable optimization. Because a single GPU's VRAM
-can only hold a small micro-batch ($B_{\text{micro}} \times T$), we accumulate
-gradients across $M$ micro-steps before updating weights:
+An effective batch may not fit in memory at once. Split it into $M$ micro-batches, run forward and backward on each, and update the weights once after their gradients have accumulated:
 
 $$\text{Tokens per update} = B_{\text{micro}} \times T \times M \times N_{\text{GPUs}}$$
 
@@ -178,7 +153,7 @@ optimizer.step()
 optimizer.zero_grad(set_to_none=True)
 ```
 
-### 3. Gradient norm clipping
+### Gradient norm clipping
 
 Even with AdamW and pre-norm Transformers, self-attention layers periodically
 encounter anomalous batches or pathological token sequences that cause extreme
@@ -197,15 +172,11 @@ $\frac{M_{\text{clip}}}{\|g\|_2 + 10^{-6}}$:
 total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 ```
 
-Tracking `total_norm` over time is a primary diagnostic for training health: a
-healthy run maintains a stable norm ($0.1 \le \|g\|_2 \le 1.5$), whereas frequent
-clipping saturation indicates learning rate instability.
+Log the pre-clip `total_norm` and how often clipping activates. Frequent clipping can signal instability; the appropriate norm depends on the model and setup.
 
-### 4. Learning-rate schedules: Warmup and cosine decay
+### Learning-rate schedules: Warmup and cosine decay
 
-Randomly initialized attention layers produce nearly uniform attention distributions,
-generating noisy gradients that would corrupt initial embeddings under a large
-initial learning rate.
+The learning rate need not stay fixed. Warmup starts with smaller updates, while decay gradually reduces the learning rate later in training. Both are common choices, not universal requirements.
 
 A standard LLM schedule incorporates two phases:
 
@@ -234,286 +205,107 @@ def get_lr_cosine_schedule(step, warmup_steps, max_steps, max_lr, min_lr=0.0):
 In LLM pretraining, schedules are parameterized by **global optimizer steps**, not
 epochs, because datasets consist of billions of non-repeating tokens.
 
-### 5. Evaluation protocol and memory isolation
-
-Validation monitors cross-entropy loss and Perplexity ($\mathrm{PPL} = \exp(\mathcal{L})$)
-on unseen tokens. Two distinct mechanisms must be used together during evaluation:
-
-```python
-@torch.no_grad()
-def evaluate_loss(model, dataset, eval_iters=20):
-    model.eval()  # 1. Disable dropout, freeze batch stats
-    losses = []
-    for _ in range(eval_iters):
-        x, y = dataset.get_batch()
-        _, loss = model(x, targets=y)
-        losses.append(loss.item())  # 2. Extract float to prevent memory leak
-    model.train()  # 3. Restore training mode!
-    return sum(losses) / len(losses)
-```
-
-Notice the three critical invariants:
-- `model.eval()` toggles module behavior (e.g. disables dropout); it does **not** stop autograd.
-- `torch.no_grad()` disables gradient tracking and memory allocation for the DAG; it does **not** change module behavior.
-- `model.train()` must be restored immediately after the evaluation loop finishes.
-
-### 6. Checkpointing and exact recovery invariants
-
-A production training run must be preemptible. A valid checkpoint must capture
-the entire state required to reproduce the exact subsequent trajectory:
-
-```python
-def save_checkpoint(path, model, optimizer, config, step, val_loss):
-    raw_model = model.module if hasattr(model, "module") else model
-    state = {
-        "model": raw_model.state_dict(),
-        "optimizer": optimizer.state_dict(),  # First and second moments!
-        "config": config,
-        "step": step,
-        "val_loss": val_loss,
-    }
-    torch.save(state, path)
-```
-
-If `optimizer.state_dict()` is omitted, the momentum buffers ($m_t$ and $v_t$)
-are lost. Upon resuming, the optimizer starts cold with zero momentum, causing
-a sudden loss spike.
-
-### 7. Automatic Mixed Precision (AMP) & GPU efficiency
-
-Modern GPUs deliver several times higher compute throughput when executing matrix
-multiplications in half-precision (`bfloat16` or `float16`) instead of `float32`.
-
-- **`bfloat16` (Preferred for LLMs):** Possesses the exact same 8-bit dynamic exponent
-  range as `float32`. Gradients do not underflow, so no gradient scaling is needed.
-- **`float16` (Legacy/Inference):** Has a 5-bit exponent range. Small gradients
-  underflow to zero unless multiplied by a dynamic scale factor via `GradScaler`.
-
-When using `GradScaler`, the order of operations between unscaling and clipping
-is critical:
-
-```python
-scaler = torch.amp.GradScaler("cuda", enabled=(dtype == torch.float16))
-
-# Inside micro-step:
-with torch.amp.autocast(device_type="cuda", dtype=dtype):
-    logits, loss = model(x, targets=y)
-    loss = loss / grad_accum_steps
-scaler.scale(loss).backward()
-
-# At optimizer step boundary:
-# Must UNSCALE gradients BEFORE clipping, otherwise the norm is scaled!
-scaler.unscale_(optimizer)
-torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-scaler.step(optimizer)
-scaler.update()
-optimizer.zero_grad(set_to_none=True)
-```
-
-Furthermore, data transfers between Host (CPU) and Device (GPU) can overlap with
-compute if the source tensor is allocated in page-locked pinned memory:
-
-```python
-# Non-blocking transfer overlaps CUDA copy engine with tensor cores
-x = x.to(device, non_blocking=True)
-y = y.to(device, non_blocking=True)
-```
-
 ---
 
-## The GPT baseline: Architecture and parameter scaling
+## FLOP and memory accounting
 
-The [GPT-2 report](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
-established causal language modeling as an unsupervised multitask learner. The key
-architectural recipe consists of:
+An estimate makes the cost of an update concrete. State the assumptions first:
+here $N$ is the number of unique trainable scalar parameters, $B$ is the number
+of sequences, $T$ the number of tokens per sequence, and $D = BT$ the number of
+processed tokens. Count one multiplication and one addition as **two FLOPs**.
+These are estimates, not GPU timings.
 
-- decoder-only causal self-attention;
-- learned token and absolute position embeddings;
-- pre-normalization: LayerNorm before attention and before the MLP;
-- an additional final LayerNorm before the LM head;
-- an MLP with an expansion ratio of four (hidden dimension $4d$);
-- tied token-embedding and output-head weights;
-- residual projections initialized more conservatively as depth increases;
-- a language-model head that produces one logit per vocabulary item.
+### Compute: model versus optimizer
 
-### Reading configuration as a parameter count
+For a dense matrix multiplication, $[D,d_\text{in}]$ times
+$[d_\text{in},d_\text{out}]$ costs approximately
+$2D d_\text{in}d_\text{out}$ FLOPs in the forward pass. Computing input and
+weight gradients costs roughly twice the forward pass, so forward plus backward
+is about $6D d_\text{in}d_\text{out}$ FLOPs for that matrix.
 
-Let:
-- $L$ be the number of Transformer blocks;
-- $d$ the model width (hidden dimension);
-- $h$ the number of attention heads;
-- $d_h = d/h$ the head width;
-- $V$ the vocabulary size;
-- $T$ the maximum context length.
+A common rough Transformer estimate is **$6ND$ FLOPs** for forward and backward,
+when dense weight matrices dominate. It is not exact: embedding lookups,
+attention's sequence-length-dependent $QK^\top$ and attention–value products,
+the vocabulary head, normalization, and other operations are treated differently
+or omitted. In particular, long contexts can make the attention terms substantial.
+Use the actual dimensions and executed operations for a closer count.
 
-Ignoring biases and normalization vectors, one GPT block contains:
+For the optimizer, count once per parameter **per update**, not per token:
 
-| Component | Approximate parameters |
-| :--- | :--- |
-| Q, K, and V projections | $3d^2$ |
-| Attention output projection | $d^2$ |
-| MLP expansion ($d \to 4d$) | $4d^2$ |
-| MLP contraction ($4d \to d$) | $4d^2$ |
-| **Total per block** | **$12d^2$** |
+| Update | Illustrative operations per parameter | Approximate FLOPs |
+| :--- | :--- | ---: |
+| Plain SGD | $\eta g$ and $\theta-\eta g$ | 2 |
+| Adam | two moment updates, square root, division, and parameter update | about 12 |
 
-With tied input/output embeddings, the total parameter count is:
+The Adam count assumes precomputed coefficients, counts square root and division
+as one operation each, and omits bias correction and implementation details.
+Actual kernels and FLOP conventions differ. Accumulation adds forward/backward
+work for each micro-batch, but only one optimizer update per accumulated batch.
 
-$$N \approx 12Ld^2 + Vd + Td.$$
+**Worked example.** For a 124-million-parameter GPT-2-like model and 1,000,000
+processed tokens, the rough model estimate is $6 \times 124\text{M} \times
+1\text{M} = 7.44\times10^{14}$ FLOPs. One plain-SGD update is about $2 \times
+124\text{M} = 2.48\times10^8$ FLOPs; the illustrative Adam update is about
+$1.49\times10^9$ FLOPs. The model and optimizer counts are for different units:
+one million tokens versus **one** update. Multiply the optimizer cost by the
+number of updates for the full run.
 
-The $12Ld^2$ term dominates as depth and width grow. For $L=12, d=768, V=50{,}257, T=1024$ (GPT-2 124M):
-- Transformer blocks: $12 \times 12 \times 768^2 \approx 84.9\text{M}$ parameters;
-- Token embeddings: $50{,}257 \times 768 \approx 38.6\text{M}$;
-- Position embeddings: $1024 \times 768 \approx 0.8\text{M}$.
-- Total: $\approx 124\text{M}$ parameters.
+### Memory: what persists and what scales with the batch
 
----
+Assume all listed tensors use FP32 (4 bytes per element), all parameters have
+gradients, and there is no momentum for SGD:
 
-## Initialization: Preserve the residual stream
+| Storage | Plain SGD | Adam |
+| :--- | ---: | ---: |
+| Parameters | $4N$ bytes | $4N$ bytes |
+| Gradients | $4N$ bytes | $4N$ bytes |
+| First and second moments | 0 | $8N$ bytes |
+| **Subtotal** | **$8N$ bytes** | **$16N$ bytes** |
 
-Standard linear layers are initialized with standard deviation $\sigma = 0.02$.[^init-magic]
-However, each Transformer block adds two branches to the residual stream:
-attention and MLP:
+For $N=124$ million, these subtotals are **0.992 GB** for SGD and **1.984 GB**
+for Adam, using decimal GB. They do **not** include saved activations, temporary
+buffers, inputs, allocator overhead, or other state, so they are not peak-memory
+predictions. Activation memory depends on micro-batch size, sequence length,
+model architecture, and implementation. Accumulation can reduce activation
+memory by using smaller micro-batches, but it does not remove the persistent
+parameter, gradient, or optimizer-state storage.
 
-$$x_{l+1} = x_l + \text{Attn}(\text{LN}(x_l)) + \text{MLP}(\text{LN}(x_l)).$$
+### From a fixed-batch test to a baseline
 
-As depth $L$ increases, the variance of the residual stream accumulates linearly:
-$\text{Var}(x_L) \approx 2L \cdot \text{Var}(x_0)$. To preserve activations and prevent
-gradient explosion across deep models, residual output projections (`c_proj` in attention
-and MLP) are initialized with scaled variance:
+A fixed-batch overfit checks that targets, backward and the optimizer are
+connected; it does not establish generalization. For a baseline, record the
+model, data and split, optimizer and schedule, seed, hardware, code revision,
+and token budget. On January 6, the lab uses instructor-prepared disjoint
+JSONL documents. Its baseline script packs a fixed byte-token vocabulary itself;
+the following data-pipeline lab builds on this foundation.
 
-$$\sigma_{\text{resid}} = \frac{0.02}{\sqrt{2L}}.$$
+Compare training loss with held-out loss using a fixed validation protocol.
+For nearly uniform logits, initial cross-entropy is roughly $\log V$. Record
+learning rate and gradient norm to help investigate spikes, and compare runs at
+the same token budget. Samples, when available, are qualitative diagnostics.
+A synthetic smoke run checks mechanics but does not establish language quality.
 
-[^init-magic]:
-    If this value appears magic, it is! A fixed standard deviation of $0.02$ was adopted empirically by BERT and early GPT models as a round approximation to Xavier/Glorot variance for $d \approx 768$ ($\sqrt{1/768} \approx 0.036$). The depth-dependent scaling factor $\frac{1}{\sqrt{2L}}$ for residual projections was introduced in GPT-2 ([Radford et al., 2019](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)) and codified as the standard initialization recipe for large distributed Transformers by NVIDIA's Megatron-LM ([Shoeybi et al., 2019](https://arxiv.org/abs/1909.08053)).
+To resume, save the model, optimizer state, step and schedule configuration,
+random-number state, and data/configuration identity. Compare an interrupted and
+uninterrupted run under the same planned schedule. The companion verifies exact
+CPU continuation; reproducibility on a GPU needs a separate check.
 
-### Pre-flight sanity checks
+### Try it
 
-Before committing to an expensive training run:
-1. **Initial loss check:** For random initialization, initial loss should be close to uniform next-token prediction:
-   
-   $$\mathcal{L}_{\text{init}} \approx \log(V).$$
-   
-   For $V=50{,}257$, $\log(50{,}257) \approx 10.82$ nats.
-2. **Gradient check:** Verify that `param.grad` is finite, non-zero, and within $[0.01, 10.0]$ after the first backward pass.
-3. **Tiny-batch overfit:** The model must be able to drive loss on a single batch ($B=4, T=32$) down to $< 0.1$ within 50 steps.
+A model has $N=100$ million parameters and processes $D=500{,}000$ tokens in
+100 updates. Assume FP32 and the conventions above.
 
----
+1. Estimate forward/backward FLOPs for the run using $6ND$.
+2. Estimate the total optimizer FLOPs for plain SGD and for Adam.
+3. Calculate the parameter, gradient, and optimizer-state subtotal for each.
+4. Explain what extra information is needed to estimate peak memory.
 
-## Specifying the experiment & token accounting
-
-A reproducible run is specified completely by its configuration tuple:
-
-$$\text{run} = (\text{code}, \text{data}, \text{tokenizer}, \text{model}, \text{optimizer}, \text{schedule}, \text{seed}, \text{hardware}).$$
-
-The fundamental accounting identity connects micro-batches to global tokens:
-
-$$\text{Tokens per update} = B_{\text{micro}} \times T \times A \times D,$$
-
-where $A$ is gradient-accumulation steps and $D$ is data-parallel replicas ($D=1$ on a single GPU).
-
-Total training volume is defined strictly in tokens:
-
-$$\text{Total tokens} = \text{Tokens per update} \times \text{Optimizer updates}.$$
-
-Always compare runs at the **same number of training tokens**, not simply the same number of loop iterations.
-
----
-
-## Reading curves as evidence: Failure triage
-
-Training loss answers: *is the optimizer fitting the batches it sees?*  
-Validation loss answers: *does that improvement transfer to held-out tokens?*
-
-| Observation | Plausible interpretation | Next check |
-| :--- | :--- | :--- |
-| Train and validation loss both fall | Healthy learning | Verify token accounting and sample coherence |
-| Train falls; validation flattens or rises | Overfitting or split mismatch | Inspect split, deduplication, and weight decay |
-| Both remain near $\log V$ | Model not learning or target alignment bug | Verify tiny-batch overfit, learning rate, and target shift ($y = x[1:]$) |
-| Sudden loss spike with gradient norm spike | Unstable update, batch outlier, or LR too high | Check gradient norms, clipping, learning rate, and numerical range |
-| Smooth curve but incoherent samples | Sampling bug, bad prompt, or undertraining | Check prompt tokenization, temperature, and top-$p$ logic |
-| Validation improves implausibly fast | Train-val data leakage or duplicates | Audit document-level splits and cross-split n-gram overlap |
-| Loss spikes immediately after resume | Incomplete checkpoint state | Verify optimizer moments ($m_t, v_t$) and scheduler were restored |
-
----
-
-## Sampling is a diagnostic, not a score
-
-Sampling catches errors that a scalar loss can hide: broken causal masks,
-inconsistent tokenizer artifacts, forgotten evaluation mode, pathological
-repetition, or corrupted decoding loops.
-
-Maintain a fixed evaluation prompt suite:
-- an empty or `<|endoftext|>` beginning-of-sequence prompt;
-- a short in-domain passage prefix;
-- a held-out validation prefix;
-- an out-of-domain prompt to test distribution boundaries.
-
-Generate with two distinct settings:
-1. **Low temperature ($T = 0.1$–$0.2$):** Exposes the greedy, high-probability backbone.
-2. **Moderate temperature ($T = 0.8$, top-$p = 0.9$):** Inspects vocabulary diversity and sample fluency.
-
-Never select a checkpoint because one single sample looks charming. Select strictly by the validation loss protocol, and use samples to diagnose qualitative behavior.
-
----
-
-## Practical task
-
-1. **Parameter grouping:** Implement `configure_optimizers` and verify that 2D weight matrices receive weight decay while 1D biases and normalization vectors receive $0.0$.
-2. **Complete step execution:** Build the step function combining gradient accumulation, AMP autocasting, unscaling, gradient norm clipping, and the cosine schedule.
-3. **Tiny-batch overfit:** Initialize a small version of the Session 1 model and drive the loss on one fixed, shifted token batch below $0.1$.
-4. **Checkpoint round-trip:** Save the overfit model and optimizer, restore both into fresh objects, and verify identical logits on the fixed input.
-5. **Optional baseline run:** Move beyond the diagnostic batch to a small corpus, logging train loss, validation loss, learning rate, gradient norm, and fixed-prompt samples.
-
----
-
-## Expected output
-
-A reproducible local overfit checkpoint with:
-- exact parameter partitioning between decayed and non-decayed groups;
-- final loss below $0.1$ on the fixed shifted batch;
-- stable gradient norms under accumulation;
-- an exact model-and-optimizer restore producing identical logits.
-
-The longer baseline run and qualitative sampling remain an optional extension;
-they are not required to establish that the Session 2 training path works.
-
----
-
-## References
-
-- [The Annotated PyTorch Training Loop (idlemachines.co.uk)](https://idlemachines.co.uk/essays/pytorch-training-loop)
-  — comprehensive line-by-line deconstruction of the training loop and placement hazards;
-- [Loshchilov & Hutter (2017) — Decoupled Weight Decay Regularization](https://arxiv.org/abs/1711.05101)
-  — introduces the AdamW formulation;
-- [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
-  — the GPT-2 report: motivation, architecture, and zero-shot transfer;
-- [nanoGPT (Andrej Karpathy)](https://github.com/karpathy/nanoGPT)
-  — minimal, readable GPT model and training harness.
-
----
-
-## Module recap
-
-Assume `model`, an infinite `train_loader`, `optimizer`, and `scheduler` already
-exist. Each batch contains shifted `(input_tokens, target_tokens)` tensors.
-
-```python
-batches = iter(train_loader)
-for _ in range(max_steps):
-    optimizer.zero_grad(set_to_none=True)
-
-    # Accumulate normalized gradients across micro-batches.
-    for _ in range(grad_accum_steps):
-        x, y = next(batches)
-        x, y = x.to(device), y.to(device)
-        _, loss, _ = model(x, targets=y)
-        (loss / grad_accum_steps).backward()
-
-    # Clip after backward and before applying the update.
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-    optimizer.step()
-    scheduler.step()
-```
+??? example "Check your estimates"
+    1. $3\times10^{14}$ model FLOPs.
+    2. SGD: $2\times10^{10}$ FLOPs; Adam: approximately $1.2\times10^{11}$ FLOPs.
+    3. SGD: 0.8 GB; Adam: 1.6 GB, both in decimal GB.
+    4. At least the activation and temporary-buffer sizes, which depend on the
+       micro-batch, context length, architecture, and implementation.
 
 ---
 

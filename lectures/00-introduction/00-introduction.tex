@@ -48,7 +48,7 @@
           \centering\footnotesize $\mathbf{L(C) \propto C^{-\alpha_C}}$
           \raggedright
         \item \textbf{Predictable returns}: More FLOPs buys lower perplexity, reasoning, and benchmark accuracy.
-        \item \textbf{Scaled performance}: Scaling compute unlocks capabilities smaller models cannot reach.
+        \item \textbf{Scaled performance}: Scaling compute unlocks capabilities smaller models cannot reach (e.g.~125M GPT-2 $\to$ 7B Mistral 1 $\to$ 70B+ Llama 3).
       \end{itemize}
 
     \end{column}%
@@ -56,34 +56,34 @@
       \centering
       \begin{tikzpicture}[x=0.88cm,y=0.74cm]
         % Background zones
-        \fill[themebluebg] (0.3,0.3) rectangle (1.65,3.3);
-        \fill[warningbg] (1.65,0.3) rectangle (4.9,3.3);
+        \fill[themebluebg] (0.3,0.3) rectangle (1.85,3.3);
+        \fill[warningbg] (1.85,0.3) rectangle (4.9,3.3);
 
         % Zone headers
-        \node[text=themenavy,font=\tiny\bfseries] at (0.97,3.1) {Single GPU};
-        \node[text=signaldark,font=\tiny\bfseries] at (3.25,3.1) {Distributed Cluster Required};
+        \node[text=themenavy,font=\tiny\bfseries] at (1.07,3.1) {Single GPU};
+        \node[text=signaldark,font=\tiny\bfseries] at (3.37,3.1) {Distributed Cluster Required};
 
         % Axes
         \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Training compute $C$ (FLOPs, log scale)};
         \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\tiny] {Loss $L$ (log scale)};
 
         % Single GPU wall
-        \draw[dashed,thick,leafreddraw] (1.65,0.3) -- (1.65,3.3);
-        \node[above,font=\tiny,text=leafreddraw] at (1.65,3.3) {$\sim 10^{21}$ wall};
+        \draw[dashed,thick,leafreddraw] (1.85,0.3) -- (1.85,3.3);
+        \node[above,font=\tiny,text=leafreddraw] at (1.85,3.3) {$\sim 10^{21}$ wall};
 
         % Power law curve
         \draw[very thick,themenavy] (0.5,2.7) .. controls (1.6,1.8) and (3.1,1.1) .. (4.6,0.6);
         \node[text=themenavy,font=\scriptsize\bfseries] at (3.5,2.15) {$L(C) \propto C^{-\alpha}$};
 
         % Landmark Points
-        \fill[themenavy] (0.8,2.4) circle (2pt);
-        \node[above right=-1pt,font=\tiny] at (0.8,2.4) {125M};
+        \fill[themenavy] (0.75,2.45) circle (2pt);
+        \node[above right=-2pt,font=\tiny] at (0.75,2.45) {125M (GPT-2)};
 
-        \fill[themenavy] (2.2,1.45) circle (2pt);
-        \node[above right=-1pt,font=\tiny] at (2.2,1.45) {7B};
+        \fill[themenavy] (2.25,1.55) circle (2pt);
+        \node[above right=-1pt,font=\tiny] at (2.25,1.55) {7B (Mistral 1)};
 
         \fill[signaldark] (4.3,0.7) circle (2.4pt);
-        \node[above=2pt,font=\tiny\bfseries,signaldark] at (4.3,0.7) {70B+};
+        \node[above=2pt,font=\tiny\bfseries,signaldark] at (4.3,0.7) {70B+ (Llama 3)};
       \end{tikzpicture}
 
       \vspace{2pt}
@@ -198,7 +198,7 @@
             \setlength{\itemsep}{1pt}
           \item KV-cache decode
           \item Continuous batching
-          \item Frontier architectures
+          \item Open slot (to be decided)
           \item Final project defense
         \end{itemize}
       \end{block}
@@ -343,13 +343,13 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{Summary: our contract}
+\begin{frame}{Summary}
   \begin{enumerate}
       \setlength{\itemsep}{9pt}
     \item \textbf{First principles}: No black boxes. We understand every tensor shape, CUDA kernel launch, and collective communication.
-    \item \textbf{Measure before optimizing}: Trust profiler traces and MFU, not intuition.
+    \item \textbf{Measure before optimizing}: Trust profiler traces and GPU metrics, not intuition.
     \item \textbf{Build together, explore in teams}: Master the fundamentals in the continuous lab, then test cutting-edge research in your reproduction project.
-    \item \textbf{Rigorous science}: Real engineering is about reproducible baselines and honest analysis of trade-offs.
+    \item \textbf{Rigorous science}: Reproducible baselines and honest analysis of trade-offs.
   \end{enumerate}
   \vfill
   \centering\large\color{themenavy}\textbf{Let's build a language model!}

@@ -79,7 +79,7 @@ are embedded directly into the second half of the course (see [schedule](schedul
 
 - **Studio 1 (Session 17):** Codebase setup, baseline verification, and dataset pipeline sanity checks.
 - **Studio 2 (Session 24):** Scaling runs, cluster job troubleshooting, and experimental failure triage.
-- **Studio 3 (Sessions 27 & 29 · 2h30 working studio):** Final claim verification, ablation synthesis, figure generation (Part 1), followed by presentation timing rehearsals and technical defense dry runs (Part 2).
+- **Studio 3 (Sessions 29 & 30 · 2h30 working studio):** Final claim verification, ablation synthesis, figure generation (Part 1), followed by presentation timing rehearsals and technical defense dry runs (Part 2).
 
 ### Deliverables
 

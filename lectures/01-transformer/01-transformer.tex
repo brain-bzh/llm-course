@@ -2,7 +2,7 @@
 \input{../common/preamble.tex}
 
 \title[TASLLM -- Module 1]{Module 1: Transformer from First Principles\\[4pt]
-\normalsize\itshape Building a Mental Model of a Decoder-Only LM}
+\normalsize\itshape Unpacking a Decoder-Only LM}
 \date{\today}
 
 \begin{document}
@@ -12,15 +12,9 @@
   \tableofcontents
   \vfill
   \begin{block}{Guiding question}
-    What must happen between a token ID and a distribution over the next token---and how do we turn that into verified code?
+    How does a decoder-only LLM generate text?
   \end{block}
 \end{frame}
-
-\learninggoals
-{Formulate next-token prediction and explain why a Transformer trains all positions in parallel.}
-{Derive causal multi-head self-attention and positional encoding from first principles.}
-{Trace tensor shapes, parameters, and gradients through a pre-norm Transformer block (MHA, MLP, LayerNorm, LM head).}
-{Contrast our GPT-2 baseline with modern LLMs (LLaMA/Mistral) and verify our implementation against official weights.}
 
 \section{Next-token prediction}
 
@@ -55,26 +49,27 @@
 \end{frame}
 
 \begin{frame}{Formalizing next-token prediction (NTP)}
-  \begin{columns}[t]
+  \begin{columns}[T]
     \begin{column}{0.48\linewidth}
       \begin{block}{Autoregressive factorization}
-        By the chain rule, the joint probability of $X=(x_1,\dots,x_T)$ factorizes exactly into conditional steps:
+        By the chain rule, the joint probability $P(X)$ factorizes into conditional steps:
         \[
-          P(X) = \prod_{t=1}^{T} P(x_t \mid x_1, \dots, x_{t-1})
+          P(X) = \prod_{t=1}^{T} P(x_t \mid x_{<t}) \vphantom{\frac{1}{T}}
         \]
-        Modeling a text sequence is equivalent to predicting the next token from every prefix $x_{<t}$.
+        Modeling a text sequence is equivalent to predicting each token from prefix $x_{<t}$.
       \end{block}
     \end{column}
     \begin{column}{0.48\linewidth}
       \begin{block}{Self-supervised training loss}
-        Natural text is self-labeled: each token $x_t$ is the ground-truth target for prefix $x_{<t}$. We minimize cross-entropy:
+        Natural text is self-labeled: token $x_t$ is the target for prefix $x_{<t}$. Cross-entropy:
         \[
           \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log P_\theta(x_t \mid x_{<t})
         \]
-        One sequence of length $T$ provides $T$ supervised prediction targets at once.
+        One sequence of length $T$ provides $T$ supervised prediction targets in parallel.
       \end{block}
     \end{column}
   \end{columns}
+  \vfill
   \smallsource{Bengio et al. (2003); Radford et al. (2018, 2019)}
 \end{frame}
 
@@ -84,7 +79,7 @@
   \vspace{2pt}
   \begin{columns}[t]
     \begin{column}{0.48\linewidth}
-      \centering\footnotesize\textbf{Recurrent model (RNN): inherently sequential}
+      \centering\footnotesize\textbf{Recurrent model: inherently sequential}
       \vspace{1pt}
       \begin{tikzpicture}[
           x=0.82cm, y=0.62cm,
@@ -112,7 +107,7 @@
         \draw[-{Stealth},very thick,leafreddraw] (h2)--(h3);
       \end{tikzpicture}
       \par\vspace{1pt}
-      \footnotesize $h_t = f(h_{t-1}, x_t)$: step $t$ waits on step $t-1$; gradients vanish/explode over long chains.
+      \footnotesize $h_t = f(h_{t-1}, x_t)$: step $t$ waits on step $t-1$.
     \end{column}
     \begin{column}{0.48\linewidth}
       \centering\footnotesize\textbf{Causal Transformer: inherently parallel}
@@ -147,9 +142,6 @@
       \footnotesize No $h_{t-1}\to h_t$ wait: every position gathers $x_{\le t}$ directly via attention in one pass.
     \end{column}
   \end{columns}
-  \begin{alertblock}{Hardware alignment: parallelism over operation count}
-    \small Transformers restructure sequence learning into dense matrix multiplications (GEMMs) so all $T$ training positions execute concurrently on GPUs.
-  \end{alertblock}
   \smallsource{Elman (1990); Hochreiter \& Schmidhuber (1997); Pascanu et al. (2013); Vaswani et al. (2017)}
 \end{frame}
 
@@ -158,54 +150,198 @@
   \begin{tikzpicture}[
       x=0.95cm,
       every node/.style={font=\footnotesize,align=center},
-      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=1.8cm,minimum width=1.9cm,minimum height=1.15cm},
-      block/.style={draw=leafreddraw,fill=leafredbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=1.3cm}
+      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=1.75cm,minimum width=1.85cm,minimum height=0.85cm},
+      block/.style={draw=leafreddraw,fill=leafredbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=0.85cm},
+      head/.style={draw=warningdraw,fill=warningbg,rounded corners,text width=1.75cm,minimum width=1.85cm,minimum height=0.85cm},
+      prob/.style={draw=successdraw,fill=successbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=0.85cm}
     ]
-    \node[stage] (text) at (0,0) {Token IDs\\$B \times T$};
-    \node[stage] (tokens) at (2.35,0) {Token\\embeddings\\$B \times T \times d$};
-    \node[block] (decoder) at (4.7,0) {Transformer\\blocks ($\times N$)};
-    \node[stage] (logits) at (7.05,0) {LM head\\logits\\$B \times T \times V$};
-    \node[stage,draw=successdraw,fill=successbg] (probs) at (9.4,0) {Next-token\\probabilities};
+    \node[stage] (text) at (0,0) {Token IDs\\[0pt]{\scriptsize $T$}};
+    \node[stage,draw=themebluedraw,fill=themebluecard] (tokens) at (2.4,0) {Embeddings\\[0pt]{\scriptsize $T \times d$}};
+    \node[block] (decoder) at (4.8,0) {Transformer\\blocks ($\times N$)\\[0pt]{\scriptsize $T \times d$}};
+    \node[head] (logits) at (7.2,0) {LM head\\logits\\[0pt]{\scriptsize $T \times V$}};
+    \node[prob] (probs) at (9.6,0) {Next-token\\probs\\[0pt]{\scriptsize $T \times V$}};
+
     \draw[-{Stealth},thick,neutraldark] (text)--(tokens);
     \draw[-{Stealth},thick,neutraldark] (tokens)--(decoder);
     \draw[-{Stealth},thick,neutraldark] (decoder)--(logits);
     \draw[-{Stealth},thick,neutraldark] (logits)--(probs);
   \end{tikzpicture}
-  \vfill
+
+  \vspace{4pt}
+  \begin{columns}[T]
+    \begin{column}{0.31\linewidth}
+      \begin{coursebox}{themeblue}{1. Embed}
+        \scriptsize
+        Token IDs index into lookup table $W_E \in \mathbb{R}^{V \times d}$ to become continuous latent vectors in $\mathbb{R}^d$.
+      \end{coursebox}
+    \end{column}
+    \begin{column}{0.34\linewidth}
+      \begin{coursebox}{leafred}{2. Process ($\times N$)}
+        \scriptsize
+        $N$ identical blocks alternate cross-token mixing (\textbf{attention}) and per-token reasoning (\textbf{MLP}).
+      \end{coursebox}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{coursebox}{successgreen}{3. Unembed}
+        \scriptsize
+        Linear head maps latent vectors back to vocabulary scores (logits $\in \mathbb{R}^V$); softmax yields probabilities.
+      \end{coursebox}
+    \end{column}
+  \end{columns}
+
+  \vspace{2pt}
   \begin{block}{How do tokens interact inside a Transformer block?}
-    Without a recurrent state $h_{t-1}$, we need a mechanism that lets each token selectively pull information from earlier tokens in parallel: \textbf{self-attention}.
+    \small
+    Without recurrence $h_{t-1}$, each token selectively gathers information from earlier tokens in parallel via \textbf{causal self-attention}.
   \end{block}
-  \smallsource{Vaswani et al. (2017); Radford et al. (2019)}
+\end{frame}
+
+\begin{frame}{What is a token? From raw text to discrete integers}
+  \centering
+  \small Text is sliced into \textbf{tokens}---atomic subword units mapped to integer IDs from a fixed vocabulary $\mathcal{V}$.
+  \par\vspace{4pt}
+
+  \begin{tikzpicture}[
+      x=0.92cm, y=0.62cm,
+      every node/.style={font=\scriptsize, align=center},
+      tok/.style={draw=themebluedraw, fill=themebluebg, rounded corners=2pt, minimum height=0.48cm, inner sep=3pt},
+      idnode/.style={draw=successdraw, fill=successbg, rounded corners=2pt, minimum height=0.48cm, font=\scriptsize\ttfamily, inner sep=3pt}
+    ]
+    % Text preview
+    \node[font=\scriptsize\itshape, text=themenavy] at (4.2, 0.85) {Raw text: \normalfont\textbf{``The chef seasoned the soup''}};
+
+    % Tokens (subwords)
+    \node[tok] (t1) at (0.2, 0) {The};
+    \node[tok] (t2) at (1.8, 0) {chef};
+    \node[tok] (t3) at (3.4, 0) {season};
+    \node[tok] (t4) at (4.7, 0) {ed};
+    \node[tok] (t5) at (6.0, 0) {the};
+    \node[tok] (t6) at (7.5, 0) {soup};
+
+    % Token IDs
+    \node[idnode] (i1) at (0.2, -1.0) {464};
+    \node[idnode] (i2) at (1.8, -1.0) {21412};
+    \node[idnode] (i3) at (3.4, -1.0) {7349};
+    \node[idnode] (i4) at (4.7, -1.0) {290};
+    \node[idnode] (i5) at (6.0, -1.0) {262};
+    \node[idnode] (i6) at (7.5, -1.0) {13702};
+
+    \draw[-{Stealth},thick,themeteal] (t1.south) -- (i1.north);
+    \draw[-{Stealth},thick,themeteal] (t2.south) -- (i2.north);
+    \draw[-{Stealth},thick,themeteal] (t3.south) -- (i3.north);
+    \draw[-{Stealth},thick,themeteal] (t4.south) -- (i4.north);
+    \draw[-{Stealth},thick,themeteal] (t5.south) -- (i5.north);
+    \draw[-{Stealth},thick,themeteal] (t6.south) -- (i6.north);
+
+    \node[right=3pt,font=\tiny\bfseries,text=themeteal] at (8.1,-1.0) {$\in \{0, \dots, V-1\}$};
+  \end{tikzpicture}
+
+  \vspace{3pt}
+  \begin{columns}[T]
+    \begin{column}{0.48\linewidth}
+      \begin{coursebox}{themeblue}{Why subwords (BPE)?}
+        \scriptsize
+        \begin{itemize}
+            \setlength{\itemsep}{2pt}
+          \item \textbf{Optimal trade-off}: avoids $T$ exploding (characters) and $V$ exploding with out-of-vocabulary words.
+          \item \textbf{Vocabulary size}: $V \approx 50\text{k}$--$128\text{k}$; frequent words stay intact, rare words decompose (\texttt{season} + \texttt{ed}).
+        \end{itemize}
+      \end{coursebox}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{coursebox}{leafred}{Deterministic pre-processing}
+        \scriptsize
+        \begin{itemize}
+            \setlength{\itemsep}{2pt}
+          \item \textbf{Rule-based lookup}: static trie built \emph{before} model training; no learned parameters or gradients.
+          \item \textbf{Rule of thumb}: in English, $1\text{ token} \approx 0.75\text{ words}$ (or $\approx 4\text{ characters}$ of text).
+        \end{itemize}
+      \end{coursebox}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \section{Attention from first principles}
 
 \begin{frame}{Step 1: Tokens become vectors in a shared space}
-  \begin{columns}[c]
-    \begin{column}{0.55\linewidth}
-      \begin{itemize}
-          \setlength{\itemsep}{7pt}
-        \item Input token IDs are integers in $\{0,\dots,V-1\}$ with shape $B\times T$.
-        \item An embedding lookup table $W_E\in\mathbb{R}^{V\times d}$ maps each token ID to a vector of width $d$:
-      \end{itemize}
-      \[
-        X = W_E[\text{ids}] \quad\in\mathbb{R}^{B\times T\times d}
-      \]
-      \begin{alertblock}{Isolated representations}
-        At this stage, each row $x_t \in \mathbb{R}^d$ only knows its own token identity---it knows nothing about surrounding tokens.
-      \end{alertblock}
-    \end{column}
-    \begin{column}{0.41\linewidth}
-      \centering
-      \begin{tikzpicture}[node distance=0.38cm, every node/.style={font=\small}]
-        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.65cm] (ids) {Token IDs ($B\times T$)};
-        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.65cm] (we) {Lookup table $W_E$};
-        \node[draw=successdraw,fill=successbg,rounded corners,below=of we,minimum width=3.2cm,minimum height=.65cm] (x) {Token vectors $X$ ($B\times T\times d$)};
-        \draw[-{Stealth},thick] (ids)--(we);
-        \draw[-{Stealth},thick] (we)--(x);
-      \end{tikzpicture}
-    \end{column}
-  \end{columns}
+  \centering
+  \footnotesize
+  \textbf{Sequence length} $T$ \quad$\cdot$\quad \textbf{Vocabulary size} $V$ \quad$\cdot$\quad \textbf{Latent dimension} $d$
+  \par\vspace{4pt}
+
+  \begin{tikzpicture}[
+      x=1.0cm, y=1.0cm,
+      every node/.style={font=\scriptsize, align=center},
+      spacebox/.style={rounded corners=3pt, inner sep=3.5pt, minimum height=2.05cm}
+    ]
+    % Panel 1: Token ID Space
+    \node[spacebox, draw=themebluedraw, fill=themebluebg, text width=3.2cm] (idbox) at (0,0) {
+      \textbf{\textcolor{themenavy}{Token ID space}}\\[1pt]
+      \tiny Discrete indices $\in \{0, \dots, V-1\}$\\[3pt]
+      \scriptsize
+      $
+      \begin{bmatrix}
+        x_1 \\[-2pt]
+        x_2 \\[-2pt]
+        \vdots \\[-2pt]
+        \mathbf{x_t} \\[-2pt]
+        \vdots \\[-2pt]
+        x_T
+      \end{bmatrix}$
+      \\[2pt]
+      \textbf{Shape: $T$}
+    };
+
+    % Panel 2: Vocabulary Space
+    \node[spacebox, draw=warningdraw, fill=warningbg, text width=3.3cm] (vocabbox) at (4.0,0) {
+      \textbf{\textcolor{signaldark}{Vocabulary space}}\\[1pt]
+      \tiny Embedding table $W_E \in \mathbb{R}^{V \times d}$\\[3pt]
+      \scriptsize
+      $
+      \begin{bmatrix}
+        \text{--- } w_0 \text{ ---} \\[-2pt]
+        \vdots \\[-2pt]
+        \mathbf{\text{--- } w_{x_t} \text{ ---}} \\[-2pt]
+        \vdots \\[-2pt]
+        \text{--- } w_{V-1} \text{ ---}
+      \end{bmatrix}$
+      \\[2pt]
+      \textbf{Shape: $V \times d$}
+    };
+
+    % Panel 3: Latent Space
+    \node[spacebox, draw=successdraw, fill=successbg, text width=3.2cm] (latentbox) at (8.0,0) {
+      \textbf{\textcolor{successgreen}{Latent space}}\\[1pt]
+      \tiny Continuous vectors in $\mathbb{R}^d$\\[3pt]
+      \scriptsize
+      $
+      \begin{bmatrix}
+        \text{--- } \mathbf{x}_1 \text{ ---} \\[-2pt]
+        \text{--- } \mathbf{x}_2 \text{ ---} \\[-2pt]
+        \vdots \\[-2pt]
+        \mathbf{\text{--- } \mathbf{x}_t \text{ ---}} \\[-2pt]
+        \vdots \\[-2pt]
+        \text{--- } \mathbf{x}_T \text{ ---}
+      \end{bmatrix}$
+      \\[2pt]
+      \textbf{Shape: $T \times d$}
+    };
+
+    % Connecting arrows
+    \draw[-{Stealth},very thick,signaldark] (idbox.east) -- (vocabbox.west)
+    node[pos=0.5,above=1pt,font=\tiny\bfseries] {index}
+    node[pos=0.5,below=1pt,font=\tiny] {$\text{row } x_t$};
+
+    \draw[-{Stealth},very thick,themeteal] (vocabbox.east) -- (latentbox.west)
+    node[pos=0.5,above=1pt,font=\tiny\bfseries] {extract}
+    node[pos=0.5,below=1pt,font=\tiny] {$W_E[x_t, :]$};
+  \end{tikzpicture}
+
+  \vspace{3pt}
+  \begin{alertblock}{Isolated representations: context-blind vectors}
+    \footnotesize
+    Each row $\mathbf{x}_t \in \mathbb{R}^d$ purely reflects its dictionary definition ($W_E[x_t]$). At positions 1 and 4, ``the'' produces the exact same vector---it knows nothing yet about surrounding tokens or word order.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Step 2: Relating tokens across the sequence}
@@ -234,55 +370,115 @@
   \smallsource{Bahdanau et al. (2014); Vaswani et al. (2017)}
 \end{frame}
 
-\begin{frame}{Step 3: Queries, Keys, and Values}
-  \small Each token vector $x_t$ is projected into three distinct vectors via learned matrices $W_Q, W_K, W_V$:
-  \par\vspace{4pt}
-  \centering
-  \begin{tikzpicture}[
-      x=1.0cm,
-      every node/.style={font=\footnotesize,align=center},
-      rolebox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=3.1cm,minimum height=1.22cm}
-    ]
-    \node[rolebox] at (0,0) {\textbf{Query ($q_t = x_t W_Q$)}\\[2pt]\textcolor{neutraldark}{What context is this token looking for?}};
-    \node[rolebox] at (3.65,0) {\textbf{Key ($k_t = x_t W_K$)}\\[2pt]\textcolor{neutraldark}{What features does each token offer?}};
-    \node[rolebox,draw=successdraw,fill=successbg] at (7.3,0) {\textbf{Value ($v_t = x_t W_V$)}\\[2pt]\textcolor{neutraldark}{What content moves when selected?}};
-  \end{tikzpicture}
-  \par\vspace{4pt}
-  \begin{itemize}
-      \setlength{\itemsep}{3pt}
-    \item \textbf{Matching}: Compare token $i$'s query $q_i$ with token $j$'s key $k_j$ via dot product $s_{i,j} = q_i^\top k_j$.
-    \item \textbf{Retrieving}: Normalize scores with softmax into weights $\alpha_{i,j}$ and mix values: $\text{output}_i = \sum_{j \le i} \alpha_{i,j} v_j$.
-  \end{itemize}
-  \begin{alertblock}{Why three projections instead of using $x_t$ directly?}
-    \small Asymmetry: what token $i$ searches for ($q_i$) differs from the features it offers ($k_i$) and the content it transmits ($v_i$).
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Step 4: Computing attention for all tokens in parallel}
-  Stacking queries, keys, and values into matrices $Q, K, V \in \mathbb{R}^{T\times d_h}$ computes all pairwise relationships in one formula:
+\begin{frame}{Step 3: Scaled dot-product attention}
+  \small The core engine of the Transformer takes Query, Key, and Value matrices $Q, K, V \in \mathbb{R}^{T\times d_k}$:
   \[
-    \operatorname{Attn}(Q,K,V)
-    = \underbrace{\operatorname{softmax}\!\left(\overbrace{QK^\top}^{\text{1. similarity scores}} + \overbrace{M}^{\text{2. mask}}\right)}_{\text{3. attention weights } A \in \mathbb{R}^{T\times T}} \underbrace{V}_{\text{4. value mix}}
+    \operatorname{Attention}(Q,K,V) = \operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}} + M\right) V
   \]
+  \vspace{-2pt}
   \centering
   \begin{tikzpicture}[
       x=0.92cm,
       every node/.style={font=\scriptsize,align=center},
-      stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.15cm,minimum height=1.15cm}
+      stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.25cm,minimum height=1.05cm}
     ]
-    \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top$\\[2pt]\textcolor{inkmuted}{all $(i,j)$ dot products}};
-    \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (2.85,0) {\textbf{2. Causal mask}\\$S + M$\\[2pt]\textcolor{signaldark}{hide future $j > i$}};
-    \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (5.7,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[2pt]\textcolor{accentdark}{row weights sum to $1$}};
-    \node[stepbox,draw=successdraw,fill=successbg] (s4) at (8.55,0) {\textbf{4. Mix values}\\$O = AV$\\[2pt]\textcolor{successgreen}{contextualized states}};
+    \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top / \sqrt{d_k}$\\[1pt]\textcolor{inkmuted}{scaled similarity}};
+    \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (2.95,0) {\textbf{2. Causal mask}\\$S + M$\\[1pt]\textcolor{signaldark}{hide future $j > i$}};
+    \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (5.9,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[1pt]\textcolor{accentdark}{row weights $\sum = 1$}};
+    \node[stepbox,draw=successdraw,fill=successbg] (s4) at (8.85,0) {\textbf{4. Mix values}\\$O = AV$\\[1pt]\textcolor{successgreen}{contextual states}};
 
     \draw[-{Stealth},thick,neutraldark] (s1)--(s2);
     \draw[-{Stealth},thick,neutraldark] (s2)--(s3);
     \draw[-{Stealth},thick,neutraldark] (s3)--(s4);
   \end{tikzpicture}
-  \smallsource{Vaswani et al. (2017); Rush (2018, The Annotated Transformer) --- in code, divide scores by $\sqrt{d_h}$ to keep logit variance $\approx 1$}
+  \vspace{3pt}
+  \begin{alertblock}{Why divide by $\sqrt{d_k}$? Preserving gradient flow}
+    \footnotesize
+    For independent zero-mean unit-variance components, $\operatorname{Var}(q^\top k) = d_k$. As dimension $d_k$ grows, large dot products push softmax into saturated flat regions with vanishing gradients ($\nabla \approx 0$). Dividing by $\sqrt{d_k}$ keeps $\operatorname{Var}(S) \approx 1$, maintaining healthy gradient flow.
+  \end{alertblock}
+  \vspace{2pt}
+  \smallsource{Vaswani et al. (2017, \emph{Attention Is All You Need})}
 \end{frame}
 
-\begin{frame}{Causality is a constraint on logits}
+\begin{frame}{Step 4: The intuition of Queries, Keys, and Values}
+  \small Why project $X$ into learned $Q, K, V$ spaces instead of computing $\operatorname{softmax}(XX^\top / \sqrt{d})X$?
+  \par\vspace{1pt}
+  \centering
+  \begin{tikzpicture}[
+      x=1.0cm,
+      every node/.style={font=\footnotesize,align=center},
+      rolebox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=3.2cm,minimum height=0.92cm,inner sep=2pt}
+    ]
+    \node[rolebox] at (0,0) {\textbf{Query ($q_t = x_t W_Q$)}\\[1pt]\textcolor{signaldark}{\emph{What am I looking for?}}\\[1pt]\scriptsize Search criteria / prompt};
+    \node[rolebox,draw=accentdarkdraw,fill=accentdarkbg] at (3.8,0) {\textbf{Key ($k_t = x_t W_K$)}\\[1pt]\textcolor{accentdark}{\emph{What features do I have?}}\\[1pt]\scriptsize Identity / catalog index};
+    \node[rolebox,draw=successdraw,fill=successbg] at (7.6,0) {\textbf{Value ($v_t = x_t W_V$)}\\[1pt]\textcolor{successgreen}{\emph{What content do I transmit?}}\\[1pt]\scriptsize Content payload};
+  \end{tikzpicture}
+  \par\vspace{0pt}
+  \begin{columns}[T]
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Search Engine Analogy}
+        \footnotesize
+        \begin{itemize}
+            \setlength{\itemsep}{1pt}
+          \item \textbf{Query}: search prompt entered by user.
+          \item \textbf{Keys}: webpage titles and index tags.
+          \item \textbf{Values}: actual page text returned.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{alertblock}{Why separate projections?}
+        \footnotesize
+        \begin{itemize}
+            \setlength{\itemsep}{1pt}
+          \item \textbf{Asymmetry}: $x_i^\top x_j$ is symmetric, but language relations are directed (verb $\to$ noun $\neq$ noun $\to$ verb).
+          \item \textbf{Decoupling}: what matches a token differs from the information it delivers.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Step 4: The intuition of Queries, Keys, and Values}
+  \small Why project $X$ into learned $Q, K, V$ spaces instead of computing $\operatorname{softmax}(XX^\top / \sqrt{d})X$?
+  \par\vspace{3pt}
+  \centering
+  \begin{tikzpicture}[
+      x=1.0cm,
+      every node/.style={font=\footnotesize,align=center},
+      rolebox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=3.2cm,minimum height=1.02cm,inner sep=3pt}
+    ]
+    \node[rolebox] at (0,0) {\textbf{Query ($q_t = x_t W_Q$)}\\[1pt]\textcolor{signaldark}{\emph{What am I looking for?}}\\[1pt]\scriptsize Search criteria / prompt};
+    \node[rolebox,draw=accentdarkdraw,fill=accentdarkbg] at (3.8,0) {\textbf{Key ($k_t = x_t W_K$)}\\[1pt]\textcolor{accentdark}{\emph{What features do I have?}}\\[1pt]\scriptsize Identity / catalog index};
+    \node[rolebox,draw=successdraw,fill=successbg] at (7.6,0) {\textbf{Value ($v_t = x_t W_V$)}\\[1pt]\textcolor{successgreen}{\emph{What content do I transmit?}}\\[1pt]\scriptsize Content payload};
+  \end{tikzpicture}
+  \par\vspace{3pt}
+  \begin{columns}[T]
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Search Engine Analogy}
+        \footnotesize
+        \begin{itemize}
+            \setlength{\itemsep}{1pt}
+          \item \textbf{Query}: search text entered by the user.
+          \item \textbf{Keys}: page titles and indexed keywords.
+          \item \textbf{Values}: actual webpage content returned.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \begin{alertblock}{Why separate projections?}
+        \footnotesize
+        \begin{itemize}
+            \setlength{\itemsep}{1pt}
+          \item \textbf{Asymmetry}: $x_i \cdot x_j$ is symmetric, but grammar is directed (verb $\to$ object $\neq$ object $\to$ verb).
+          \item \textbf{Decoupling}: what matches a token differs from the information it delivers.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{The causal mask is a constraint on logits}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \centering
@@ -310,9 +506,6 @@
         \item Future scores ($j > i$) receive $-\infty$ \textbf{before} softmax so $\exp(-\infty)=0$.
         \item Zeroing probabilities after softmax breaks row normalization.
       \end{itemize}
-      \begin{block}{PyTorch implementation tip}
-        \small Register a lower-triangular mask via \texttt{register\_buffer} and apply \texttt{scores.masked\_fill(mask == 0, -inf)}.
-      \end{block}
     \end{column}
   \end{columns}
 \end{frame}

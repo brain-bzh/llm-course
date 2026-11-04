@@ -17,12 +17,57 @@
 \end{frame}
 
 \learninggoals
-{Separate graph construction, gradient accumulation, and parameter updates.}
-{Compute an effective token batch under accumulation and data parallelism.}
-{Place AMP, clipping, scheduling, evaluation, and checkpointing correctly.}
-{Audit a loop through invariants instead of trusting a decreasing loss.}
+{Explain SGD, learning rate, gradients, and optimizer state.}
+{Trace the base loop from activations and loss to a parameter update.}
+{Place accumulation, gradient clipping, and scheduling around an update.}
+{Estimate training FLOPs and compare SGD and Adam memory.}
 
-\section{One optimizer update}
+\section{Optimizer 101}
+
+\begin{frame}{From predictions to an update}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item The \textbf{forward pass} transforms tokens through activations into logits.
+    \item The \textbf{loss} compares predictions with next-token targets.
+    \item \textbf{Backward} uses saved activations and the chain rule to compute $g_t=\nabla_\theta\mathcal L_t$.
+    \item The \textbf{optimizer} reads gradients and updates parameters (and, for some optimizers, its own state).
+  \end{enumerate}
+  \begin{block}{Different lifetimes}
+    Saved activations serve backward; gradients are cleared between updates. Weights and optimizer state persist across updates.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Gradient descent and SGD}
+  \[
+    \theta_{t+1}=\theta_t-\eta_t\nabla_\theta\mathcal L_t(\theta_t)
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{8pt}
+    \item The gradient gives the local direction of increasing loss; subtract it to move downhill.
+    \item The \textbf{learning rate} $\eta_t$ sets the step size. Too large can be unstable; too small can be slow.
+    \item \textbf{Stochastic gradient descent (SGD)} estimates the gradient from a sampled example or mini-batch, instead of the full dataset.
+    \item Plain SGD has no per-parameter optimizer state; momentum SGD adds a history buffer.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Adam: gradients build optimizer state}
+  \[
+    m_t=\beta_1m_{t-1}+(1-\beta_1)g_t,\qquad
+    v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2
+  \]
+  \[
+    \hat m_t=\frac{m_t}{1-\beta_1^t},\qquad
+    \hat v_t=\frac{v_t}{1-\beta_2^t},\qquad
+    \theta_{t+1}=\theta_t-\eta_t\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}
+  \]
+  \begin{itemize}
+    \item Adam stores two running moments per parameter; each step updates them from $g_t$.
+    \item Activations and loss produce gradients through backward; they are not optimizer state.
+    \item AdamW also applies decoupled weight decay. Save optimizer state to resume its trajectory.
+  \end{itemize}
+\end{frame}
+
+\section{Base loop}
 
 \begin{frame}{Five lines hide four kinds of state}
   \begin{columns}[c]
@@ -51,6 +96,14 @@
   \smallsource{The Annotated PyTorch Training Loop}
 \end{frame}
 
+\begin{frame}{From forward to optimizer state}
+  \centering
+  \includegraphics[width=\linewidth,height=.72\textheight,keepaspectratio]{../../docs/assets/figures/training-update-flow.pdf}
+  \vfill
+  \small Saved activations are used for backward; optimizer state persists across updates.
+  \smallsource{Inspired by the Ultra-Scale Playbook}
+\end{frame}
+
 \begin{frame}{Backward accumulates into persistent buffers}
   \begin{columns}[c]
     \begin{column}{0.56\linewidth}
@@ -71,7 +124,30 @@
   \end{columns}
 \end{frame}
 
+\section{Additional training features}
+
+\begin{frame}{Three additions around the same update}
+  \begin{enumerate}
+    \setlength{\itemsep}{10pt}
+    \item \textbf{Accumulation:} combine gradients from several micro-batches when the desired batch does not fit at once.
+    \item \textbf{Clipping:} limit the global gradient norm before an unusually large update.
+    \item \textbf{Scheduler:} vary the learning rate over optimizer updates.
+  \end{enumerate}
+  \begin{block}{One update boundary}
+    Accumulate backward passes $\rightarrow$ clip $\rightarrow$ optimizer step $\rightarrow$ advance schedule $\rightarrow$ clear gradients.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Accumulation: three micro-batches, one update}
+  \centering
+  \includegraphics[width=\linewidth,height=.72\textheight,keepaspectratio]{../../docs/assets/figures/training-accumulation-flow.pdf}
+  \vfill
+  \small For equal-size micro-batches, divide each mean loss by three before backward.
+  \smallsource{Inspired by the Ultra-Scale Playbook}
+\end{frame}
+
 \begin{frame}{Gradient accumulation changes update frequency}
+  \small
   \[
     N_{\text{tokens/update}} = B_{\text{micro}}\,T\,K\,W
   \]
@@ -93,48 +169,6 @@
   \end{columns}
   \begin{alertblock}{Unequal micro-batches}
     Normalize by the number of valid tokens, not blindly by the number of micro-steps.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{AdamW separates optimization from decay}
-  \[
-    \theta_{t+1}=\theta_t-\eta_t
-    \left(\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}+\lambda\theta_t\right)
-  \]
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Usually decayed}
-        Linear and embedding matrices with two or more dimensions.
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Usually not decayed}
-        Biases and normalization scales, commonly one-dimensional tensors.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering\textbf{Audit the partition: every trainable parameter must appear exactly once.}
-\end{frame}
-
-\section{Ordering invariants}
-
-\begin{frame}{Mixed precision adds one non-negotiable ordering rule}
-  \centering
-  \begin{tikzpicture}[node distance=.32cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=5.6cm,minimum height=.52cm}]
-    \node[box] (f) {forward under autocast};
-    \node[box,below=of f] (b) {scale loss and backward};
-    \node[box,fill=warningbg,draw=warningdraw,below=of b] (u) {unscale gradients};
-    \node[box,fill=leafredbg,draw=leafreddraw,below=of u] (c) {measure and clip global norm};
-    \node[box,fill=successbg,draw=successdraw,below=of c] (s) {optimizer step, scaler update, reset};
-    \draw[-{Stealth},thick] (f)--(b);
-    \draw[-{Stealth},thick] (b)--(u);
-    \draw[-{Stealth},thick] (u)--(c);
-    \draw[-{Stealth},thick] (c)--(s);
-  \end{tikzpicture}
-  \vfill
-  \begin{alertblock}{Why unscale first?}
-    Clipping scaled gradients measures a fictitious norm and changes the effective threshold.
   \end{alertblock}
 \end{frame}
 
@@ -178,81 +212,109 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{A catalog of loops that run but lie}
+\section{FLOP and memory accounting}
+
+\begin{frame}{Count the model and optimizer separately}
   \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.61\linewidth}@{}}
-    \toprule
-    Mistake & Consequence \\
-    \midrule
-    optimizer built before device move & optimizer may reference discarded parameters \\
-    reset after backward & useful gradients are erased \\
-    clipping before backward & clipping is a no-op \\
-    clipping after step & the dangerous update already happened \\
-    validation without no-grad & graphs consume memory needlessly \\
-    log tensors instead of scalars & retained graphs create a memory leak \\
-    omit \texttt{train()} after evaluation & dropout stays disabled \\
-    \bottomrule
-  \end{tabular}
+  Let $N$ be unique parameters and $D=BT$ processed tokens. A multiply and an add count as two FLOPs.
+  \begin{block}{Dense model work}
+    Matrix forward: $\approx 2D d_{\rm in}d_{\rm out}$ FLOPs. Backward: roughly twice as much. A rough Transformer estimate is $6ND$ for forward + backward.
+  \end{block}
+  \begin{block}{Optimizer work: once per update}
+    Plain SGD: $\approx 2N$ FLOPs. Adam: $\approx 12N$ using a simple count, omitting bias correction and counting sqrt and division as one each.
+  \end{block}
+  \footnotesize The model estimate simplifies attention, embeddings and other operations. FLOPs are not a runtime measurement.
 \end{frame}
 
-\checkpoint{repair the step}
-{Put these operations in order: clip, autocast forward, scaler update, scaled backward, unscale, optimizer step, scheduler step, gradient reset. Which operations occur only once per accumulated update?}
+\begin{frame}{Worked compute estimate}
+  \begin{block}{124M parameters, 1M tokens}
+    Forward + backward: $6ND\approx 7.44\times10^{14}$ FLOPs.\\[6pt]
+    One SGD update: $2N\approx 2.48\times10^8$ FLOPs.\\[6pt]
+    One Adam update: $12N\approx 1.49\times10^9$ FLOPs.
+  \end{block}
+  \vfill
+  \textbf{Compare like with like:} the model count covers one million tokens; each optimizer count covers one update. Multiply optimizer cost by the number of updates for a run.
+\end{frame}
 
-\section{Evaluation and recovery}
-
-\begin{frame}{Evaluation changes mode, not parameters}
-  \begin{columns}[c]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Required state}
-        \texttt{model.eval()} changes dropout behavior.\\[4pt]
-        \texttt{torch.no\_grad()} disables graph construction.
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Stable estimate}
-        Evaluate a fixed validation token budget. Aggregate loss by valid-token count.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \begin{alertblock}{Return path}
-    Call \texttt{model.train()} before the next training batch.
+\begin{frame}{Memory: SGD versus Adam}
+  \small
+  Assume $N$ unique parameters, FP32 (4 bytes per scalar), gradients for all parameters, and SGD without momentum.
+  \vspace{4pt}
+  \begin{center}
+  \begin{tabular}{lrr}
+    \toprule
+    Storage & SGD & Adam \\
+    \midrule
+    Parameters & $4N$ bytes & $4N$ bytes \\
+    Gradients & $4N$ & $4N$ \\
+    First and second moments & 0 & $8N$ \\
+    \midrule
+    Subtotal & $8N$ & $16N$ \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  For $N=124$M: \textbf{0.992 GB} (SGD) versus \textbf{1.984 GB} (Adam), decimal GB.
+  \begin{alertblock}{Not peak memory}
+    Add saved activations, temporary buffers, inputs, allocator overhead and other state. Activation memory depends on micro-batch size, context and implementation.
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{An exact checkpoint captures the whole experiment state}
+\checkpoint{estimate a run}
+{A model has $N=100$M parameters and processes 500,000 tokens in 100 updates. Estimate $6ND$ model FLOPs, total SGD and Adam optimizer FLOPs, and their FP32 parameter/gradient/state memory subtotals. What is missing from peak memory?}
+
+\begin{frame}{Estimate: one possible answer}
+  \begin{itemize}
+    \setlength{\itemsep}{9pt}
+    \item Model: $6ND=3\times10^{14}$ FLOPs.
+    \item 100 optimizer updates: SGD $2\times10^{10}$ FLOPs; Adam $\approx1.2\times10^{11}$ FLOPs under our simplified convention.
+    \item FP32 subtotal: SGD $0.8$ GB; Adam $1.6$ GB, decimal units.
+    \item Peak memory also depends on activations, temporary buffers, inputs and allocation overhead.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{From a fixed-batch test to a baseline}
   \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Numerical state}
-        model parameters\\optimizer moments\\AMP scaler\\scheduler or global step
+    \begin{column}{.48\linewidth}
+      \begin{block}{First: can the loop learn?}
+        Overfit one fixed shifted batch. Falling loss tests the training path, not generalization.
       \end{block}
     \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Data and randomness state}
-        sampler position\\Python, NumPy, CPU and CUDA RNGs\\configuration and code version
+    \begin{column}{.48\linewidth}
+      \begin{block}{Then: a controlled run}
+        Use disjoint train and validation documents. Record data, model, optimizer, schedule, seed, hardware, code and token budget.
       \end{block}
     \end{column}
   \end{columns}
   \vfill
-  \begin{alertblock}{Recovery test}
-    An uninterrupted run and a save-resume run should produce the same next batch, learning rate, loss, and update within the declared tolerance.
+  \textbf{This afternoon:} instructor-prepared JSONL documents; the baseline script packs its own byte-token shards. The data-pipeline lab follows tomorrow.
+\end{frame}
+
+\begin{frame}{Read the baseline as evidence}
+  \begin{itemize}
+    \setlength{\itemsep}{7pt}
+    \item Count tokens: $B_{\rm micro}\times T\times K\times$ updates (one device).
+    \item Compare train loss with held-out loss on a fixed validation protocol; a tiny or synthetic corpus is a workflow check, not evidence of language quality.
+    \item Track learning rate and gradient norm to diagnose a spike. For nearly uniform logits, initial cross-entropy is roughly $\log V$.
+    \item Record checkpoints and compare runs at the same token budget. Fixed-prompt samples, if available, are qualitative diagnostics.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Recovery requires more than weights}
+  \begin{block}{A resumable training run}
+    Save model weights, optimizer moments, completed step and schedule configuration, RNG state, and the data/configuration identity.
+  \end{block}
+  \begin{block}{Test the claim}
+    Compare uninterrupted and save/resume runs with the same planned schedule. The companion tests exact CPU continuation; CUDA requires its own verification.
+  \end{block}
+  \begin{alertblock}{If real documents are unavailable}
+    Run the synthetic smoke fixture and label the result as a mechanics check.
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{A loop audit asks for evidence at boundaries}
-  \begin{enumerate}
-      \setlength{\itemsep}{8pt}
-    \item Count valid tokens per update.
-    \item Verify each parameter belongs to one optimizer group.
-    \item Log learning rate and pre-clip gradient norm at update boundaries.
-    \item Separate training loss, validation loss, throughput, and memory.
-    \item Run the exact-resume comparison before long training.
-  \end{enumerate}
-\end{frame}
-
 \takeaways
-{A training loop is a sequence of state transitions, not a four-line ritual.}
-{Accumulation changes the batch while clipping and scheduling remain update-level operations.}
-{AMP is safe only when gradients are unscaled before norm measurement and clipping.}
-{Validation and checkpoint recovery need explicit invariants of their own.}
+{The loss and saved activations produce gradients; the optimizer uses them to update weights and any persistent state.}
+{The base loop clears gradients, runs forward and backward, then updates parameters.}
+{Accumulation, clipping and scheduling operate around the optimizer update boundary.}
+{State assumptions in FLOP and memory estimates; compare baselines using held-out loss, token budgets and recovery checks.}
 
 \end{document}

@@ -1,7 +1,6 @@
 # Schedule
 
-The course runs as **32 sessions of 1h15** (40 contact hours): 12 theory
-sessions, 12 guided-implementation and systems showcase sessions, 4 dedicated
+The course runs as **32 sessions of 1h15** (40 contact hours): 11 scheduled theory sessions, one open session, 12 guided-implementation and systems showcase sessions, 4 dedicated
 reproduction project studio sessions, 2 mid-course paper-presentation sessions,
 and 2 final presentation/synthesis sessions. Sessions are grouped into
 **8 blocks**, and blocks into three phases. A block groups sessions that belong
@@ -13,7 +12,7 @@ be split across more than one day.
 | --- | --- | ---: | ---: | --- |
 | Build | 3 | 12 | 15h | Minimal GPT architecture, end-to-end pretraining data pipeline, documented baseline checkpoint, and profiled/optimized single-GPU trainer |
 | Scale | 3 | 12 | 15h | Mid-course presentation, distributed DDP scaling and FSDP state-accounting, multidimensional parallelism strategy, and Project Studios 1 & 2 |
-| Serve and synthesize | 2 | 8 | 10h | KV-cached decoder, serving systems & live vLLM demonstration, frontier architecture analysis, Project Studio 3 (Parts 1 & 2), and final defense |
+| Serve and synthesize | 2 | 8 | 10h | KV-cached decoder, serving systems and a prepared demonstration, an open content slot, Project Studio 3 (Parts 1 & 2), and final defense |
 
 Each module (the 11 topics listed on the [module pages](modules/index.md))
 spans one to four sessions, matched to how much theory and practice the topic
@@ -27,9 +26,9 @@ shows exactly which sessions cover which module.
   <caption>Session dates and times · weekdays, January 4–22</caption>
   <thead><tr><th scope="col">Mon</th><th scope="col">Tue</th><th scope="col">Wed</th><th scope="col">Thu</th><th scope="col">Fri</th></tr></thead>
   <tbody>
-    <tr><td><div class="calendar-day"><time datetime="2027-01-04">4</time></div></td><td><div class="calendar-day"><time datetime="2027-01-05">5</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S01</span>Kickoff &amp; Transformer map</li><li><time>11:00–12:15</time><span class="calendar-session">S02</span>Build the GPT foundation</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S03</span>Implement multi-head attention</li><li><time>15:30–16:45</time><span class="calendar-session">S04</span>Assemble the GPT</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-06">6</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S05</span>Training-loop theory</li><li><time>11:00–12:15</time><span class="calendar-session">S06</span>Train a tiny NanoLM</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S07</span>Pretraining data pipeline · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S08</span>Build the data pipeline</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-07">7</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S09</span>Baseline training · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S10</span>Run baseline training</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-08">8</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S11</span>Profile a GPU · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S12</span>Optimize the single-GPU trainer</li></ul></div></td></tr>
+    <tr><td><div class="calendar-day"><time datetime="2027-01-04">4</time></div></td><td><div class="calendar-day"><time datetime="2027-01-05">5</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S01</span>Kickoff &amp; Transformer map</li><li><time>11:00–12:15</time><span class="calendar-session">S02</span>Build the GPT foundation</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S03</span>Implement multi-head attention</li><li><time>15:30–16:45</time><span class="calendar-session">S04</span>Assemble the GPT</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-06">6</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S05</span>Training-loop theory</li><li><time>11:00–12:15</time><span class="calendar-session">S06</span>Baseline training · theory</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S07</span>Train a tiny NanoLM</li><li><time>15:30–16:45</time><span class="calendar-session">S08</span>Run baseline training</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-07">7</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S09</span>Pretraining data pipeline · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S10</span>Build the data pipeline</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-08">8</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S11</span>Profile a GPU · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S12</span>Optimize the single-GPU trainer</li></ul></div></td></tr>
     <tr><td><div class="calendar-day"><time datetime="2027-01-11">11</time></div></td><td><div class="calendar-day"><time datetime="2027-01-12">12</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S13</span>Distributed data parallelism · theory</li><li><time>11:00–12:15</time><span class="calendar-session">S14</span>DDP showcase &amp; scaling benchmark</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S15</span>Lightning paper pitches</li><li><time>15:30–16:45</time><span class="calendar-session">S16</span>Whole-class discussion</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-13">13</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>11:00–12:15</time><span class="calendar-session">S17</span>Reproduction Studio 1</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S18</span>FSDP and ZeRO · theory</li><li><time>15:30–16:45</time><span class="calendar-session">S19</span>FSDP guided exercise</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-14">14</time></div></td><td><div class="calendar-day"><time datetime="2027-01-15">15</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>08:00–09:15</time><span class="calendar-session">S20</span>Tensor &amp; sequence parallelism · theory</li><li><time>09:30–10:45</time><span class="calendar-session">S21</span>Checkpointing &amp; TP practice</li></ul></div></td></tr>
-    <tr><td><div class="calendar-day"><time datetime="2027-01-18">18</time></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>15:30–16:45</time><span class="calendar-session">S23</span>Multidimensional cluster sizing</li><li><time>17:00–18:15</time><span class="calendar-session">S22</span>CP, PP &amp; EP · theory</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-19">19</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>11:00–12:15</time><span class="calendar-session">S24</span>Reproduction Studio 2</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>15:30–16:45</time><span class="calendar-session">S25</span>KV-cached decoding · theory</li><li><time>17:00–18:15</time><span class="calendar-session">S26</span>KV-cache showcase &amp; benchmark</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-20">20</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S30</span>Frontier architectures</li><li><time>11:00–12:15</time><span class="calendar-session">S28</span>Serving systems</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S27</span>Reproduction Studio 3 · Part 1</li><li><time>15:30–16:45</time><span class="calendar-session">S29</span>Reproduction Studio 3 · Part 2</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-21">21</time></div></td><td><div class="calendar-day"><time datetime="2027-01-22">22</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S31</span>Final project presentations</li><li><time>11:00–12:15</time><span class="calendar-session">S32</span>Course synthesis &amp; submission</li></ul></div></td></tr>
+    <tr><td><div class="calendar-day"><time datetime="2027-01-18">18</time></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>15:30–16:45</time><span class="calendar-session">S22</span>CP, PP &amp; EP · theory</li><li><time>17:00–18:15</time><span class="calendar-session">S23</span>Multidimensional cluster sizing</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-19">19</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>11:00–12:15</time><span class="calendar-session">S24</span>Reproduction Studio 2</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>15:30–16:45</time><span class="calendar-session">S25</span>KV-cached decoding · theory</li><li><time>17:00–18:15</time><span class="calendar-session">S26</span>KV-cache showcase &amp; benchmark</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-20">20</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S27</span>Open · content to be decided</li><li><time>11:00–12:15</time><span class="calendar-session">S28</span>Serving systems</li></ul></div><div class="calendar-half-day"><div class="calendar-period-label">Afternoon</div><ul class="calendar-events"><li><time>14:00–15:15</time><span class="calendar-session">S29</span>Reproduction Studio 3 · Part 1</li><li><time>15:30–16:45</time><span class="calendar-session">S30</span>Reproduction Studio 3 · Part 2</li></ul></div></td><td><div class="calendar-day"><time datetime="2027-01-21">21</time></div></td><td><div class="calendar-day"><time datetime="2027-01-22">22</time></div><div class="calendar-half-day"><div class="calendar-period-label">Morning</div><ul class="calendar-events"><li><time>09:30–10:45</time><span class="calendar-session">S31</span>Final project presentations</li><li><time>11:00–12:15</time><span class="calendar-session">S32</span>Course synthesis &amp; submission</li></ul></div></td></tr>
   </tbody>
 </table>
 </div>
@@ -39,69 +38,65 @@ shows exactly which sessions cover which module.
 !!! tip "Course presentation"
     The [Course presentation slides (Lecture 0 PDF)](slides/00-introduction.pdf){ target="_blank" } are available for an overview of course objectives, schedule, continuous laboratory, reproduction project, and assessment.
 
-### Block 1 — Build a GPT and its first training loop
+### Block 1 — Build a GPT
 
-**6 sessions · 7h30 · [Module 1: Transformer from first principles](modules/01-transformer.md) ([slides](slides/01-transformer.pdf){ target="_blank" }, sessions 1–4), [Module 2: Training-loop anatomy and baseline GPT](modules/02-training-loop.md) ([slides](slides/02-training-loop.pdf){ target="_blank" }, sessions 5–6)**
-
-Teach these six 75-minute sessions as **three consecutive 2h30 working blocks**.
+**4 sessions · 5h · [Module 1: Transformer from first principles](modules/01-transformer.md) ([slides](slides/01-transformer.pdf){ target="_blank" }, sessions 1–4)**
 
 #### Working block 1 — Kickoff, model map, and start building (sessions 1–2 · 2h30)
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 1 | Kickoff + theory | Brief course presentation; next-token prediction objective $P(x_1, \dots, x_T)$ ([interactive demo](demos/next-token.html){ target="_blank" }), recurrent sequential bottlenecks vs Transformer parallelism, and a model map covering embeddings, attention, residual stream, pre-LN LayerNorm, MLP, and LM head | Course workflow and Transformer architecture map |
-| 2 | Practice | Set up the starter implementation; build token and learned positional embeddings, pre-LN and residual structure, and the GPT-2 MLP ($4d$ expansion, GELU, contraction). Use tensor shapes as needed while implementing | Working non-attention components with shape checks |
+| 1 | Kickoff + theory | Brief course presentation; next-token prediction ([interactive demo](demos/next-token.html){ target="_blank" }), RNN vs Transformer, embeddings, attention, residual stream, normalization, MLP and LM head | Course workflow and Transformer architecture map |
+| 2 | Practice | Set up the starter; build token and learned position embeddings, pre-LN residual structure, and the GPT-2 MLP | Non-attention components with shape checks |
 
 #### Working block 2 — Multi-head attention through logits (sessions 3–4 · 2h30)
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 3 | Practice | Implement QKV projections, scaled dot-product attention, causal masking, head splitting/merging, and output projection ($W_O$) | Tested multi-head attention module |
-| 4 | Practice | Assemble the Transformer blocks and tied LM head; run a forward pass, inspect next-token logits, and compare against official GPT-2 reference logits using the provided checkpoint converter | Student-built GPT reproducing reference logits |
+| 3 | Practice | Implement QKV projections, scaled dot-product attention, causal masking, head splitting/merging, and output projection | Tested multi-head attention module |
+| 4 | Practice | Assemble the Transformer and tied LM head; inspect logits and compare with official GPT-2 reference logits | Student-built GPT reproducing reference logits |
 
-#### Working block 3 — Explain and implement a simple training loop (sessions 5–6 · 2h30)
+### Block 2 — Training loop and baseline
+
+**4 sessions · 5h · [Module 2: Training-loop anatomy and baseline GPT](modules/02-training-loop.md) ([slides](slides/02-training-loop.pdf){ target="_blank" }, sessions 5–8)**
+
+On January 6, the morning is one continuous theory block; the afternoon combines
+implementation and baseline experiments. Use the same Module 2 deck throughout
+the morning.
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 5 | Theory | Target shifting and cross-entropy; autograd and gradients; optimizer zeroing/update order; AdamW parameter groups, gradient clipping, accumulation, learning-rate schedule, mixed precision, and common silent failures | Training-loop checklist and update-order diagram |
-| 6 | Practice | Implement target shifting, optimizer grouping, backward/update ordering, gradient clipping, and checkpoint round-trip; overfit a small NanoLM on one fixed batch (`loss < 0.1`) | Minimal trainable NanoLM with verified checkpoint round-trip |
+| 5 | Theory | Optimizer 101: loss, activations, gradients, SGD, learning rate and Adam state; forward/backward and the base loop | Trace from one batch to one update |
+| 6 | Theory | Accumulation, clipping and learning-rate scheduling; FLOP/memory estimates; baseline design, token budgets, held-out evaluation and recovery | Update-order diagram and baseline protocol |
+| 7 | Practice | Implement shifted targets, optimizer grouping, backward/update ordering and clipping; overfit one fixed NanoLM batch and check a checkpoint round-trip | Tiny NanoLM and verified round-trip |
+| 8 | Practice | Use instructor-prepared disjoint JSONL documents to run the provided byte-token baseline; inspect losses and token budget and test CPU checkpoint recovery | Baseline report and checkpoint, or documented smoke-test fallback |
 
-!!! success "Exit criterion"
-    The student implementation must first reproduce GPT-2 inference, then its
-    randomly initialized small configuration must overfit one fixed batch. If
-    either check fails, the team does not proceed to larger training.
+!!! note "Data dependency"
+    The baseline script prepares its own byte-token shards from the supplied
+    documents. The next morning's pipeline lab teaches students how to build
+    and validate a richer data pipeline; it is not a prerequisite for this run.
+    Longer baseline training can continue between sessions.
 
 !!! note "Assessment milestone"
     Teams begin identifying candidate papers for the mid-course presentation
     and reproduction project.
 
-### Block 2 — From raw text to tensors
+### Block 3 — Data pipeline and single-GPU performance
 
-**2 sessions · 2h30 · [Module 3: Pretraining data pipeline](modules/03-data-pipeline.md) ([slides](slides/03-data-pipeline.pdf){ target="_blank" }, sessions 7–8)**
-
-| Session | Mode | Focus | Output |
-| ---: | --- | --- | --- |
-| 7 | Theory | Raw web extraction (WARC vs WET, boilerplate tax), heuristic compute-conservation filtering, subword tokenization trade-offs, byte-level BPE from scratch, regex pre-tokenization splitting, sequence packing with `<|endoftext|>`, and memory-mapped binary sharding with `np.memmap` | Ingestion pipeline design & tokenization trade-off analysis |
-| 8 | Practice | Trace byte-level BPE merges using the provided implementation; implement document packing and shifted batches; verify round-trip fidelity, boundaries, and disjoint train/validation documents; inspect provided filters and memory-mapped loader | Validated end-to-end data pipeline and binary shards |
-
-!!! note "Assessment milestone"
-    Paper shortlist due.
-
-### Block 3 — Baseline training, profiling and single-GPU optimization
-
-**4 sessions · 5h00 · [Module 2: Training-loop anatomy and baseline GPT](modules/02-training-loop.md) continued (sessions 9–10), [Module 4: Single-GPU performance](modules/04-single-gpu.md) ([slides](slides/04-single-gpu.pdf){ target="_blank" }, sessions 11–12)**
+**4 sessions · 5h · [Module 3: Pretraining data pipeline](modules/03-data-pipeline.md) ([slides](slides/03-data-pipeline.pdf){ target="_blank" }, sessions 9–10), [Module 4: Single-GPU performance](modules/04-single-gpu.md) ([slides](slides/04-single-gpu.pdf){ target="_blank" }, sessions 11–12)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 9 | Theory | GPT parameter scaling ($12Ld^2$), depth-scaled initialization ($1/\sqrt{2L}$ to preserve residual stream), pre-flight checks ($\mathcal{L}_{\text{init}} \approx \log V$), token accounting, curve triage, and sampling diagnostics | Baseline training protocol & pre-flight checklist |
-| 10 | Practice | Launch baseline training run on packed dataset shards; log training/validation curves; verify checkpoint resume determinism; evaluate qualitative samples across prompt suite | Documented baseline checkpoint & curves |
-| 11 | Theory | Hardware model of one GPU (SMs, Tensor Cores, warps, divergence, memory hierarchy), roofline model (arithmetic intensity, compute vs memory bound), memory decomposition, and profiler traces | Bottleneck hypothesis & profiler plan |
-| 12 | Practice | Profile baseline trainer with PyTorch Profiler / Nsight; systematically benchmark bf16, SDPA/FlashAttention-2, and `torch.compile`; measure throughput, peak VRAM, and MFU | Optimized single-GPU trainer & profiling report |
+| 9 | Theory | Document sourcing and filtering; byte-level BPE, pre-tokenization, vocabulary trade-offs, packing, boundaries and binary shards | Pipeline design and tokenizer trade-offs |
+| 10 | Practice | Trace BPE merges; implement packing and shifted batches; verify round-trip, boundaries and disjoint splits; inspect the provided loader | Validated data pipeline and binary shards |
+| 11 | Theory | GPU execution and memory hierarchy, roofline reasoning, memory decomposition, profiler traces and performance metrics | Bottleneck hypothesis and profiler plan |
+| 12 | Practice | Profile the trainer and benchmark supported precision, SDPA and compilation options; report hardware and measured throughput and memory | Profiling report and measured single-GPU comparison |
 
-**Between sessions:** profile the optimized trainer across batch sizes and verify throughput and memory improvements before distributed scaling.
+**Between sessions:** continue the baseline as resources permit, then profile the
+trainer across batch sizes before distributed scaling.
 
 !!! note "Assessment milestone"
-    Paper and one or two target reproduction claims approved.
+    Paper shortlist due; paper and one or two target reproduction claims are approved before the mid-course discussion.
 
 ## Phase 2 — Scale
 
@@ -116,7 +111,7 @@ pitches and discuss reproduction claims.
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
 | 13 | Theory | DDP execution model: one process per GPU, parameter broadcast, synchronous SGD gradient averaging derivation, ring all-reduce, gradient bucketing, backward overlap, and global token accounting | DDP architecture specification |
-| 14 | Practice | DDP showcase & scaling benchmark: launch multi-GPU trainer with `torchrun`, verify rank synchronization and gradient accumulation via `no_sync`, and measure linear speedup limits | Verified multi-GPU trainer & scaling report |
+| 14 | Practice | Run two-rank CPU Gloo correctness checks, compare DDP updates with a global-batch reference, and design a scaling benchmark; GPU measurement is an extension | Gradient equivalence and scaling plan |
 | 15 | Lightning presentations | A few-minute pitch per paper: problem, central claim, proposed mechanism, and key evidence; capture one candidate reproduction question per group | Shared set of candidate claims and questions |
 | 16 | Whole-class discussion | Compare the claims together: what is worth understanding or testing, what evidence would settle it, and which questions are feasible to reproduce; teams agree on a direction | Reproduction question and initial protocol per team |
 
@@ -159,30 +154,27 @@ pitches and discuss reproduction claims.
 
 ## Phase 3 — Serve and synthesize
 
-### Block 7 — Autoregressive decoding & Project Studio 3
+### Block 7 — Autoregressive decoding
 
-**3 sessions · 3h45 · [Module 9: KV-cached decoding](modules/09-kv-cache.md) ([slides](slides/09-kv-cache.pdf){ target="_blank" }, sessions 25–26), Project Studio 3 · Part 1 (session 27)**
-
-| Session | Mode | Focus | Output |
-| ---: | --- | --- | --- |
-| 25 | Theory | Autoregressive decoding without cache, causality invariant, prefill vs decode separation, memory-bandwidth bound ($\sim 1\text{ FLOP/byte}$), and KV-cache shapes/byte accounting for MHA, MQA, and GQA | Decode cost model & arithmetic intensity analysis |
-| 26 | Practice | KV-cached decoding showcase & benchmark: implement incremental KV-cache in the course model; check logit agreement within declared numerical tolerances and greedy-token agreement with uncached generation; benchmark TTFT, inter-token latency, and memory bandwidth | Cached decoder & equivalence verification report |
-| 27 | Project Studio | **Reproduction Studio 3 (Part 1) — Results Synthesis & Evidence Charts**: Dedicated team hackathon; analyze reproduction claims against paper targets, characterize discrepancies and limitations, format evidence charts, and prepare final defense presentation | Draft presentation slides & verified result tables |
-
-!!! note "Assessment milestone"
-    Reproduction results and limitations reviewed.
-
-### Block 8 — Serving and final demonstration
-
-**5 sessions · 6h15 · [Module 10: Serving systems](modules/10-serving.md) ([slides](slides/10-serving.pdf){ target="_blank" }, session 28), Project Studio 3 · Part 2 (session 29), [Module 11: Frontier architectures and efficient generation](modules/11-frontier-architectures.md) ([slides](slides/11-frontier-architectures.pdf){ target="_blank" }, session 30), synthesis (sessions 31–32)**
+**2 sessions · 2h30 · [Module 9: KV-cached decoding](modules/09-kv-cache.md) ([slides](slides/09-kv-cache.pdf){ target="_blank" }, sessions 25–26)**
 
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
-| 28 | Theory | Trace the request lifecycle and continuous-batching schedule; compare paged KV allocation with reservation; interpret TTFT, ITL, and throughput in a prepared instructor demonstration ([simulator](demos/continuous-batching.html){ target="_blank" }). A live vLLM run is conditional on preflight; chunked prefill, prefix caching, and SLO goodput are extensions | Annotated scheduling trace and benchmark interpretation |
-| 29 | Project Studio | **Reproduction Studio 3 (Part 2) — Defense Rehearsal & Presentation Prep**: Dedicated team studio time; rehearse team presentation timing (8 min presentation + 4 min questions), finalize reproduction claim evidence charts, and anticipate individual technical defense questions with instructor coaching | Rehearsed presentation slides & defense readiness |
-| 30 | Theory | Three bottleneck comparisons: speculative decoding (verification cost), MLA (cache bytes), and recurrent state versus KV cache; diffusion, detailed MoE/MTP, and multimodality are optional reading | Frontier architecture analysis & compression evaluation |
-| 31 | Presentation | Final team demonstrations and technical defenses: present paper reproduction evidence, systems measurements, and failure postmortems | Project presentation & technical defense |
-| 32 | Presentation | Comparative course postmortem, cross-team architecture and parallelism synthesis, and final repository submission | Final project report and repository submission |
+| 25 | Theory | Full-prefix recomputation, prefill vs decode, KV-cache shapes, memory and bandwidth accounting for MHA, MQA and GQA | Decode cost model |
+| 26 | Practice | Implement incremental KV caching; check cached vs uncached logits and greedy tokens, and benchmark prefill/decode when hardware permits | Cached decoder and equivalence report |
+
+### Block 8 — Serving, open slot and final demonstration
+
+**6 sessions · 7h30 · [Module 10: Serving systems](modules/10-serving.md) ([slides](slides/10-serving.pdf){ target="_blank" }, session 28), open slot (session 27; content to be decided), Project Studio 3 (sessions 29–30), synthesis (sessions 31–32)**
+
+| Session | Mode | Focus | Output |
+| ---: | --- | --- | --- |
+| 27 | Open | Content to be decided; [Module 11](modules/11-frontier-architectures.md) and its existing slides are a placeholder | To be defined |
+| 28 | Theory | Request lifecycle, continuous batching, paged KV allocation, TTFT, ITL and throughput in a prepared demonstration ([simulator](demos/continuous-batching.html){ target="_blank" }); live vLLM is conditional on preflight | Annotated scheduling trace and benchmark interpretation |
+| 29 | Project Studio | Reproduction Studio 3, Part 1: synthesize results and limitations, prepare evidence charts and draft the defense | Verified result tables and draft slides |
+| 30 | Project Studio | Reproduction Studio 3, Part 2: rehearse the presentation, finalize evidence and prepare for questions | Rehearsed defense |
+| 31 | Presentation | Final team presentations and technical defenses | Project presentation and technical defense |
+| 32 | Presentation | Course synthesis and final repository submission | Final report and repository submission |
 
 !!! success "Assessment milestone"
     **Code submission and final project presentation** (see

@@ -28,7 +28,7 @@ uv run torchrun --standalone --nproc_per_node=2 scripts/05_train_ddp.py
 uv run pytest tests/test_distributed_experiments.py -q
 ```
 
-## Session 16 protocol
+## Session 14 protocol
 
 **Prepare:** derive the effective batch and explain why `no_sync` must enclose
 both forward and backward. The provided exercise uses equal-length, unmasked

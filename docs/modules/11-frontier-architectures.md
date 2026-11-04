@@ -1,5 +1,9 @@
 # Module 11 — Frontier architectures and efficient generation
 
+!!! note "Open session"
+    This module and its slide deck are a placeholder for the open session.
+    The final topic and scope are to be decided. The material below is optional reading.
+
 ## Purpose
 
 Examine the frontiers of model architecture and inference acceleration that go beyond
@@ -21,14 +25,10 @@ This module analyzes the modern architectural innovations breaking through these
 
 ---
 
-## Session 30: required core and optional reading
+## Session 27: open slot
 
-Use the 75-minute session for three comparisons: speculative verification
-(25 minutes), MLA cache accounting (20 minutes), and recurrent state versus
-KV cache (20 minutes), followed by a 10-minute synthesis discussion. For each,
-identify the original bottleneck, the new cost, and an experiment that could
-show a benefit. Diffusion, detailed MoE/MTP, multimodality, and individual
-recurrent variants are optional reading. There is no additional coding report.
+The content of this session is to be decided. The sections below are optional
+reading and do not constitute a required lecture or assignment.
 
 ## Key ideas
 

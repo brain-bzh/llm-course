@@ -24,6 +24,19 @@
 
 \section{A tokenizer is a model design choice}
 
+\begin{frame}{From raw documents to a training corpus}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Extract text and record the source. WARC preserves web records; WET provides extracted text.
+    \item Apply documented filters for empty, very short, or repetitive text; inspect what they discard.
+    \item Group duplicates and split by document before fitting tokenizer merges on training data.
+    \item Tokenize, add document boundaries, pack and store train and validation separately.
+  \end{enumerate}
+  \begin{alertblock}{A dataset is a set of choices}
+    Filtering and extraction change the data distribution; record the rules and avoid train--validation leakage.
+  \end{alertblock}
+\end{frame}
+
 \begin{frame}{Granularity moves cost between vocabulary and sequence}
   \small
   \begin{tabular}{llll}

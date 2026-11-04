@@ -16,8 +16,7 @@ real improvement from a plausible story. Concretely, each module:
 4. adds evidence or an interpretation to the continuous course project.
 
 Modules 1–9 include required practical work. Module 10 is an instructor-led
-serving demonstration with interpretation questions. Module 11 is a synthesis
-lecture with optional exploration. Neither final module adds a mandatory coding
+serving demonstration with interpretation questions. Module 11 is placeholder material for an open session, with optional exploration. Neither final module adds a mandatory coding
 assignment or report; project studios remain reserved for the reproduction.
 
 Slides and companion implementation guides are built from this material
@@ -41,7 +40,7 @@ reproduces official GPT-2 logits and a verified next-token log-probability.
 ## 2. Training-loop anatomy and baseline GPT
 
 **Understand:** cross-entropy, autograd DAGs, AdamW, parameter grouping, learning-rate
-schedules, gradient accumulation, clipping, mixed precision, initialization ($1/\sqrt{2L}$),
+schedules, gradient accumulation, clipping, FLOP/memory accounting,
 validation curves, and baseline checkpointing.
 
 **Implement:** a complete training/checkpoint loop and use it to fit a small
@@ -151,7 +150,9 @@ caching and scheduling.
 
 [Open the module page →](10-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-serving.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/continuous-batching.html){ target="_blank" }
 
-## 11. Frontier architectures and efficient generation
+## 11. Frontier architectures and efficient generation (placeholder)
+
+Session 27 is open; its final content is to be decided. This module is optional reading.
 
 **Understand:** three bottleneck comparisons—speculative verification cost,
 MLA cache memory, and recurrent state versus a growing KV cache.

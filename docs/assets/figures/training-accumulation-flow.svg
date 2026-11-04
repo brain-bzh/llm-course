@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 335" role="img" aria-labelledby="title desc">
+<title id="title">Gradient accumulation across micro-batches</title>
+<desc id="desc">Three sequential micro-batches each perform forward and backward, adding scaled gradients into one buffer. One optimizer update uses the accumulated gradient; weights and optimizer state do not change between micro-batches.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#617787"/></marker><style>text{font-family:Inter,system-ui,sans-serif;fill:#16405a;font-size:18px}.small{font-size:15px;fill:#52697a}.head{font-size:15px;font-weight:700;fill:#007d86}.box{fill:#eef6fa;stroke:#9fc5d5;stroke-width:2}.back{fill:#fdf0ea;stroke:#d9a88d;stroke-width:2}.state{fill:#f2eef8;stroke:#b5a5c9;stroke-width:2}.line{fill:none;stroke:#617787;stroke-width:2}</style></defs>
+<text class="head" x="30" y="30">ONE OPTIMIZER UPDATE · 3 EQUAL-SIZE MICRO-BATCHES</text>
+<text class="small" x="500" y="58" text-anchor="middle">Same weights θₜ and optimizer state throughout all three micro-batches</text>
+<rect class="box" x="25" y="90" width="200" height="58" rx="8"/><text x="125" y="115" text-anchor="middle">Micro-batch 1</text><text class="small" x="125" y="135" text-anchor="middle">forward → backward</text>
+<rect class="box" x="270" y="90" width="200" height="58" rx="8"/><text x="370" y="115" text-anchor="middle">Micro-batch 2</text><text class="small" x="370" y="135" text-anchor="middle">forward → backward</text>
+<rect class="box" x="515" y="90" width="200" height="58" rx="8"/><text x="615" y="115" text-anchor="middle">Micro-batch 3</text><text class="small" x="615" y="135" text-anchor="middle">forward → backward</text>
+<rect class="state" x="765" y="90" width="200" height="58" rx="8"/><text x="865" y="115" text-anchor="middle">Optimizer step</text><text class="small" x="865" y="135" text-anchor="middle">update weights + state</text>
+<path class="line" d="M225 119H270M470 119H515M715 119H765"/>
+<rect class="back" x="25" y="215" width="200" height="52" rx="8"/><text x="125" y="246" text-anchor="middle">buffer: g₁ / 3</text>
+<rect class="back" x="270" y="215" width="200" height="52" rx="8"/><text x="370" y="246" text-anchor="middle">+ g₂ / 3</text>
+<rect class="back" x="515" y="215" width="200" height="52" rx="8"/><text x="615" y="246" text-anchor="middle">+ g₃ / 3</text>
+<path class="line" d="M125 148V215M370 148V215M615 148V215M225 241H270M470 241H515M715 241H865V148"/>
+<text class="small" x="25" y="308">Clear → accumulate → clip (optional) → step</text>
+<polygon fill="#617787" points="270,119 261,114 261,124"/><polygon fill="#617787" points="515,119 506,114 506,124"/><polygon fill="#617787" points="765,119 756,114 756,124"/><polygon fill="#617787" points="125,215 120,206 130,206"/><polygon fill="#617787" points="370,215 365,206 375,206"/><polygon fill="#617787" points="615,215 610,206 620,206"/><polygon fill="#617787" points="270,241 261,236 261,246"/><polygon fill="#617787" points="515,241 506,236 506,246"/><polygon fill="#617787" points="865,148 860,157 870,157"/>
+</svg>

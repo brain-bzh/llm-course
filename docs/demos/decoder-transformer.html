@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Inside a decoder-only Transformer · LLaMA 3</title>
+    <title>Inside a decoder-only Transformer</title>
     <style>
       :root {
         color-scheme: light;
@@ -110,6 +110,8 @@
         color: var(--muted);
         max-width: 850px;
       }
+      .model-switch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; align-items: center; }
+      .model-switch button[aria-pressed="true"] { background: var(--tint); border-color: var(--teal); color: var(--ink); }
       .specs {
         display: flex;
         flex-wrap: wrap;
@@ -870,14 +872,18 @@
         <a href="../modules/01-transformer/">← Module 1</a
         ><button id="theme" aria-label="Switch color theme">Dark mode</button>
       </div>
-      <div class="eyebrow">Architecture explorer / LLaMA 3 8B</div>
+      <div class="eyebrow">Architecture explorer</div>
       <h1>Inside a decoder-only Transformer</h1>
       <p>
         Follow the activations and zoom into the architecture to reveal what
         happens inside. One block stands for every layer; each layer has its own
         weights.
       </p>
-      <div class="specs">
+      <div class="model-switch" role="group" aria-label="Choose model architecture">
+        <button id="model-gpt2" type="button" aria-pressed="true">GPT-2 Small · course</button>
+        <button id="model-llama" type="button" aria-pressed="false">LLaMA 3 8B</button>
+      </div>
+      <div class="specs" id="specs">
         <span><b>32</b> layers</span><span><b>4,096</b> hidden width</span
         ><span><b>32 Q / 8 KV</b> heads</span><span><b>128</b> head width</span
         ><span><b>14,336</b> MLP width</span
@@ -917,7 +923,7 @@
             <svg
               id="diagram"
               xmlns="http://www.w3.org/2000/svg"
-              aria-label="LLaMA 3 activation flow"
+              aria-label="GPT-2 activation flow"
             >
               <defs>
                 <marker
@@ -994,7 +1000,7 @@
       <footer>
         Architecture and shapes, not a numerical model run. B = batch, T = query
         tokens, S = available context.
-        <a
+        <span id="llama-sources"><a
           href="https://github.com/meta-llama/llama3/blob/main/llama/model.py"
           target="_blank"
           rel="noopener"
@@ -1004,14 +1010,15 @@
           target="_blank"
           rel="noopener"
           >8B configuration</a
-        >
+        ></span><span id="gpt2-sources" hidden><a href="https://github.com/openai/gpt-2/blob/master/src/model.py" target="_blank" rel="noopener">OpenAI reference implementation</a><a href="https://huggingface.co/openai-community/gpt2/blob/main/config.json" target="_blank" rel="noopener">GPT-2 Small configuration</a></span>
       </footer>
     </main>
     <script>
       "use strict";
       const $ = (id) => document.getElementById(id),
         NS = "http://www.w3.org/2000/svg";
-      let view = "model",
+      let architecture = "llama",
+        view = "model",
         mode = "prefill",
         pinned = null,
         selected = null,
@@ -1021,19 +1028,19 @@
         fitScale = 1,
         drag = null;
       const tensor = () =>
-        mode === "prefill" ? "1 × 8 × 4096" : "1 × 1 × 4096";
+        mode === "prefill" ? `1 × 8 × ${architecture === "gpt2" ? 768 : 4096}` : `1 × 1 × ${architecture === "gpt2" ? 768 : 4096}`;
       const sharedKVShape = () =>
         mode === "prefill" ? "1 × 32 × 8 × 128" : "1 × 32 × 9 × 128";
       const qShape = () =>
-        mode === "prefill" ? "1 × 32 × 8 × 128" : "1 × 32 × 1 × 128";
+        mode === "prefill" ? `1 × ${architecture === "gpt2" ? "12 × 8 × 64" : "32 × 8 × 128"}` : `1 × ${architecture === "gpt2" ? "12 × 1 × 64" : "32 × 1 × 128"}`;
       const kvShape = () =>
-        mode === "prefill" ? "1 × 8 × 8 × 128" : "1 × 8 × 9 × 128";
+        mode === "prefill" ? `1 × ${architecture === "gpt2" ? "12 × 8 × 64" : "8 × 8 × 128"}` : `1 × ${architecture === "gpt2" ? "12 × 9 × 64" : "8 × 9 × 128"}`;
       const scoresShape = () =>
-        mode === "prefill" ? "1 × 32 × 8 × 8" : "1 × 32 × 1 × 9";
+        mode === "prefill" ? `1 × ${architecture === "gpt2" ? 12 : 32} × 8 × 8` : `1 × ${architecture === "gpt2" ? 12 : 32} × 1 × 9`;
       const ffnShape = () =>
-        mode === "prefill" ? "1 × 8 × 14336" : "1 × 1 × 14336";
+        mode === "prefill" ? `1 × 8 × ${architecture === "gpt2" ? 3072 : 14336}` : `1 × 1 × ${architecture === "gpt2" ? 3072 : 14336}`;
       const vocabShape = () =>
-        mode === "prefill" ? "1 × 8 × 128256" : "1 × 1 × 128256";
+        mode === "prefill" ? `1 × 8 × ${architecture === "gpt2" ? 50257 : 128256}` : `1 × 1 × ${architecture === "gpt2" ? 50257 : 128256}`;
       const info = {
         tokens: [
           "Input",
@@ -1541,6 +1548,62 @@
           ],
         },
       };
+      // Each model has its own topology as well as its own labels and dimensions.
+      const llamaInfo = { ...info }, llamaViews = { ...views };
+      const gptInfo = {
+        tokens: ["Input", "Token IDs", "The tokenizer maps text to vocabulary indices.", "Text, tokenized outside the network", () => mode === "prefill" ? "1 × 8 integer IDs" : "1 × 1 integer ID", "ids[b, t] ∈ {0, …, 50256}"],
+        embed: ["Embedding", "Token + position embeddings", "Add a learned token vector and a learned absolute position vector at each position. In decode, the new token uses its position after the cached prefix.", "Token IDs and position indices", tensor, "X = W_E[ids] + W_pos[position]"],
+        decoder: ["Repeated block", "Decoder block ×12", "Apply 12 blocks in sequence, each with its own weights and KV cache.", tensor, tensor, "Xₗ₊₁ = blockₗ(Xₗ)", "block"],
+        norm: ["Normalization", "Final LayerNorm", "Mean-center and normalize each token across features, then apply learned scale and bias.", tensor, tensor, "Y = LayerNorm(X)"],
+        head: ["Projection", "Vocabulary projection", "Project to 50,257 logits using the token embedding weights, tied to the input embedding. The output head has no bias.", tensor, vocabShape, "logits = Y W_Eᵀ"],
+        sample: ["Generation", "Choose the next token", "Outside the Transformer, turn final-position logits into probabilities and choose a token; append it and repeat.", "1 × 50257 final-position logits", "1 new token ID", "probabilities = softmax(logits / temperature)"],
+        input: ["Activation", "Residual stream", "Each token carries a vector of width 768. Attention and the MLP add updates to this stream.", tensor, tensor, "Xₗ ∈ ℝᴮˣᵀˣ⁷⁶⁸"],
+        norm1: ["Pre-normalization", "Attention LayerNorm", "Normalize each token before attention; the original stream bypasses this branch.", tensor, tensor, "U = LayerNorm(X)"],
+        attention: ["Cross-token mixing", "Multi-head attention", "Twelve query heads each have their own key and value head. A causal mask prevents access to future positions.", tensor, tensor, "A = MHA(LayerNorm(X))", "attention"],
+        add1: ["Residual addition", "Add the attention update", "Add the attention output to the original residual stream.", () => tensor() + " + " + tensor(), tensor, "H = X + Attention(LayerNorm(X))"],
+        norm2: ["Pre-normalization", "MLP LayerNorm", "Normalize the updated stream before the MLP; the residual bypass carries H to the addition.", tensor, tensor, "U = LayerNorm(H)"],
+        mlp: ["Per-token transformation", "GELU MLP", "Expand each token from 768 to 3072 features, apply GELU, and project back to 768. The linear layers include biases.", tensor, tensor, "MLP(U) = GELU(UW₁ + b₁)W₂ + b₂", "mlp"],
+        add2: ["Residual addition", "Add the MLP update", "Add the MLP result to H before entering the next block.", () => tensor() + " + " + tensor(), tensor, "Xₗ₊₁ = H + MLP(LayerNorm(H))"],
+        output: ["Activation", "To the next layer", "Pass the result to the next block, or the final LayerNorm after layer 12.", tensor, tensor, "Repeat with new layer weights"],
+        attInput: ["Activation", "Normalized attention input", "The normalized stream feeds Q, K and V projections. GPT-2 uses one combined projection in its reference implementation.", tensor, tensor, "U → Q, K, V"],
+        q: ["Projection", "Query heads", "Project to 12 query heads of width 64, with a learned bias.", tensor, qShape, "Q = reshape(U W_Q + b_Q)"],
+        k: ["Projection", "Key heads", "Project to 12 key heads of width 64, with a learned bias.", tensor, qShape, "K = reshape(U W_K + b_K)"],
+        v: ["Projection", "Value heads", "Project to 12 value heads of width 64, with a learned bias.", tensor, qShape, "V = reshape(U W_V + b_V)"],
+        cache: ["Inference state", "Per-layer KV cache", "During generation, save keys and values for earlier positions. Position information was added at the input; GPT-2 does not use RoPE.", "New K and V", () => kvShape() + " each for K and V", "Prefill: S = 8 · Decode: S = 8 + 1"],
+        scores: ["Attention arithmetic", "Query–key scores", "Each query head compares against its matching key head. Scale by the square root of head width, √64.", "Q and K", scoresShape, "scores = QKᵀ / √64"],
+        mix: ["Cross-token mixing", "Weighted value sum", "Each attention head combines its matching value head using its attention probabilities.", "Attention probabilities P and V", qShape, "Z = P V"],
+        concat: ["Reshape", "Concatenate heads", "Join 12 head outputs of width 64 into one 768-dimensional vector per token.", qShape, tensor, "12 × 64 = 768"],
+        wo: ["Projection", "Attention output projection", "Project the concatenated heads back to the residual stream, with a learned bias.", tensor, tensor, "A = concat(heads) W_O + b_O"],
+        mlpInput: ["Activation", "Normalized MLP input", "Each token is processed independently by the same MLP.", tensor, tensor, "U → W₁"],
+        up: ["Projection", "Up projection", "Expand each token from 768 to 3072 features using a learned bias.", tensor, ffnShape, "A = U W₁ + b₁"],
+        gelu: ["Nonlinearity", "GELU activation", "Apply GELU elementwise to the expanded features. GPT-2 uses the tanh approximation.", ffnShape, ffnShape, "Z = GELU(A)"],
+        down: ["Projection", "Down projection", "Project back to width 768, with a bias, for the residual addition.", ffnShape, tensor, "MLP(U) = Z W₂ + b₂"],
+      };
+      const gptViews = {
+        model: { ...views.model, nodes: views.model.nodes.map(n => ({...n})), edges: views.model.edges.map(e => ({...e})) },
+        block: { ...views.block, nodes: views.block.nodes.map(n => ({...n})), edges: views.block.edges.map(e => ({...e})) },
+        attention: {
+          w: 1100, h: 1030, path: "Model / Decoder block / Multi-head attention",
+          nodes: [node("attInput",410,20,280,72), node("q",60,155,260,80,"12 × 64"), node("k",420,155,260,80,"12 × 64"), node("v",780,155,260,80,"12 × 64"), node("cache",770,310,280,100,"12 heads · K and V","cache"), node("scores",60,310,300,85,"QKᵀ / √64"), node("mask",60,470,300,70), node("softmax",60,615,300,70), node("mix",560,615,300,70,"Probabilities × values","attn"), node("concat",560,760,300,70), node("wo",560,905,300,80,"Back to residual addition")],
+          edges: [edge("attInput","q","M550 92V120H190V155"), edge("attInput","k","M550 92V155"), edge("attInput","v","M550 120H910V155"), edge("q","scores","M190 235V310","Q",210,270), edge("k","cache","M550 235V270H770V360","K",650,257), edge("v","cache","M910 235V310","V",930,270), edge("cache","scores","M770 360H360","K",530,348), edge("scores","mask","M210 395V470"), edge("mask","softmax","M210 540V615"), edge("softmax","mix","M360 650H560","P",460,638), edge("cache","mix","M910 410V650H860","V",930,535), edge("mix","concat","M710 685V760"), edge("concat","wo","M710 830V905")],
+          steps: [["attInput"],["q","k","v"],["cache"],["scores"],["mask"],["softmax"],["mix"],["concat"],["wo"]],
+        },
+        mlp: {
+          w: 1000, h: 750, path: "Model / Decoder block / GELU MLP",
+          nodes: [node("mlpInput",350,30), node("up",350,190,300,80,"768 → 3072","ffn"), node("gelu",350,360,300,80,"Elementwise GELU","ffn"), node("down",350,545,300,90,"3072 → 768","ffn")],
+          edges: [edge("mlpInput","up","M500 102V190"),edge("up","gelu","M500 270V360"),edge("gelu","down","M500 440V545","B × T × 3072",520,495)],
+          steps: [["mlpInput"],["up"],["gelu"],["down"]],
+        },
+      };
+      gptViews.model.nodes.find(n => n.id === "embed").sub = "Learned token + position";
+      gptViews.model.nodes.find(n => n.id === "decoder").sub = "MHA + GELU · separate layers";
+      gptViews.model.nodes.find(n => n.id === "head").sub = "768 → 50257 · tied weights";
+      gptViews.model.edges.find(e => e.a === "embed").label = "B × T × 768";
+      gptViews.model.edges.find(e => e.a === "decoder").label = "12 layers in sequence";
+      gptViews.model.edges.find(e => e.a === "head").label = "B × T × 50257";
+      gptViews.block.path = "Model / Decoder block ×12";
+      gptViews.block.nodes.find(n => n.id === "attention").sub = "12 heads · width 64";
+      gptViews.block.nodes.find(n => n.id === "mlp").sub = "3072 intermediate width";
       const value = (v) => (typeof v === "function" ? v() : v);
       function svg(tag, attrs, text) {
         const el = document.createElementNS(NS, tag);
@@ -1976,10 +2039,10 @@
             key === "model"
               ? "Model"
               : key === "block"
-                ? "Decoder block ×32"
+                ? `Decoder block ×${architecture === "gpt2" ? 12 : 32}`
                 : key === "attention"
                   ? "Attention"
-                  : "SwiGLU";
+                  : architecture === "gpt2" ? "GELU MLP" : "SwiGLU";
           b.onclick = () => focusGraph(key);
           $("breadcrumb").append(b);
         });
@@ -2101,6 +2164,31 @@
         pause();
         showStep(e.target.value);
       };
+      function switchModel(next) {
+        pause();
+        architecture = next;
+        Object.assign(info, llamaInfo, next === "gpt2" ? gptInfo : {});
+        Object.assign(views, next === "gpt2" ? gptViews : llamaViews);
+        Object.keys(owners).forEach(key => delete owners[key]);
+        placeChildren("model");
+        $("model-gpt2").setAttribute("aria-pressed", String(next === "gpt2"));
+        $("model-llama").setAttribute("aria-pressed", String(next === "llama"));
+        $("gpt2-sources").hidden = next !== "gpt2";
+        $("llama-sources").hidden = next !== "llama";
+        $("diagram").setAttribute("aria-label", next === "gpt2" ? "GPT-2 Small activation flow" : "LLaMA 3 activation flow");
+        $("specs").innerHTML = next === "gpt2"
+          ? "<span><b>12</b> layers</span><span><b>768</b> hidden width</span><span><b>12</b> heads</span><span><b>64</b> head width</span><span><b>3,072</b> MLP width</span><span><b>50,257</b> vocabulary</span>"
+          : "<span><b>32</b> layers</span><span><b>4,096</b> hidden width</span><span><b>32 Q / 8 KV</b> heads</span><span><b>128</b> head width</span><span><b>14,336</b> MLP width</span><span><b>128,256</b> vocabulary</span>";
+        view = "model";
+        pinned = selected = null;
+        $("breadcrumb").dataset.level = "";
+        buildScene();
+        focusGraph("model", true);
+        showStep(0);
+      }
+      $("model-gpt2").onclick = () => switchModel("gpt2");
+      $("model-llama").onclick = () => switchModel("llama");
+      switchModel("gpt2");
       $("mode").onchange = (e) => {
         mode = e.target.value;
         buildScene();

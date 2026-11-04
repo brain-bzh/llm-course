@@ -362,7 +362,7 @@ Memory mapping provides decisive systems advantages:
 
 ## Practical task
 
-Session 8 focuses on document packing and shifted batches. Inspect the provided
+Session 10 focuses on document packing and shifted batches. Inspect the provided
 filters, trace BPE merges, and use the reference tokenizer and memmap loader.
 The [lab protocol](../companion/03-data-pipeline.md) defines the timed exercise,
 minimum checks, fallback, and optional implementation extensions.
