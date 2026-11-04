@@ -89,7 +89,7 @@ the morning.
 | ---: | --- | --- | --- |
 | 9 | Theory | Document sourcing and filtering; byte-level BPE, pre-tokenization, vocabulary trade-offs, packing, boundaries and binary shards | Pipeline design and tokenizer trade-offs |
 | 10 | Practice | Trace BPE merges; implement packing and shifted batches; verify round-trip, boundaries and disjoint splits; inspect the provided loader | Validated data pipeline and binary shards |
-| 11 | Theory | GPU execution and memory hierarchy, roofline reasoning, memory decomposition, profiler traces and performance metrics | Bottleneck hypothesis and profiler plan |
+| 11 | Theory | CPU vs GPU execution of the course GPT, memory and roofline reasoning, kernel fusion, `torch.compile`, profiler traces and benchmarking | Bottleneck hypothesis and profiler plan |
 | 12 | Practice | Profile the trainer and benchmark supported precision, SDPA and compilation options; report hardware and measured throughput and memory | Profiling report and measured single-GPU comparison |
 
 **Between sessions:** continue the baseline as resources permit, then profile the

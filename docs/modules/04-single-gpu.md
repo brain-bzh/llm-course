@@ -24,6 +24,46 @@ By the end of the module, students should be able to:
 - choose an optimization that targets the measured bottleneck;
 - report throughput, memory and numerical behavior without changing the task.
 
+## The course workload: from Python to kernels
+
+The previous modules built a decoder-only GPT, its training loop, and token
+batches. One update takes a batch through the model, computes next-token loss,
+runs backward, and updates the weights. These familiar operations give us
+something concrete to profile:
+
+| Course operation | Work to look for | Question to investigate |
+| :--- | :--- | :--- |
+| Q/K/V, attention output, MLP projections | Matrix multiplications | Are dimensions and dtype suitable for an efficient kernel? |
+| Attention | Matrix products, masking, softmax, weighted values | Which SDPA backend ran, and are intermediate scores materialized? |
+| LayerNorm, GELU, residual additions | Reductions and elementwise work | Are many small kernels or intermediate tensors expensive? |
+| Loss and backward | Softmax/reductions and gradient kernels | Which operations dominate the update? |
+| Optimizer and batch preparation | Parameter updates, CPU work, possible transfers | Is the GPU busy, or waiting for launches or input? |
+
+These are starting hypotheses, not labels that can be inferred from the Python
+source alone. Kernel choice and cost depend on the workload and hardware.
+
+### CPU versus GPU
+
+A CPU has relatively few, powerful cores and is well suited to control flow,
+input processing, and small or irregular work. A GPU has many execution lanes
+and high device-memory bandwidth, and can process large amounts of regular
+parallel tensor work efficiently. Both run tensor operations; neither is always
+faster. A tiny model or batch may not amortize GPU launch and transfer costs.
+
+In a CUDA training run, Python and CPU-side code prepare work and enqueue GPU
+kernels. The GPU executes asynchronously using tensors in device memory.
+Copying batches from host memory, reading results back, or requesting a scalar
+can introduce transfers or synchronization. Time the full update and state
+whether input preparation and transfers are included.
+
+The companion benchmark is a deliberately limited model-step experiment: it
+uses a **fixed synthetic batch already on the selected device**, sets one CPU
+thread, and excludes data loading and host-to-device transfers from timing. Its
+CPU mode checks the workflow. If you also run the same configuration on CUDA,
+report that thread count and these exclusions; it is not a general CPU/GPU hardware
+comparison. A separate end-to-end experiment must include the actual loader and
+transfers on both paths.
+
 ## A GPU is not one fast processor
 
 A modern NVIDIA training GPU contains many **streaming multiprocessors** (SMs).
@@ -136,9 +176,9 @@ approximately 12 bytes per element: two 4-byte reads and one 4-byte write.
 I_{\text{add}} \approx \frac{1}{12}\ \text{FLOP/byte}.
 \]
 
-No amount of Tensor Core peak throughput changes this low intensity. Improve
-the memory path or fuse the addition into a neighboring operation so the
-intermediate is never written to HBM.
+For large vectors, this model suggests bandwidth can dominate. Small vectors
+can instead be limited by launch overhead. Fusion may avoid writing an
+intermediate to device memory; caches and the chosen kernels affect actual traffic.
 
 ### Worked example 2 — matrix multiplication
 
@@ -371,7 +411,9 @@ An optimization can raise hardware utilization while slowing time-to-target, for
 ## Read a profiler trace as a causal story
 
 Profile after warmup, over multiple representative steps, with the same batch
-and synchronization points used in the benchmark.
+and synchronization points used in the benchmark. The companion collects a
+separate trace after its timing samples, so profiling overhead is not included
+in the reported timings.
 
 Look for:
 
@@ -420,15 +462,57 @@ IO schedule, not sparse or approximate attention.
 
 ### 4. Fused operations
 
-Fusion combines operations so intermediates stay in registers or shared memory.
-Typical opportunities include bias plus activation, normalization, optimizer
-updates and the cross-entropy path.
+Consider an illustrative pointwise chain on equal-sized tensors:
 
-### 5. Compilation
+```python
+u = x + b
+v = torch.relu(u)
+y = v + residual
+```
 
-Compilation can fuse graphs, specialize shapes and reduce Python/kernel-launch
-overhead. Separate compile time from steady-state time, and watch for graph
-breaks or recompilation caused by changing shapes.
+A possible eager implementation launches a separate kernel for each operation,
+writing `u` and `v` and reading them back. A fused kernel can read `x`, `b`,
+and `residual`, compute the chain while intermediates stay in registers, and
+write `y`. In an idealized element-transfer count that is eight transfers
+versus four. This is an example, not a claim about the exact generated kernels
+or HBM bytes: caches, broadcasting, kernel choice, and implementation matter.
+
+The relevance to our GPT is the collection of elementwise operations around
+normalization, activations, and residual additions. Fusion can reduce launches
+and intermediate traffic; it does not mean the whole Transformer becomes a
+single kernel. Efficient attention kernels are another example of combining work
+and reducing memory traffic, but SDPA is a separate mechanism from compilation.
+
+### 5. Compilation with `torch.compile`
+
+```python
+compiled_model = torch.compile(model)
+logits, loss, _ = compiled_model(inputs, targets=targets)
+loss.backward()
+```
+
+On execution, TorchDynamo captures supported operations into graphs guarded by
+assumptions such as shapes. For training, PyTorch captures forward and backward
+regions; the default TorchInductor backend generates optimized code that may
+fuse operations or use optimized library kernels. The first calls can include
+substantial compilation cost. Later calls reuse compiled code when their guards
+hold. Unsupported code can cause a **graph break**: the captured region ends,
+that code runs eagerly, and capture can resume afterwards. Changing shapes or
+other guarded assumptions can lead to recompilation.
+
+The potential benefits are fewer launches, less Python overhead, and lower
+intermediate memory traffic. None is guaranteed: existing library kernels may
+already dominate, compile overhead can outweigh savings, and graph breaks can
+limit optimization. Compilation does not automatically choose FlashAttention or
+replace a correctness check. The actual SDPA backend depends on the inputs,
+implementation, and hardware. See the official [compiler documentation](https://docs.pytorch.org/docs/stable/generated/torch.compile)
+and [graph-break guide](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/compile/programming_model.graph_breaks_index.html).
+
+In the companion lab, compare **SDPA FP32** with **compiled SDPA FP32** using
+identical batch shapes and configuration. Warm up compilation before steady-state
+timing, synchronize at boundaries, inspect the separate profiler traces, and
+compare fixed-batch loss and gradients. The benchmark reports timing and memory;
+it does not perform numerical parity checks or report compile time automatically. The pinned PyTorch 2.9.1 rejects `torch.compile` on Python 3.14; use the companion’s CPython 3.12 environment for this exercise.
 
 ### 6. Activation checkpointing
 
@@ -498,6 +582,10 @@ single-GPU configuration.
 
 - [How to Think About GPUs](https://jax-ml.github.io/scaling-book/gpus/)
   — primary conceptual spine for GPU execution, memory and rooflines;
+- [PyTorch `torch.compile` reference](https://docs.pytorch.org/docs/stable/generated/torch.compile)
+  — compilation options and backend behavior;
+- [PyTorch compiler graph breaks](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/compile/programming_model.graph_breaks_index.html)
+  — how unsupported code divides captured graphs;
 - [PyTorch profiler recipe](https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html)
   — trace collection and interpretation;
 - [PyTorch performance tuning guide](https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html)
