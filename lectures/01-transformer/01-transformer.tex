@@ -12,216 +12,403 @@
   \tableofcontents
   \vfill
   \begin{block}{Guiding question}
-    What must happen between a token ID and a distribution over the next token?
+    What must happen between a token ID and a distribution over the next token---and how do we turn that into verified code?
   \end{block}
 \end{frame}
 
 \learninggoals
-  {Track the shape and meaning of every tensor in causal self-attention.}
-  {Explain why scaling and masking happen before the softmax.}
-  {Trace information through a pre-norm decoder block.}
-  {Name the tests that make a minimal implementation trustworthy.}
+{Formulate next-token prediction and explain why a Transformer trains all positions in parallel.}
+{Derive causal multi-head self-attention and positional encoding from first principles.}
+{Trace tensor shapes, parameters, and gradients through a pre-norm Transformer block (MHA, MLP, LayerNorm, LM head).}
+{Contrast our GPT-2 baseline with modern LLMs (LLaMA/Mistral) and verify our implementation against official weights.}
 
-\begin{frame}{First, the task: predict one token at a time}
+\section{Next-token prediction}
+
+\begin{frame}{The task: sequence in, next-token distribution out}
   \centering
-  \small Start with the context: \textbf{The chef seasoned the}
-  \vspace{7pt}
+  \begin{tikzpicture}[
+      x=0.90cm, y=0.80cm,
+      every node/.style={font=\footnotesize,align=center},
+      token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.35cm,minimum height=.62cm},
+      newtok/.style={draw=accentdarkdraw,fill=accentdarkbg,rounded corners,minimum width=1.25cm,minimum height=.55cm,font=\footnotesize\bfseries,text=accentdark},
+      distribution/.style={draw=successdraw,fill=successbg,rounded corners,text width=2.55cm,minimum height=1.85cm,font=\scriptsize}
+    ]
+    \node[font=\scriptsize\bfseries,text=neutraldark] at (2.4,1.4) {1. Read context prefix};
+    \node[font=\scriptsize\bfseries,text=neutraldark] at (7.9,1.4) {2. Score next-token distribution};
+
+    \node[token] (t1) at (0,0) {The};
+    \node[token] (t2) at (1.6,0) {chef};
+    \node[token] (t3) at (3.2,0) {seasoned};
+    \node[token] (t4) at (4.8,0) {the};
+
+    \node[distribution] (dist) at (7.9,0) {\textbf{Top continuations}\\[2pt] \textbf{soup} \hfill \textbf{40\%}\\ sauce \hfill 27\%\\ steak \hfill 17\%\\ other \hfill 16\%};
+
+    \draw[-{Stealth},thick,neutraldark] (t4.east) -- (dist.west);
+
+    \node[newtok] (t5) at (6.35,-1.55) {soup};
+    \draw[-{Stealth},thick,accentdarkdraw] (dist.south) |- (t5.east) node[pos=0.5,right=2pt,font=\tiny\bfseries,text=accentdark] {pick token};
+    \draw[-{Stealth},thick,accentdarkdraw,dashed] (t5.west) -| (t4.south) node[pos=0.5,below=2pt,font=\tiny\bfseries,text=accentdark] {3. append \& repeat};
+  \end{tikzpicture}
+  \vfill
+  \small At every step, use the prefix to score the vocabulary $\mathcal{V}$, append one token, and repeat.\\[4pt]
+  \href{https://brain-bzh.github.io/llm-course/demos/next-token.html}{\textcolor{themenavy}{\textbf{$\triangleright$ Live demo: Explore next-token prediction (next-token.html)}}}
+\end{frame}
+
+\begin{frame}{Formalizing next-token prediction (NTP)}
   \begin{columns}[t]
-    \begin{column}{0.46\linewidth}
-      \begin{block}{Possible next tokens}
-        \centering
-        \begin{tabular}{lr}
-          soup & 40\% \\
-          sauce & 27\% \\
-          steak & 17\% \\
-          vegetables & 12\% \\
-          refrigerator & 4\%
-        \end{tabular}
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Autoregressive factorization}
+        By the chain rule, the joint probability of $X=(x_1,\dots,x_T)$ factorizes exactly into conditional steps:
+        \[
+          P(X) = \prod_{t=1}^{T} P(x_t \mid x_1, \dots, x_{t-1})
+        \]
+        Modeling a text sequence is equivalent to predicting the next token from every prefix $x_{<t}$.
       \end{block}
     \end{column}
-    \begin{column}{0.50\linewidth}
-      \begin{block}{Choose “soup” and predict again}
-        New context: \textbf{The chef seasoned the soup}\\[5pt]
-        Next tokens: \textbf{with} (55\%), \textbf{and} (28\%), or \textbf{.} (17\%).
+    \begin{column}{0.48\linewidth}
+      \begin{block}{Self-supervised training loss}
+        Natural text is self-labeled: each token $x_t$ is the ground-truth target for prefix $x_{<t}$. We minimize cross-entropy:
+        \[
+          \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log P_\theta(x_t \mid x_{<t})
+        \]
+        One sequence of length $T$ provides $T$ supervised prediction targets at once.
       \end{block}
     \end{column}
   \end{columns}
+  \smallsource{Bengio et al. (2003); Radford et al. (2018, 2019)}
+\end{frame}
+
+\begin{frame}{Same task, two ways to process the sequence}
+  \centering
+  \small At every position $t$, predict $P(x_{t+1}\mid x_{\le t})$ from the prefix so far.
+  \vspace{2pt}
+  \begin{columns}[t]
+    \begin{column}{0.48\linewidth}
+      \centering\footnotesize\textbf{Recurrent model (RNN): inherently sequential}
+      \vspace{1pt}
+      \begin{tikzpicture}[
+          x=0.82cm, y=0.62cm,
+          every node/.style={font=\scriptsize,align=center},
+          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.82cm,minimum height=.40cm},
+          cell/.style={draw=leafreddraw,fill=leafredbg,rounded corners,minimum width=0.88cm,minimum height=.44cm,font=\scriptsize\bfseries},
+          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.95cm,minimum height=.42cm}
+        ]
+        \node[token] (x1) at (0,0) {$x_1$};
+        \node[token] (x2) at (1.9,0) {$x_2$};
+        \node[token] (x3) at (3.8,0) {$x_3$};
+        \node[cell] (h1) at (0,1.08) {$h_1$};
+        \node[cell] (h2) at (1.9,1.08) {$h_2$};
+        \node[cell] (h3) at (3.8,1.08) {$h_3$};
+        \node[output] (p1) at (0,2.16) {$P(x_2)$};
+        \node[output] (p2) at (1.9,2.16) {$P(x_3)$};
+        \node[output] (p3) at (3.8,2.16) {$P(x_4)$};
+        \draw[-{Stealth},thick,neutraldark] (x1)--(h1);
+        \draw[-{Stealth},thick,neutraldark] (x2)--(h2);
+        \draw[-{Stealth},thick,neutraldark] (x3)--(h3);
+        \draw[-{Stealth},thick,neutraldark] (h1)--(p1);
+        \draw[-{Stealth},thick,neutraldark] (h2)--(p2);
+        \draw[-{Stealth},thick,neutraldark] (h3)--(p3);
+        \draw[-{Stealth},very thick,leafreddraw] (h1)--(h2);
+        \draw[-{Stealth},very thick,leafreddraw] (h2)--(h3);
+      \end{tikzpicture}
+      \par\vspace{1pt}
+      \footnotesize $h_t = f(h_{t-1}, x_t)$: step $t$ waits on step $t-1$; gradients vanish/explode over long chains.
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \centering\footnotesize\textbf{Causal Transformer: inherently parallel}
+      \vspace{1pt}
+      \begin{tikzpicture}[
+          x=0.82cm, y=0.62cm,
+          every node/.style={font=\scriptsize,align=center},
+          token/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=0.82cm,minimum height=.40cm},
+          attn/.style={draw=themeteal,fill=accentdarkbg,rounded corners,minimum width=0.88cm,minimum height=.44cm,font=\scriptsize\bfseries,text=accentdark},
+          output/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=0.95cm,minimum height=.42cm}
+        ]
+        \node[token] (u1) at (0,0) {$x_1$};
+        \node[token] (u2) at (1.9,0) {$x_2$};
+        \node[token] (u3) at (3.8,0) {$x_3$};
+        \node[attn] (a1) at (0,1.08) {$h_1$};
+        \node[attn] (a2) at (1.9,1.08) {$h_2$};
+        \node[attn] (a3) at (3.8,1.08) {$h_3$};
+        \node[output] (q1) at (0,2.16) {$P(x_2)$};
+        \node[output] (q2) at (1.9,2.16) {$P(x_3)$};
+        \node[output] (q3) at (3.8,2.16) {$P(x_4)$};
+        \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a1.south);
+        \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a2.south);
+        \draw[-{Stealth},thin,inkmuted!70] (u2.north)--(a2.south);
+        \draw[-{Stealth},thick,themeteal] (u1.north)--(a3.south);
+        \draw[-{Stealth},thick,themeteal] (u2.north)--(a3.south);
+        \draw[-{Stealth},thick,themeteal] (u3.north)--(a3.south);
+        \draw[-{Stealth},thick,neutraldark] (a1)--(q1);
+        \draw[-{Stealth},thick,neutraldark] (a2)--(q2);
+        \draw[-{Stealth},thick,neutraldark] (a3)--(q3);
+      \end{tikzpicture}
+      \par\vspace{1pt}
+      \footnotesize No $h_{t-1}\to h_t$ wait: every position gathers $x_{\le t}$ directly via attention in one pass.
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Hardware alignment: parallelism over operation count}
+    \small Transformers restructure sequence learning into dense matrix multiplications (GEMMs) so all $T$ training positions execute concurrently on GPUs.
+  \end{alertblock}
+  \smallsource{Elman (1990); Hochreiter \& Schmidhuber (1997); Pascanu et al. (2013); Vaswani et al. (2017)}
+\end{frame}
+
+\begin{frame}{The whole model, at a glance}
+  \centering
+  \begin{tikzpicture}[
+      x=0.95cm,
+      every node/.style={font=\footnotesize,align=center},
+      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=1.8cm,minimum width=1.9cm,minimum height=1.15cm},
+      block/.style={draw=leafreddraw,fill=leafredbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=1.3cm}
+    ]
+    \node[stage] (text) at (0,0) {Token IDs\\$B \times T$};
+    \node[stage] (tokens) at (2.35,0) {Token\\embeddings\\$B \times T \times d$};
+    \node[block] (decoder) at (4.7,0) {Transformer\\blocks ($\times N$)};
+    \node[stage] (logits) at (7.05,0) {LM head\\logits\\$B \times T \times V$};
+    \node[stage,draw=successdraw,fill=successbg] (probs) at (9.4,0) {Next-token\\probabilities};
+    \draw[-{Stealth},thick,neutraldark] (text)--(tokens);
+    \draw[-{Stealth},thick,neutraldark] (tokens)--(decoder);
+    \draw[-{Stealth},thick,neutraldark] (decoder)--(logits);
+    \draw[-{Stealth},thick,neutraldark] (logits)--(probs);
+  \end{tikzpicture}
   \vfill
-  \small The probabilities are illustrative. In the demo, choose a continuation and watch the next prediction change.\\[4pt]
-  \href{https://brain-bzh.github.io/llm-course/demos/next-token.html}{\textcolor{themenavy}{\textbf{Explore the interactive demo}}}
+  \begin{block}{How do tokens interact inside a Transformer block?}
+    Without a recurrent state $h_{t-1}$, we need a mechanism that lets each token selectively pull information from earlier tokens in parallel: \textbf{self-attention}.
+  \end{block}
+  \smallsource{Vaswani et al. (2017); Radford et al. (2019)}
 \end{frame}
 
 \section{Attention from first principles}
 
-\begin{frame}{Tokens become points in a shared space}
+\begin{frame}{Step 1: Tokens become vectors in a shared space}
   \begin{columns}[c]
     \begin{column}{0.55\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
-        \item Input IDs have shape $B\times T$.
-        \item A lookup table $W_E\in\mathbb{R}^{V\times d}$ produces content vectors.
-        \item Position information makes order visible to the model.
+          \setlength{\itemsep}{7pt}
+        \item Input token IDs are integers in $\{0,\dots,V-1\}$ with shape $B\times T$.
+        \item An embedding lookup table $W_E\in\mathbb{R}^{V\times d}$ maps each token ID to a vector of width $d$:
       \end{itemize}
       \[
-        X_0 = W_E[\text{ids}] + P_{0:T}
-        \quad\in\mathbb{R}^{B\times T\times d}
+        X = W_E[\text{ids}] \quad\in\mathbb{R}^{B\times T\times d}
       \]
+      \begin{alertblock}{Isolated representations}
+        At this stage, each row $x_t \in \mathbb{R}^d$ only knows its own token identity---it knows nothing about surrounding tokens.
+      \end{alertblock}
     \end{column}
     \begin{column}{0.41\linewidth}
+      \centering
       \begin{tikzpicture}[node distance=0.38cm, every node/.style={font=\small}]
-        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.65cm] (ids) {IDs $B\times T$};
-        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.65cm] (tok) {token vectors};
-        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.2cm,minimum height=.65cm] (pos) {position vectors};
-        \node[draw=successdraw,fill=successbg,rounded corners,below=of pos,minimum width=3.2cm,minimum height=.65cm] (x) {$X_0$: residual stream};
-        \draw[-{Stealth},thick] (ids)--(tok);
-        \draw[-{Stealth},thick] (tok)--(pos);
-        \draw[-{Stealth},thick] (pos)--(x);
+        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.65cm] (ids) {Token IDs ($B\times T$)};
+        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.65cm] (we) {Lookup table $W_E$};
+        \node[draw=successdraw,fill=successbg,rounded corners,below=of we,minimum width=3.2cm,minimum height=.65cm] (x) {Token vectors $X$ ($B\times T\times d$)};
+        \draw[-{Stealth},thick] (ids)--(we);
+        \draw[-{Stealth},thick] (we)--(x);
       \end{tikzpicture}
     \end{column}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Attention is learned retrieval}
-  \begin{columns}[t]
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Query}
-        What does this position need?
-        \[Q=XW_Q\]
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Key}
-        What does each position offer?
-        \[K=XW_K\]
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Value}
-        What content should move?
-        \[V=XW_V\]
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vspace{5pt}
-  \[
-    \operatorname{Attn}(Q,K,V)
-    = \operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}}+M\right)V
-  \]
-  \begin{alertblock}{The distinction that matters}
-    Queries and keys choose the mixture. Values supply the mixed information.
-  \end{alertblock}
-  \smallsource{Vaswani et al. and The Annotated Transformer}
+\begin{frame}{Step 2: Relating tokens across the sequence}
+  \centering
+  \small To predict what follows \textbf{``the''}, its representation must pull context from related earlier tokens:
+  \par\vspace{8pt}
+  \begin{tikzpicture}[
+      x=1.05cm, y=0.88cm,
+      every node/.style={font=\footnotesize,align=center},
+      tok/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.65cm,minimum height=.62cm},
+      cur/.style={draw=leafreddraw,fill=leafredbg,rounded corners,minimum width=1.65cm,minimum height=.62cm,font=\footnotesize\bfseries}
+    ]
+    \node[tok] (t1) at (0,0) {\texttt{The}\\$x_1$};
+    \node[tok] (t2) at (2.5,0) {\texttt{chef}\\$x_2$};
+    \node[tok] (t3) at (5.0,0) {\texttt{seasoned}\\$x_3$};
+    \node[cur] (t4) at (7.5,0) {\texttt{the}\\$x_4$ (query)};
+
+    \draw[-{Stealth},thin,inkmuted] (t4.north) to[bend right=45] node[pos=0.55,above=1pt,font=\tiny] {low relevance} (t1.north);
+    \draw[-{Stealth},very thick,leafreddraw] (t4.north) to[bend right=35] node[pos=0.52,above=1pt,font=\scriptsize\bfseries,text=signaldark] {who? (high weight)} (t2.north);
+    \draw[-{Stealth},very thick,leafreddraw] (t4.north) to[bend right=25] node[pos=0.5,above=1pt,font=\scriptsize\bfseries,text=signaldark] {did what?} (t3.north);
+  \end{tikzpicture}
+  \vfill
+  \begin{block}{The goal of self-attention}
+    For every token $i$, compute a relevance weight $\alpha_{i,j} \ge 0$ ($\sum_{j\le i}\alpha_{i,j}=1$) for each allowed token $j \le i$, and form a weighted mixture of their information.
+  \end{block}
+  \smallsource{Bahdanau et al. (2014); Vaswani et al. (2017)}
 \end{frame}
 
-\begin{frame}{Why divide by $\sqrt{d_h}$?}
-  Assume independent query and key components with unit variance.
+\begin{frame}{Step 3: Queries, Keys, and Values}
+  \small Each token vector $x_t$ is projected into three distinct vectors via learned matrices $W_Q, W_K, W_V$:
+  \par\vspace{4pt}
+  \centering
+  \begin{tikzpicture}[
+      x=1.0cm,
+      every node/.style={font=\footnotesize,align=center},
+      rolebox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=3.1cm,minimum height=1.22cm}
+    ]
+    \node[rolebox] at (0,0) {\textbf{Query ($q_t = x_t W_Q$)}\\[2pt]\textcolor{neutraldark}{What context is this token looking for?}};
+    \node[rolebox] at (3.65,0) {\textbf{Key ($k_t = x_t W_K$)}\\[2pt]\textcolor{neutraldark}{What features does each token offer?}};
+    \node[rolebox,draw=successdraw,fill=successbg] at (7.3,0) {\textbf{Value ($v_t = x_t W_V$)}\\[2pt]\textcolor{neutraldark}{What content moves when selected?}};
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \begin{itemize}
+      \setlength{\itemsep}{3pt}
+    \item \textbf{Matching}: Compare token $i$'s query $q_i$ with token $j$'s key $k_j$ via dot product $s_{i,j} = q_i^\top k_j$.
+    \item \textbf{Retrieving}: Normalize scores with softmax into weights $\alpha_{i,j}$ and mix values: $\text{output}_i = \sum_{j \le i} \alpha_{i,j} v_j$.
+  \end{itemize}
+  \begin{alertblock}{Why three projections instead of using $x_t$ directly?}
+    \small Asymmetry: what token $i$ searches for ($q_i$) differs from the features it offers ($k_i$) and the content it transmits ($v_i$).
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Step 4: Computing attention for all tokens in parallel}
+  Stacking queries, keys, and values into matrices $Q, K, V \in \mathbb{R}^{T\times d_h}$ computes all pairwise relationships in one formula:
   \[
-    q^\top k = \sum_{i=1}^{d_h} q_i k_i
-    \qquad
-    \operatorname{Var}(q^\top k)\approx d_h
+    \operatorname{Attn}(Q,K,V)
+    = \underbrace{\operatorname{softmax}\!\left(\overbrace{QK^\top}^{\text{1. similarity scores}} + \overbrace{M}^{\text{2. mask}}\right)}_{\text{3. attention weights } A \in \mathbb{R}^{T\times T}} \underbrace{V}_{\text{4. value mix}}
   \]
-  \begin{columns}[c]
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Without scaling}
-        Wider heads create larger logits. Softmax saturates and gradients become poorly conditioned.
-      \end{alertblock}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{With scaling}
-        Dividing by $\sqrt{d_h}$ keeps logit variance roughly constant across head widths.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering\textbf{This is a variance-control argument, not a cosmetic constant.}
+  \centering
+  \begin{tikzpicture}[
+      x=0.92cm,
+      every node/.style={font=\scriptsize,align=center},
+      stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.15cm,minimum height=1.15cm}
+    ]
+    \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top$\\[2pt]\textcolor{inkmuted}{all $(i,j)$ dot products}};
+    \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (2.85,0) {\textbf{2. Causal mask}\\$S + M$\\[2pt]\textcolor{signaldark}{hide future $j > i$}};
+    \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (5.7,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[2pt]\textcolor{accentdark}{row weights sum to $1$}};
+    \node[stepbox,draw=successdraw,fill=successbg] (s4) at (8.55,0) {\textbf{4. Mix values}\\$O = AV$\\[2pt]\textcolor{successgreen}{contextualized states}};
+
+    \draw[-{Stealth},thick,neutraldark] (s1)--(s2);
+    \draw[-{Stealth},thick,neutraldark] (s2)--(s3);
+    \draw[-{Stealth},thick,neutraldark] (s3)--(s4);
+  \end{tikzpicture}
+  \smallsource{Vaswani et al. (2017); Rush (2018, The Annotated Transformer) --- in code, divide scores by $\sqrt{d_h}$ to keep logit variance $\approx 1$}
 \end{frame}
 
 \begin{frame}{Causality is a constraint on logits}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \centering
-      \begin{tikzpicture}[scale=.65]
+      \begin{tikzpicture}[scale=.60]
         \foreach \i in {0,...,4}{
           \foreach \j in {0,...,4}{
             \pgfmathparse{int(\j<=\i)}
             \ifnum\pgfmathresult=1
-              \fill[themebluecard] (\j,-\i) rectangle +(0.9,-0.9);
+            \fill[themebluecard] (\j,-\i) rectangle +(0.9,-0.9);
             \else
-              \fill[leafredbg] (\j,-\i) rectangle +(0.9,-0.9);
+            \fill[leafredbg] (\j,-\i) rectangle +(0.9,-0.9);
             \fi
             \draw[white] (\j,-\i) rectangle +(0.9,-0.9);
           }
         }
-        \node[above] at (2.45,.15) {key position};
-        \node[rotate=90] at (-.55,-2.45) {query position};
-        \node[themebluedraw] at (2.2,-5.35) {visible};
-        \node[leafreddraw] at (4.0,-5.35) {blocked};
+        \node[above,font=\scriptsize] at (2.45,.15) {key position $j$};
+        \node[rotate=90,font=\scriptsize] at (-.55,-2.45) {query position $i$};
+        \node[font=\scriptsize] at (2.45,-5.35) {\textcolor{themebluedraw}{\textbf{visible ($0$)}} \quad/\quad \textcolor{leafreddraw}{\textbf{blocked ($-\infty$)}}};
       \end{tikzpicture}
     \end{column}
     \begin{column}{0.48\linewidth}
       \begin{itemize}
-        \setlength{\itemsep}{8pt}
-        \item Position $t$ may use keys $0\ldots t$.
-        \item Future logits receive $-\infty$ before softmax.
-        \item Masking probabilities after softmax breaks normalization.
+          \setlength{\itemsep}{4pt}
+        \item Position $i$ may attend only to keys $j \le i$.
+        \item Future scores ($j > i$) receive $-\infty$ \textbf{before} softmax so $\exp(-\infty)=0$.
+        \item Zeroing probabilities after softmax breaks row normalization.
       \end{itemize}
-      \begin{block}{Causality test}
-        Change one future token. Earlier output logits must remain identical.
+      \begin{block}{PyTorch implementation tip}
+        \small Register a lower-triangular mask via \texttt{register\_buffer} and apply \texttt{scores.masked\_fill(mask == 0, -inf)}.
       \end{block}
     \end{column}
   \end{columns}
 \end{frame}
 
 \checkpoint{one query row}
-  {For sequence length four, write the four logits seen by the query at position two. Which entries survive the mask, and across which dimension must softmax normalize?}
+{For sequence length four, write the four logits seen by the query at position two (0-indexed). Which entries survive the mask, and across which dimension must softmax normalize?}
 
-\section{The decoder block}
-
-\begin{frame}{Multiple heads create multiple retrieval spaces}
+\begin{frame}{Multi-head attention: multiple parallel retrieval subspaces}
   \begin{columns}[c]
-    \begin{column}{0.54\linewidth}
-      \begin{align*}
-        d_h &= d / H \\
-        Q,K,V &: B\times H\times T\times d_h \\
-        S=QK^\top &: B\times H\times T\times T \\
-        \operatorname{concat}(O_h) &: B\times T\times d
-      \end{align*}
-      Heads run the same operation with different learned projections. The output projection mixes their results back into the residual stream.
+    \begin{column}{0.52\linewidth}
+      One token needs multiple types of context at once (syntax, coreference, local phrases). We split width $d$ into $H$ heads of size $d_h = d / H$:
+      \begin{enumerate}
+          \setlength{\itemsep}{4pt}
+          \footnotesize
+        \item \textbf{Project}: $Q, K, V \in \mathbb{R}^{B \times T \times d}$ via $W_Q, W_K, W_V \in \mathbb{R}^{d\times d}$.
+        \item \textbf{Split heads}: \texttt{view(B, T, H, d\_h).transpose(1, 2)} $\to B \times H \times T \times d_h$.
+        \item \textbf{Attend per head}: $S = QK^\top / \sqrt{d_h} \in \mathbb{R}^{B \times H \times T \times T}$, mix $O_h = AV_h$.
+        \item \textbf{Merge \& project}: \texttt{transpose(1, 2).view(B, T, d)} then multiply by $W_O \in \mathbb{R}^{d\times d}$.
+      \end{enumerate}
     \end{column}
-    \begin{column}{0.42\linewidth}
-      \begin{alertblock}{Shape invariant}
-        $d$ must be divisible by $H$. A transpose mistake can preserve element count while changing semantics.
+    \begin{column}{0.44\linewidth}
+      \centering
+      \begin{tikzpicture}[node distance=0.28cm, every node/.style={font=\scriptsize,align=center}, box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.5cm,minimum height=.48cm}]
+        \node[box] (in) {Input $X$ ($B \times T \times d$)};
+        \node[box,below=of in] (qkv) {Linear $W_Q, W_K, W_V$ + reshape\\($B \times H \times T \times d_h$)};
+        \node[box,draw=leafreddraw,fill=leafredbg,below=of qkv] (attn) {$H$ parallel causal attention heads\\scores: $B \times H \times T \times T$};
+        \node[box,draw=successdraw,fill=successbg,below=of attn] (out) {Concat heads + output proj $W_O$\\($B \times T \times d$)};
+        \draw[-{Stealth},thick] (in)--(qkv);
+        \draw[-{Stealth},thick] (qkv)--(attn);
+        \draw[-{Stealth},thick] (attn)--(out);
+      \end{tikzpicture}
+      \vspace{2pt}
+      \begin{alertblock}{Transpose trap}
+        \footnotesize Always \texttt{transpose(1, 2)} between $T$ and $H$ so each head sees a full $T \times d_h$ sequence!
       \end{alertblock}
-      \begin{block}{Useful habit}
-        Annotate batch, head, query, key, and channel axes before every reshape.
-      \end{block}
     \end{column}
   \end{columns}
+  \smallsource{Vaswani et al. (2017)}
 \end{frame}
 
-\begin{frame}{A pre-norm block has two residual updates}
+\begin{frame}{Wait---attention alone is blind to token order!}
+  \begin{columns}[c]
+    \begin{column}{0.54\linewidth}
+      \begin{alertblock}{Permutation problem}
+        \small Dot products $q_i^\top k_j$ depend only on token vectors, not their indices. Without positions, attention treats the prefix like an unordered \textbf{bag of words}.
+      \end{alertblock}
+      \begin{block}{Solution: Positional Encoding (PE)}
+        \small Inject position information so identical words at different positions have distinct vectors:
+        \par\vspace{2pt}
+        \centering $X_0 = W_E[\text{ids}] + P_{0:T} \quad\in\mathbb{R}^{B\times T\times d}$
+        \par\vspace{2pt}\raggedright\scriptsize
+        \textbf{GPT-2}: learned $W_{pe} \in \mathbb{R}^{T_{\max}\times d}$. \textbf{Modern LLMs}: RoPE rotates $Q, K$ by relative distance.
+      \end{block}
+    \end{column}
+    \begin{column}{0.42\linewidth}
+      \centering
+      \begin{tikzpicture}[node distance=0.34cm, every node/.style={font=\small}]
+        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.60cm] (ids) {Token IDs ($B\times T$)};
+        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.60cm] (tok) {Token vectors $W_E[\text{ids}]$};
+        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.2cm,minimum height=.60cm] (pos) {$+$ Position vectors $P_{0:T}$};
+        \node[draw=successdraw,fill=successbg,rounded corners,below=of pos,minimum width=3.2cm,minimum height=.60cm] (x) {$X_0$: residual stream};
+        \draw[-{Stealth},thick] (ids)--(tok);
+        \draw[-{Stealth},thick] (tok)--(pos);
+        \draw[-{Stealth},thick] (pos)--(x);
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+  \smallsource{Vaswani et al. (2017); Radford et al. (2019); Su et al. (2021, RoPE)}
+\end{frame}
+
+\section{The Transformer block}
+
+\begin{frame}{A pre-norm Transformer block has two residual updates}
   \begin{columns}[c]
     \begin{column}{0.52\linewidth}
       \[
-        X' = X + \operatorname{MHA}(\operatorname{Norm}(X))
-      \]
-      \[
-        X'' = X' + \operatorname{MLP}(\operatorname{Norm}(X'))
+        \begin{aligned}
+          X'  &= X + \operatorname{MHA}(\operatorname{Norm}_1(X)) \\
+          X'' &= X' + \operatorname{MLP}(\operatorname{Norm}_2(X'))
+        \end{aligned}
       \]
       \begin{itemize}
-        \setlength{\itemsep}{7pt}
-        \item Attention mixes information across positions.
-        \item The MLP transforms each position independently.
-        \item Residual paths preserve a direct information route.
+          \setlength{\itemsep}{5pt}
+        \item \textbf{Self-attention} routes information \textbf{across positions} (sequence axis $T$).
+        \item \textbf{The MLP} transforms features \textbf{within each position} independently (channel axis $d$).
+        \item \textbf{Residual highway} ($X + \dots$) lets gradients flow unimpeded to early layers.
       \end{itemize}
     \end{column}
     \begin{column}{0.44\linewidth}
-      \begin{tikzpicture}[node distance=.34cm,every node/.style={font=\scriptsize},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.52cm}]
-        \node[box] (x) {$X$};
-        \node[box,below=of x] (n1) {Norm $\rightarrow$ causal MHA};
-        \node[box,fill=successbg,draw=successdraw,below=of n1] (a) {residual add};
-        \node[box,below=of a] (n2) {Norm $\rightarrow$ MLP};
-        \node[box,fill=successbg,draw=successdraw,below=of n2] (b) {residual add};
+      \centering
+      \begin{tikzpicture}[node distance=.32cm,every node/.style={font=\scriptsize},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.3cm,minimum height=.48cm}]
+        \node[box] (x) {$X \in \mathbb{R}^{B \times T \times d}$};
+        \node[box,below=of x] (n1) {$\operatorname{Norm}_1 \rightarrow$ Causal MHA};
+        \node[box,fill=successbg,draw=successdraw,below=of n1] (a) {$X' = X + \text{attn\_out}$};
+        \node[box,below=of a] (n2) {$\operatorname{Norm}_2 \rightarrow$ Per-token MLP};
+        \node[box,fill=successbg,draw=successdraw,below=of n2] (b) {$X'' = X' + \text{mlp\_out}$};
         \draw[-{Stealth},thick] (x)--(n1);
         \draw[-{Stealth},thick] (n1)--(a);
         \draw[-{Stealth},thick] (a)--(n2);
@@ -229,117 +416,228 @@
       \end{tikzpicture}
     \end{column}
   \end{columns}
+  \smallsource{He et al. (2016, ResNet); Radford et al. (2019); Xiong et al. (2020)}
 \end{frame}
 
-\begin{frame}{Pre-norm and post-norm are different models}
+\begin{frame}{Inside the MLP and the $1/3$ vs.\ $2/3$ parameter rule}
+  \begin{columns}[c]
+    \begin{column}{0.52\linewidth}
+      \small The MLP applies a two-layer feed-forward network to each token vector $x_t \in \mathbb{R}^d$ independently:
+      \[
+        \operatorname{MLP}(x_t) = \operatorname{GELU}(x_t W_1 + b_1) W_2 + b_2
+      \]
+      \begin{itemize}
+          \setlength{\itemsep}{4pt}
+          \footnotesize
+        \item \textbf{Expand}: $W_1 \in \mathbb{R}^{d \times 4d}$ projects $d \to 4d$.
+        \item \textbf{Activate}: elementwise $\operatorname{GELU}$ non-linearity.
+        \item \textbf{Contract}: $W_2 \in \mathbb{R}^{4d \times d}$ projects $4d \to d$.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.44\linewidth}
+      \begin{block}{Parameter budget per block}
+        \footnotesize
+        \begin{itemize}
+            \setlength{\itemsep}{2pt}
+          \item \textbf{MHA} ($W_Q, W_K, W_V, W_O$): $\mathbf{4d^2}$ (\textbf{1/3})
+          \item \textbf{MLP} ($W_1, W_2$): $\mathbf{8d^2}$ (\textbf{2/3})
+          \item \textbf{Total per block}: $\mathbf{12d^2}$ parameters
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{Takeaway for scaling}
+        \footnotesize Two-thirds of block parameters and matrix-multiply FLOPs live in the MLP!
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \smallsource{Vaswani et al. (2017); Hendrycks \& Gimpel (2016, GELU)}
+\end{frame}
+
+\begin{frame}{Normalization: stabilizing activations and gradients}
   \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Pre-norm}
-        \[X + F(\operatorname{Norm}(X))\]
-        The identity path bypasses normalization. Deep optimization is usually more forgiving.
+    \begin{column}{0.48\linewidth}
+      \begin{block}{LayerNorm (per token across $d$)}
+        For each token vector $x \in \mathbb{R}^d$:
+        \[
+          \operatorname{LN}(x) = \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} \odot \gamma + \beta
+        \]
+        Centers to zero mean ($\mu$), scales to unit variance ($\sigma^2$), then applies learned $\gamma, \beta \in \mathbb{R}^d$.
       \end{block}
     \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Post-norm}
-        \[\operatorname{Norm}(X + F(X))\]
-        This is the original Transformer form. It has a different gradient path and training behavior.
+    \begin{column}{0.48\linewidth}
+      \begin{alertblock}{Pre-Norm vs.\ Post-Norm}
+        \begin{itemize}
+            \setlength{\itemsep}{4pt}
+            \footnotesize
+          \item \textbf{Pre-Norm (GPT-2 / modern LLMs)}: $X + F(\operatorname{Norm}(X))$. Identity highway bypasses norm; stable gradients at initialization.
+          \item \textbf{Post-Norm (2017 Transformer)}: $\operatorname{Norm}(X + F(X))$. Requires careful warmup; different model!
+        \end{itemize}
       \end{alertblock}
     \end{column}
   \end{columns}
   \vfill
-  \centering\textbf{Do not describe one convention and implement the other.}
+  \centering\small\textbf{Modern speedup:} \textbf{RMSNorm} drops mean-centering ($\mu$) and $\beta$, normalizing only by $\sqrt{\frac{1}{d}\sum_i x_i^2 + \epsilon}$.
+  \smallsource{Ba et al. (2016, LayerNorm); Zhang \& Sennrich (2019, RMSNorm); Xiong et al. (2020)}
 \end{frame}
 
-\begin{frame}{The language-model head turns states into a task}
+\begin{frame}{Closing the loop: final norm, LM head, and target shift}
   \begin{columns}[c]
-    \begin{column}{0.55\linewidth}
+    \begin{column}{0.54\linewidth}
+      After $N$ Transformer blocks, normalize $X_N$ and project to vocabulary logits:
       \[
-        Z = \operatorname{Norm}(X_N)W_{\text{vocab}}^\top
+        Z = \operatorname{Norm}_f(X_N)W_{\text{vocab}}^\top
         \quad\in\mathbb{R}^{B\times T\times V}
       \]
       \[
         \mathcal{L}=-\frac{1}{BT}\sum_{b,t}
-        \log p(x_{b,t+1}\mid x_{b,0:t})
+        \log \operatorname{softmax}(Z_{b,t})_{y_{b,t}}
       \]
-      Each position predicts the next token. The target is the input shifted by one position.
+      \begin{itemize}
+          \setlength{\itemsep}{4pt}
+          \footnotesize
+        \item \textbf{Weight tying (GPT-2)}: shares $W_{\text{vocab}} = W_E \in \mathbb{R}^{V \times d}$, saving $V \times d$ parameters ($\approx 38.6\text{M}$ in GPT-2 Small).
+      \end{itemize}
     \end{column}
-    \begin{column}{0.41\linewidth}
+    \begin{column}{0.42\linewidth}
       \begin{block}{One stream, two views}
-        \texttt{x = tokens[:, :-1]}\\[5pt]
+        \texttt{x = tokens[:, :-1]}\\[4pt]
         \texttt{y = tokens[:, 1:]}
       \end{block}
       \begin{alertblock}{Common bug}
-        A wrong shift can produce a finite, decreasing loss while training the wrong task.
+        Forgetting the $+1$ shift trains the model to copy the current token ($x_t \to x_t$): loss drops to zero, generation fails completely.
       \end{alertblock}
+    \end{column}
+  \end{columns}
+  \smallsource{Press \& Wolf (2017, Weight Tying); Radford et al. (2019)}
+\end{frame}
+
+\begin{frame}{Interactive walkthrough: visual explorer of the Transformer}
+  \begin{columns}[c]
+    \begin{column}{0.54\linewidth}
+      \textbf{Session cue --- trace a live forward pass:}
+      \begin{enumerate}
+          \setlength{\itemsep}{6pt}
+        \item Follow \textbf{token + position embeddings} into the residual stream.
+        \item Zoom into the \textbf{Transformer block}: inspect $Q, K, V$ projections, causal attention weights, and head concatenation.
+        \item Trace the \textbf{MLP expansion/contraction} and final \textbf{LM head} to next-token logits.
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.42\linewidth}
+      \conceptcard{themeteal}{Visual Explorer Demo}{%
+        Open the interactive canvas and hover over each component to inspect tensor shapes and data flow:\\[6pt]
+        \href{https://brain-bzh.github.io/llm-course/demos/decoder-transformer.html}{\textcolor{themenavy}{\textbf{$\triangleright$ Open decoder-transformer.html}}}\\[6pt]
+        \scriptsize See also: \href{https://poloclub.github.io/transformer-explainer/}{\textcolor{themenavy}{Transformer Explainer (GPT-2 live)}}
+      }
     \end{column}
   \end{columns}
 \end{frame}
 
+\section{From GPT-2 to modern LLMs \& Lab 1}
 
-
-\section{Evidence before scale}
-
-\begin{frame}{A shape ledger catches semantic bugs}
-  \centering\small
-  \begin{tabular}{lll}
-    \toprule
-    Tensor & Shape & Meaning \\
-    \midrule
-    token IDs & $B\times T$ & discrete input \\
-    residual stream & $B\times T\times d$ & one state per position \\
-    $Q,K,V$ & $B\times H\times T\times d_h$ & per-head projections \\
-    attention scores & $B\times H\times T\times T$ & query-key compatibility \\
-    head output & $B\times H\times T\times d_h$ & contextualized values \\
-    logits & $B\times T\times V$ & next-token scores \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{block}{Review question}
-    Which axis does softmax consume, and which reshape reconstructs $d$ without mixing tokens?
-  \end{block}
-\end{frame}
-
-\begin{frame}{Three tests establish a trustworthy baseline}
-  \begin{enumerate}
-    \setlength{\itemsep}{9pt}
-    \item \textbf{Shape test}: every intermediate matches the ledger for several $B,T,H$ values.
-    \item \textbf{Causality test}: modifying a future token cannot change earlier logits.
-    \item \textbf{Tiny-batch overfit}: a small model drives loss near zero on one repeated batch.
-  \end{enumerate}
-  \begin{alertblock}{What each failure means}
-    Shape failure suggests layout. Causality failure suggests masking. Overfit failure suggests optimization, targets, or the end-to-end data path.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{The same components support three model families}
+\begin{frame}{Three Transformer families---and why Decoder-Only won}
   \begin{columns}[t]
     \begin{column}{0.31\linewidth}
       \begin{block}{Encoder-only}
-        Bidirectional attention produces representations for understanding tasks.
+        \footnotesize
+        \textbf{BERT} (Devlin et al., 2018)\\[2pt]
+        Bidirectional attention for classification and search. No autoregressive generation.
       \end{block}
     \end{column}
     \begin{column}{0.31\linewidth}
       \begin{block}{Encoder--decoder}
-        A source encoder connects to a causal decoder through cross-attention.
+        \footnotesize
+        \textbf{Original / T5} (Raffel, 2020)\\[2pt]
+        Bidirectional source encoder + causal target decoder via cross-attention.
       \end{block}
     \end{column}
     \begin{column}{0.31\linewidth}
       \begin{block}{Decoder-only}
-        One causal token stream defines next-token prediction and generation.
+        \footnotesize
+        \textbf{GPT / LLaMA} (Radford, 2019)\\[2pt]
+        Single causal stream unifies all tasks as prompt completion + single KV cache.
       \end{block}
     \end{column}
   \end{columns}
+  \begin{alertblock}{Why decoder-only dominates modern foundation models}
+    \small Any task can be framed as prompt continuation, concentrating all parameters and pretraining compute into one unified causal stack with a single KV cache.
+  \end{alertblock}
+  \smallsource{Vaswani et al. (2017); Devlin et al. (2018); Radford et al. (2019); Brown et al. (2020)}
+\end{frame}
+
+\begin{frame}{What changed since GPT-2? The modern LLM stack}
+  \small You will implement \textbf{GPT-2} in Lab 1. Modern LLMs keep the same macro-architecture while upgrading five components:
+  \vspace{2pt}
+  \centering\scriptsize
+  \begin{tabular}{@{}>{\bfseries\raggedright\arraybackslash}p{1.85cm}>{\raggedright\arraybackslash}p{2.25cm}>{\raggedright\arraybackslash}p{2.85cm}>{\raggedright\arraybackslash}p{3.35cm}@{}}
+    \toprule
+    Component & GPT-2 (2019) & Modern LLM (2023+) & Primary rationale \\
+    \midrule
+    Positions & Learned $W_{pe}$ & \textbf{RoPE} (Su et al., 2021) & Relative distance, length extrapolation \\
+    Normalization & Pre-\textbf{LayerNorm} & Pre-\textbf{RMSNorm} (Zhang, 2019) & Drops mean-centering; 10--50\% faster \\
+    Attention & \textbf{MHA} ($H_Q = H_{KV}$) & \textbf{GQA} (Ainslie et al., 2023) & $4\times$--$8\times$ smaller KV cache in serving \\
+    MLP activation & \textbf{GELU} ($d \to 4d \to d$) & \textbf{SwiGLU} (Shazeer, 2020) & Gated linear unit improves capacity \\
+    Biases \& tying & Biases; tied $W_E$ & \textbf{Bias-free}; untied $W_{\text{vocab}}$ & Faster GEMMs; better stability at scale \\
+    \bottomrule
+  \end{tabular}
   \vfill
-  Modern LLMs vary attention type, position method, normalization, MLP, and sparsity while retaining this core residual architecture.
+  \smallsource{Touvron et al. (2023, LLaMA); Jiang et al. (2023, Mistral); Raschka (LLM Architecture Gallery)}
+\end{frame}
+
+\begin{frame}{A shape ledger catches semantic bugs}
+  \centering\footnotesize
+  \begin{tabular}{lll}
+    \toprule
+    Tensor & Shape & Role in \texttt{nanolm/model.py} \\
+    \midrule
+    \texttt{idx} & $B\times T$ & input token IDs ($T \le \text{block\_size}$) \\
+    \texttt{x} & $B\times T\times d$ & residual stream (token $+$ position) \\
+    \texttt{q, k, v} & $B\times H\times T\times d_h$ & per-head projections ($d_h = d/H$) \\
+    \texttt{att} & $B\times H\times T\times T$ & masked attention weights (rows sum to 1) \\
+    \texttt{mlp\_hidden} & $B\times T\times 4d$ & expanded per-token MLP features \\
+    \texttt{logits} & $B\times T\times V$ & next-token vocabulary scores \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Review question}
+    Over which axis of \texttt{att} ($B \times H \times T \times T$) does \texttt{softmax} normalize, and why must masking happen before it?
+  \end{block}
+\end{frame}
+
+\begin{frame}{Lab 1: what you have the tools to build and verify now}
+  \begin{columns}[t]
+    \begin{column}{0.50\linewidth}
+      \begin{block}{Implement in \texttt{nanolm/model.py}}
+        \footnotesize
+        \begin{enumerate}
+            \setlength{\itemsep}{2pt}
+          \item \textbf{\texttt{CausalSelfAttention}}: $W_Q, W_K, W_V$, head split, $QK^\top / \sqrt{d_h}$, causal buffer mask, $W_O$.
+          \item \textbf{\texttt{MLP} \& \texttt{TransformerBlock}}: $d \to 4d \to \operatorname{GELU} \to d$ and pre-LN residual updates.
+          \item \textbf{\texttt{MiniGPT}}: $W_E + W_{pe}$, $N$ blocks, final LN, tied \texttt{lm\_head}, cross-entropy loss.
+        \end{enumerate}
+      \end{block}
+    \end{column}
+    \begin{column}{0.46\linewidth}
+      \begin{alertblock}{Three verification gates}
+        \footnotesize
+        \begin{enumerate}
+            \setlength{\itemsep}{2pt}
+          \item \textbf{Shape tests}: all intermediates match the ledger.
+          \item \textbf{Causality tests}: mutating a future token leaves earlier logits identical.
+          \item \textbf{Official GPT-2 parity}: load 124M weights (\texttt{01\_gpt2\_parity.py}) and match HF logits on \texttt{"The capital of France is"} $\to$ \texttt{" Paris"}.
+        \end{enumerate}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering\scriptsize\texttt{uv run pytest tests/test\_module\_01\_model.py -q} \quad$\rightarrow$\quad \texttt{uv run -{}-extra gpt2 python scripts/01\_gpt2\_parity.py}
 \end{frame}
 
 \checkpoint{debugging order}
-  {A model runs and loss decreases slowly, but generation copies future tokens from the training sequence. Which test should have caught this, and which tensors would you inspect first?}
+{Your model passes all shape tests, but \texttt{01\_gpt2\_parity.py} produces wrong logits and the causality test fails. Which lines of \texttt{CausalSelfAttention.forward} do you inspect first?}
 
 \takeaways
-  {Attention performs content-addressed mixing through queries, keys, and values.}
-  {Scaling stabilizes logits. Causal masking protects the prediction task.}
-  {A decoder block alternates cross-token mixing and per-token transformation.}
-  {Shapes, causality, and tiny-batch overfitting are the minimum evidence.}
+{Next-token prediction factorizes sequence probability; removing the $h_{t-1}\to h_t$ dependency makes training inherently parallel across positions on GPUs.}
+{Causal multi-head attention routes information across tokens ($1/3$ of params), while positional encodings supply token order.}
+{A pre-norm Transformer block pairs cross-token attention with a per-token $4d$ MLP ($2/3$ of params) along a clean residual highway.}
+{Shape invariants, causality perturbation tests, and exact GPT-2 checkpoint parity verify the model before we train it in Module 2.}
 
 \end{document}
