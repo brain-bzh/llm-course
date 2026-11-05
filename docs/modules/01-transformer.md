@@ -246,7 +246,7 @@ $$\text{LN}(x) = \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} \odot \gamma + \beta
 
 $$\text{RMSNorm}(x) = \frac{x}{\operatorname{RMS}(x)} \odot \gamma, \quad \operatorname{RMS}(x) = \sqrt{\frac{1}{d}\sum_{i=1}^d x_i^2 + \epsilon}.$$
 
-RMSNorm reduces memory reads and arithmetic overhead, yielding a 10% to 50% speedup per normalization layer while maintaining identical training dynamics. Modern models also omit the additive bias $\beta$.
+RMSNorm removes the centering operation and can reduce normalization work. Its speed depends on the kernel, hardware and workload, and its training dynamics are not identical to LayerNorm. RMSNorm also omits the additive bias $\beta$ in the formulation above.
 
 ### 2. Positional encodings: Absolute learned $\to$ Rotary Position Embedding (RoPE)
 

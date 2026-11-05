@@ -5,11 +5,20 @@ This lab accompanies [Module 4: Single-GPU performance](../modules/04-single-gpu
 !!! tip "Practical Lab Resources"
     To work through the hands-on implementation for this module:
 
-    - **Lab script:** [`scripts/04_single_gpu_perf.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/04_single_gpu_perf.py)
+    - **Lab scripts:** [`scripts/04_single_gpu_perf.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/04_single_gpu_perf.py) · [`scripts/04_check_execution.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/04_check_execution.py)
     - **Reference module:** [`nanolm/profile_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/profile_utils.py)
     - **Unit tests:** `tests/test_module_04_profile.py`
 
 ---
+
+## Connection to the previous labs
+
+The benchmark constructs the same `MiniGPT` family and executes a forward pass,
+loss, backward pass and optimizer update. Its batches are synthetic and already
+on the selected device: this isolates model execution, not the full baseline,
+its checkpoint or the data loader from Module 3. Use the trace to investigate
+operations in that update; measuring input stalls requires a separate end-to-end
+experiment.
 
 ## Objectives
 
@@ -33,6 +42,56 @@ Run the single-GPU profiling benchmark:
 uv run python scripts/04_single_gpu_perf.py
 ```
 
+## Prepare the attention comparison
+
+The Module 1 exercise deliberately implemented only manual attention. Before
+comparing `manual` and `sdpa`, either add the SDPA path to your own model or use
+the provided reference model. Merely setting `use_sdpa=True` does not change a
+student implementation that ignores the flag: such a comparison would time
+manual attention twice.
+
+To extend your model, save `config.use_sdpa` and `config.dropout` in
+`CausalSelfAttention`. After producing `q`, `k`, and `v` in
+`B × n_head × T × d_head` layout, use this branch in place of the manual
+score/mask/softmax/value multiplication when the flag is set:
+
+```python
+if self.use_sdpa:
+    y = torch.nn.functional.scaled_dot_product_attention(
+        q, k, v,
+        dropout_p=self.dropout if self.training else 0.0,
+        is_causal=True,
+    )
+else:
+    # Keep your existing scaled scores, causal mask, softmax and value product.
+    ...
+# Both paths then merge heads and apply the output projection.
+```
+
+Compare outputs and gradients for identical manual and SDPA models with dropout
+disabled, then rerun the causality tests:
+
+```bash
+uv run python scripts/04_check_execution.py --device cpu
+uv run pytest tests/test_module_01_model.py -k causal -q
+# On an allocated GPU, also check compilation:
+uv run python scripts/04_check_execution.py --device cuda --compile
+```
+
+The script checks that each block actually calls SDPA as well as comparing
+logits, loss and gradients. Small floating-point differences are expected; SDPA
+may choose different backends on different hardware. If the
+extension is unfinished, commit your model first, then restore the reference
+version recorded at the start of Module 1:
+
+```bash
+git show "$(cat .course-reference-revision):nanolm/model.py" > nanolm/model.py
+```
+
+Record that choice. If the revision file is missing, obtain the matching
+reference revision from the instructor; do not overwrite your work before it
+is committed.
+
 ## Session 12 protocol
 
 **Prepare:** state the model, token shape, precision, and the device's dense
@@ -46,6 +105,12 @@ uv run python scripts/04_single_gpu_perf.py --device cuda --modes manual sdpa \
 uv run python scripts/04_single_gpu_perf.py --device cuda --modes bf16
 uv run python scripts/04_single_gpu_perf.py --device cuda --modes compile
 ```
+
+Mixed precision belongs here: `bf16` runs supported operations in bfloat16
+while retaining appropriate higher-precision state where the implementation
+requires it. This is a hardware and numerical trade-off to measure, not a
+necessary feature of the FP32 loop built in Module 2. Check numerical behavior
+as well as throughput; BF16 support depends on the GPU.
 
 The modes form successive comparisons: manual FP32 → SDPA FP32 → SDPA BF16;
 compile uses SDPA FP32 so compare it with SDPA FP32. Compilation happens during
@@ -62,47 +127,11 @@ matrix products; it excludes optimizer and elementwise work.
 
 ### Check eager and compiled outputs
 
-The profiling script measures speed but does not compare results. With the
-companion environment set to Python 3.12, run the following from the companion
-repository. It compares identical SDPA FP32 models on one fixed batch; set
-`device = "cuda"` when a CUDA GPU is available. The tolerances are an example
-for this fixed FP32 check, not a universal threshold for BF16 or every GPU.
-
-```python
-import copy
-import torch
-from nanolm.model import GPTConfig, MiniGPT
-
-torch.manual_seed(42)
-device = "cpu"  # change to "cuda" on an allocated CUDA GPU
-config = GPTConfig(vocab_size=512, block_size=64, n_layer=2,
-                   n_head=4, n_embd=128, use_sdpa=True, dropout=0.0)
-eager = MiniGPT(config).to(device)
-compiled_raw = copy.deepcopy(eager)
-compiled = torch.compile(compiled_raw)
-
-tokens = torch.randint(0, config.vocab_size, (4, 65), device=device)
-x, y = tokens[:, :-1].contiguous(), tokens[:, 1:].contiguous()
-logits_e, loss_e, _ = eager(x, targets=y)
-logits_c, loss_c, _ = compiled(x, targets=y)
-loss_e.backward()
-loss_c.backward()
-
-torch.testing.assert_close(logits_c, logits_e, rtol=1e-3, atol=1e-4)
-torch.testing.assert_close(loss_c, loss_e, rtol=1e-3, atol=1e-4)
-for (name_e, p_e), (name_c, p_c) in zip(
-        eager.named_parameters(), compiled_raw.named_parameters()):
-    assert name_e == name_c
-    if p_e.grad is None or p_c.grad is None:
-        assert p_e.grad is None and p_c.grad is None, name_e
-    else:
-        torch.testing.assert_close(p_c.grad, p_e.grad, rtol=1e-3, atol=1e-4)
-print("Fixed-batch logits, loss and gradients agree.")
-```
-
-This is a starting check, not proof of equality over all batches, modes or
-training trajectories. Separately check the precision and attention variants
-you actually benchmark.
+The check script above compares eager and compiled SDPA FP32 models with
+identical weights on one fixed batch. Its example tolerances are not universal
+thresholds for BF16 or every GPU. It does not establish equality over all inputs
+or training trajectories; check the precision and attention variants used in
+your experiment as well.
 
 The script sets the CPU thread count to one and measures fixed synthetic batches already on the device. It does not
 measure the end-to-end data loader or prove useful language quality. Profiler

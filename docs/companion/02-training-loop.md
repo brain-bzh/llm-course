@@ -24,6 +24,18 @@ uv run pytest tests/test_module_02_optim.py -q
 
 The tests should initially fail with `NotImplementedError`.
 
+## Session 7 protocol — 75 minutes
+
+- **0–10 min:** build and inspect the shifted batch.
+- **10–25 min:** configure AdamW and inspect its parameter groups; sketch the schedule.
+- **25–50 min:** implement forward, loss normalization, backward, clipping and the update; run the overfit experiment.
+- **50–70 min:** implement a checkpoint round-trip and run the tests.
+- **70–75 min:** distinguish memorizing one batch from learning on held-out documents.
+
+Prioritize a working FP32 update and falling fixed-batch loss. If time is short,
+finish the schedule and checkpoint test with the provided reference after class,
+and record which parts you implemented yourself.
+
 ## Step 1 — Build the next-token batch
 
 For a token sequence
@@ -69,11 +81,14 @@ order:
 forward pass
 → divide loss by the accumulation count
 → backward pass
-→ unscale AMP gradients, when applicable
 → clip the global gradient norm
 → optimizer step
 → clear gradients
 ```
+
+For this exercise use ordinary FP32 execution (`scaler=None`, `dtype=torch.float32`).
+The starter exposes optional mixed-precision arguments for later use; preserve the
+signatures, but leave mixed precision to [Module 4](04-single-gpu.md).
 
 `train_step` accumulates gradients but does not update parameters.
 `optimizer_step` performs exactly one update and clears the gradient buffers
@@ -112,8 +127,28 @@ weights is not sufficient for resuming training.
 ## Part B — Baseline experiment (session 8)
 
 The fixed-batch exercise is the session 7 milestone. Before the data pipeline module, run a separate baseline on disjoint training and validation documents.
+The baseline calls your `train_step` and `optimizer_step`. Its recovery path also
+requires checkpoint behavior beyond the session 7 round-trip: the starter
+provides `extra_state` and `restore_rng` arguments, but your implementation must
+save and restore the Python, NumPy and PyTorch RNG states as well. Compare the provided
+reference `nanolm/train.py` before implementing these extensions. If yours is
+not ready, commit your session 7 work, then restore the reference training module
+from the session 1 branch for this baseline:
+
+```bash
+git show session-01-transformer:nanolm/train.py > nanolm/train.py
+```
+
+This assumes the lab branches were created as directed. Keep your committed
+implementation for review, and record when the reference is used.
 The baseline uses a fixed UTF-8 byte vocabulary plus EOT (257 tokens), keeping
 this experiment independent of tokenizer training and network downloads.
+
+The instructor should prepare the two documented JSONL splits and verify that
+each contains more byte tokens than the chosen context length before class.
+If the files are unavailable, use the smoke fixture and report the limitation.
+Each command below needs a fresh output directory: an existing checkpoint is
+protected against accidental overwrite.
 
 First verify the workflow with the small synthetic smoke fixture:
 

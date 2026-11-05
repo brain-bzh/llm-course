@@ -272,8 +272,7 @@ Batch 0: [Doc 1 (250 tokens)] [PAD] [PAD] ... [PAD (1798 tokens)] -> 88% wasted 
 Batch 1: [Doc 2 (800 tokens)] [PAD] [PAD] ... [PAD (1248 tokens)] -> 61% wasted FLOPs
 ```
 
-In typical web crawl distributions, **$30\%\text{--}50\%$ of total training FLOPs
-are wasted computing forward and backward passes over useless padding tokens**.
+The actual waste depends on document lengths, batching, and the attention implementation. Measure padding on the corpus and batch policy being used; the examples above illustrate two individual cases, not a general estimate.
 
 ### Contiguous sequence packing
 
@@ -289,7 +288,7 @@ Instead of padding, production pipelines **pack documents contiguously**:
 |------- Chunk 0 (T tokens) -------|------- Chunk 1 (T tokens) -------| ...
 ```
 
-This guarantees **100% token packing efficiency with zero wasted padding FLOPs**.
+Full contiguous chunks contain no padding tokens. Tail handling, document boundaries, and the attention implementation still affect total efficiency.
 
 ### Cross-document attention
 
@@ -298,9 +297,7 @@ the end of Document A followed by the start of Document B. Because standard caus
 masking allows every token to attend to all preceding positions in the chunk,
 tokens in Document B can technically attend to tokens in Document A.
 
-In large-scale pretraining, this cross-document attention has been proven to have
-negligible negative impact on language modeling performance. However, for fine-tuning
-or strict domain adaptation, modern attention kernels (such as FlashAttention's
+Whether cross-document attention affects model quality depends on the data and objective; a delimiter alone does not enforce isolation. When isolation is required, attention kernels (such as FlashAttention's
 variable-length `flash_attn_varlen_func`) allow passing cumulative sequence length
 offsets (`cu_seqlens`) to apply **block-diagonal causal masking**, preventing attention
 leakage across document boundaries without introducing padding tokens.

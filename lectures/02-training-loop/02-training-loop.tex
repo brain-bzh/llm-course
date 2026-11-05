@@ -344,6 +344,26 @@
   \textbf{This afternoon:} instructor-prepared JSONL documents; the baseline script packs its own byte-token shards. The data-pipeline lab follows tomorrow.
 \end{frame}
 
+\begin{frame}{The afternoon lab: one update, then a baseline}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Session 7: make it learn}
+        Shift inputs and targets; implement the FP32 update; overfit one batch; check a checkpoint round-trip.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{Session 8: measure a baseline}
+        Run disjoint documents, inspect held-out loss and token count, and test interruption and recovery.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{Recovery contract}
+    Resuming needs optimizer, RNG and run identity as well as weights. Use the supplied reference checkpoint code if your extension is unfinished.
+  \end{alertblock}
+  \small Mixed precision is introduced with GPU execution in Module 4.
+\end{frame}
+
 \begin{frame}{Read the baseline as evidence}
   \begin{itemize}
     \setlength{\itemsep}{7pt}

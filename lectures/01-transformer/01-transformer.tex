@@ -753,9 +753,9 @@
         \footnotesize
         \begin{enumerate}
             \setlength{\itemsep}{2pt}
-          \item \textbf{\texttt{CausalSelfAttention}}: $W_Q, W_K, W_V$, head split, $QK^\top / \sqrt{d_h}$, causal buffer mask, $W_O$.
-          \item \textbf{\texttt{MLP} \& \texttt{TransformerBlock}}: $d \to 4d \to \operatorname{GELU} \to d$ and pre-LN residual updates.
-          \item \textbf{\texttt{MiniGPT}}: $W_E + W_{pe}$, $N$ blocks, final LN, tied \texttt{lm\_head}, cross-entropy loss.
+          \item \textbf{Session 2:} embeddings, MLP and residual-block sketch.
+          \item \textbf{Session 3:} Q/K/V projections, head split, causal attention and the full block.
+          \item \textbf{Session 4:} assemble \texttt{MiniGPT}, test causality and compare GPT-2 logits.
         \end{enumerate}
       \end{block}
     \end{column}
@@ -766,7 +766,7 @@
             \setlength{\itemsep}{2pt}
           \item \textbf{Shape tests}: all intermediates match the ledger.
           \item \textbf{Causality tests}: mutating a future token leaves earlier logits identical.
-          \item \textbf{Official GPT-2 parity}: load 124M weights (\texttt{01\_gpt2\_parity.py}) and match HF logits on \texttt{"The capital of France is"} $\to$ \texttt{" Paris"}.
+          \item \textbf{GPT-2 parity}: compare reference logits. Cache the 124M checkpoint beforehand; if unavailable, report parity as pending.
         \end{enumerate}
       \end{alertblock}
     \end{column}

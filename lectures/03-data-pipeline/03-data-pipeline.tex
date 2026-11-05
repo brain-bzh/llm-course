@@ -45,6 +45,25 @@
   \small Fit the tokenizer on the training split; process training and validation separately.
 \end{frame}
 
+\begin{frame}{From yesterday's baseline to today's pipeline}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Yesterday: byte baseline}
+        UTF-8 bytes + EOT: 257 token IDs. The supplied runner packs separate train and validation shards.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{Today: learned BPE}
+        Fit merges on training documents; pack both splits with the same tokenizer; inspect boundaries and shifted batches.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{What changes?}
+    Token IDs, vocabulary size and sequence length change. Loss per byte-token and loss per BPE-token are not directly comparable.
+  \end{alertblock}
+\end{frame}
+
 \section{From documents to tokens}
 
 \begin{frame}{Start with documents, not model inputs}
@@ -316,6 +335,19 @@
   \begin{alertblock}{Do not optimize a corrupt stream}
     Decode sampled windows to inspect boilerplate and boundaries; compare document identities across splits to check leakage.
   \end{alertblock}
+\end{frame}
+
+\begin{frame}{Lab: follow a document into a batch}
+  \begin{enumerate}
+    \setlength{\itemsep}{6pt}
+    \item Identify duplicates and keep train and validation documents disjoint.
+    \item Trace two BPE merges; fit the tokenizer on training text only.
+    \item Pack each split with EOT delimiters and inspect a boundary.
+    \item Load a window and verify $y[:, :-1] = x[:, 1:]$.
+  \end{enumerate}
+  \begin{block}{If time is short}
+    Inspect a provided shard and diagnose a shifted-target error; distinguish inspection from your own implementation.
+  \end{block}
 \end{frame}
 
 \checkpoint{pipeline audit}

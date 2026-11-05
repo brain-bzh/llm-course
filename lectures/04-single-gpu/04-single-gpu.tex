@@ -324,6 +324,25 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Mixed precision: a performance and numerical trade-off}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{What changes?}
+        Autocast runs supported operations in BF16 and retains higher precision where appropriate. The same training objective and update remain.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{Why try it?}
+        Supported hardware may run matrix operations faster and store some activations in fewer bytes. The gain depends on the workload.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{Measure before claiming a speedup}
+    Check hardware support, loss and gradients; compare identical shapes and attention paths. FP16 loss scaling is a separate consideration.
+  \end{alertblock}
+\end{frame}
+
 \begin{frame}{What does \texttt{torch.compile} do?}
   \begin{enumerate}
     \setlength{\itemsep}{6pt}
@@ -397,6 +416,19 @@
   \begin{alertblock}{One change per measurement}
     Warm up, synchronize, use enough repeated steps, and report median plus dispersion.
   \end{alertblock}
+\end{frame}
+
+\begin{frame}{Lab: measure one change in a GPT update}
+  \begin{enumerate}
+    \setlength{\itemsep}{5pt}
+    \item Start with manual FP32 attention; form a bottleneck hypothesis.
+    \item Verify the SDPA path exists and compare outputs and gradients before timing it.
+    \item Compare supported BF16 or compiled execution against the matching eager baseline.
+    \item Report device, shapes, warmup, repeated timings, memory and one limitation.
+  \end{enumerate}
+  \begin{block}{Scope of the experiment}
+    Synthetic batches already on the device isolate model execution. They do not measure the Module 3 loader or end-to-end baseline throughput.
+  \end{block}
 \end{frame}
 
 \checkpoint{one-change ablation}

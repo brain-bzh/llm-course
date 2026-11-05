@@ -23,12 +23,14 @@ the course.
 From the root of your companion clone:
 
 ```bash
+git rev-parse HEAD > .course-reference-revision
 git switch -c session-01-transformer
 cp starter/01_transformer.py nanolm/model.py
 uv run pytest tests/test_module_01_model.py -q
 ```
 
-The tests should initially fail with `NotImplementedError`. This is expected:
+The revision file records the starting reference version for later labs; keep it
+locally. The tests should initially fail with `NotImplementedError`. This is expected:
 the starter defines the required public classes and method signatures, but not
 their implementation.
 
@@ -38,7 +40,44 @@ point is to make every projection, reshape, mask, and matrix multiplication
 visible. A later module replaces this explicit implementation with optimized
 attention.
 
-## Step 1 — Implement causal multi-head attention
+## Session 2 — Build the foundation (75 minutes)
+
+Start with the pieces that work independently of attention. Aim to implement and
+check the MLP and embedding construction; sketch the pre-norm residual updates.
+The complete block test comes after attention is implemented in session 3.
+
+### 1. Implement the MLP
+
+Implement `MLP` with the following data flow:
+
+```text
+d_model → 4 × d_model → GELU → d_model → dropout
+```
+
+Use `nn.GELU(approximate="tanh")` to match GPT-2. Test this component on its
+own, without constructing an unfinished attention module:
+
+```bash
+uv run python -c 'import torch; from nanolm.model import GPTConfig, MLP; m = MLP(GPTConfig(n_embd=32)); x = torch.randn(2, 8, 32); assert m(x).shape == x.shape; print("MLP shape OK")'
+```
+
+### 2. Lay out embeddings and residual paths
+
+In `MiniGPT`, create token and learned position embeddings. For input `B × T`,
+write down the token embedding, position embedding and combined tensor shapes.
+Sketch the two pre-LayerNorm residual updates in `TransformerBlock`:
+
+```text
+x = x + attention(norm_1(x))
+x = x + mlp(norm_2(x))
+```
+
+The block must preserve `B × T × d_model`. Keep the component names `ln_1`,
+`attn`, `ln_2`, and `mlp`; the GPT-2 converter uses those names. The block
+cannot run until attention is implemented. If time is short, retain the sketch
+and start the attention exercise with the class.
+
+## Session 3 — Implement causal multi-head attention (75 minutes)
 
 Implement `CausalSelfAttention` in `nanolm/model.py`.
 
@@ -72,31 +111,17 @@ uv run pytest tests/test_module_01_model.py -k attention -q
 Both tests must pass: attention must preserve the input shape, and changing
 future input vectors must not change earlier outputs.
 
-## Step 2 — Build the Transformer block
+### Finish and test the Transformer block
 
-Implement `MLP` with the following data flow:
-
-```text
-d_model → 4 × d_model → GELU → d_model → dropout
-```
-
-Then implement `TransformerBlock` using the pre-LayerNorm residual convention
-from the module:
-
-```text
-x = x + attention(norm_1(x))
-x = x + mlp(norm_2(x))
-```
-
-The block must preserve `B × T × d_model` exactly.
-Keep the component names `ln_1`, `attn`, `ln_2`, and `mlp`; the GPT-2 converter
-uses those names to place the pretrained tensors.
+Complete the two residual paths sketched in session 2, then run:
 
 ```bash
 uv run pytest tests/test_module_01_model.py -k transformer_block -q
 ```
 
-## Step 3 — Assemble the decoder-only language model
+## Session 4 — Assemble and validate GPT (75 minutes)
+
+### Assemble the decoder-only language model
 
 Implement `MiniGPT` from the same components:
 
@@ -133,7 +158,7 @@ uv run pytest tests/test_module_01_model.py \
 The causality test changes future token IDs and checks that earlier logits are
 unchanged. Passing a shape test alone is not sufficient.
 
-## Step 4 — Reproduce the official GPT-2 forward pass
+### Reproduce the official GPT-2 forward pass
 
 First run the complete local Module 1 suite:
 
@@ -148,7 +173,10 @@ uv sync --extra gpt2
 uv run --extra gpt2 python scripts/01_gpt2_parity.py
 ```
 
-The first run downloads the official GPT-2 124M checkpoint. The provided
+The first run downloads the official GPT-2 124M checkpoint. Preinstall the
+optional dependency and cache the checkpoint before class when possible. If
+the download or reference environment is unavailable, report the local test
+results and treat reference parity as pending. The provided
 `nanolm/gpt2.py` converter handles two bookkeeping differences that are not the
 focus of this lab:
 
