@@ -376,20 +376,34 @@ unchanged.
 
 ## Multi-head attention
 
-Instead of one attention operation at width `d_model`, split the representation
-into `n_head` subspaces of width `d_head = d_model / n_head`. Each head performs
-its own attention computation, then the head outputs are concatenated and mixed
-through an output projection.
+Compare a single attention head of width $d$ with $h$ heads of width
+$d_k=d/h$, assuming $h$ divides $d$. Both start with learned Q, K and V projections from the input. The
+single head produces one $T\times T$ attention pattern; multi-head attention
+produces one pattern per head. The heads can be computed in parallel, their
+outputs are concatenated back to width $d$, and an output projection mixes them.
 
-Track these shapes explicitly:
+For each of Q, K and V, the implementation makes the head axis explicit:
 
-- input: `B × T × d_model`;
-- projected Q, K and V: `B × n_head × T × d_head`;
-- attention scores: `B × n_head × T × T`;
-- concatenated head output: `B × T × d_model`.
+```text
+B × T × d  →  B × T × h × d_k  →  B × h × T × d_k
+                split d                swap T and h
+```
 
-Multi-head attention changes how information is mixed **between tokens**. The
-MLP that follows changes each token representation independently.
+The swap puts the full $T\times d_k$ sequence together for each head; batched
+$QK^\top$ then produces scores of shape $B\times h\times T\times T$. In
+PyTorch this is `reshape(B, T, h, d_k).transpose(1, 2)`. After attention,
+transpose back and merge the heads before applying the output projection. For
+example, $d=768$ and $h=12$ gives $d_k=64$.
+
+Counting a multiply-add as two FLOPs, the two attention matrix products cost
+about $4BT^2d$ for one wide head and $4BhT^2d_k=4BT^2d$ for $h$ smaller
+heads. In both cases, the four $d\times d$ projections cost about $8BTd^2$
+forward FLOPs. These estimates count dense matrix products and omit softmax, masking and biases; causal kernels can skip work. If score
+matrices are materialized, multi-head attention stores $BhT^2$ score elements
+rather than $BT^2$; efficient kernels can avoid materializing them. Parallel
+heads do not by themselves guarantee lower latency: the kernel and hardware
+matter. Multi-head attention changes how information is mixed **between tokens**;
+the following MLP transforms each token representation independently.
 
 ## The decoder-only block
 

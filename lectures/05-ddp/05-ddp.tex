@@ -1,5 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
+\input{../common/parallelism-visuals.tex}
 \title[TASLLM -- Module 5]{Module 5: Distributed Data Parallelism\\[4pt]
 \normalsize\itshape Replicas, Collectives, and Global Invariants}
 \date{\today}
@@ -21,6 +22,66 @@
 
 \section{The data-parallel contract}
 
+\begin{frame}{From gradient accumulation to data parallelism}
+  \begin{columns}[t]
+    \begin{column}{.46\linewidth}
+      \centering\textbf{One GPU: sequential}\\[-2pt]
+      \begin{tikzpicture}[
+        every node/.style={font=\scriptsize,align=center},
+        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.55cm,minimum height=.65cm,thick},
+        arr/.style={-{Stealth},thick,draw=themenavy}]
+        \node[box] (a) at (0,2.45) {micro-batch 1: forward + backward $\to g_1$};
+        \node[box] (b) at (0,1.40) {micro-batch 2: forward + backward $\to g_2$};
+        \node[box,draw=successdraw,fill=successbg] (c) at (0,.35) {accumulate and average $g_1,g_2$};
+        \draw[arr] (a)--(b); \draw[arr] (b)--(c);
+        \node[font=\scriptsize,text=neutraldark] at (0,-.30) {one optimizer update};
+        \draw[arr] (c.south)--++(0,-.12);
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{.50\linewidth}
+      \centering\textbf{Two GPUs: in parallel}\\[-2pt]
+      \begin{tikzpicture}[
+        every node/.style={font=\scriptsize,align=center},
+        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=2.0cm,minimum height=.95cm,thick},
+        arr/.style={-{Stealth},thick,draw=themenavy}]
+        \node[box] (a) at (-1.25,2.15) {GPU 0\\batch 1\\F/B $\to g_1$};
+        \node[box] (b) at (1.25,2.15) {GPU 1\\batch 2\\F/B $\to g_2$};
+        \node[draw=accentdarkdraw,fill=accentdarkbg,rounded corners,minimum width=4.35cm,minimum height=.65cm,thick] (reduce) at (0,.95) {all-reduce: average $g_1,g_2$};
+        \node[draw=successdraw,fill=successbg,rounded corners,minimum width=4.35cm,minimum height=.65cm,thick] (step) at (0,-.10) {same optimizer update on each GPU};
+        \draw[arr] (a.south)--(a.south |- reduce.north);
+        \draw[arr] (b.south)--(b.south |- reduce.north);
+        \draw[arr] (reduce)--(step);
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+  \vspace{2pt}
+  \begin{block}{Same global mean gradient}
+    \centering $\displaystyle\bar g=\frac{g_1+g_2}{2}$ \qquad (equal-sized micro-batches, same starting weights)
+  \end{block}
+  {\scriptsize F/B = forward + backward. DDP communicates gradients and keeps model/optimizer replicas. Randomness or batch-dependent operations can affect equivalence.}
+\end{frame}
+
+\begin{frame}{Parallelism map: DDP splits the batch}
+  \centering
+  \ParallelLegend\par\vspace{6pt}
+  \begin{tikzpicture}
+    \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
+      {\ParallelFull{themenavy}}{model + optimizer}
+      {\ParallelLeft{leafreddraw}}{batch 0 $\to$ gradient $g_0$}};
+    \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
+      {\ParallelFull{themenavy}}{model + optimizer}
+      {\ParallelRight{leafreddraw}}{batch 1 $\to$ gradient $g_1$}};
+    \node[parallel exchange] (comm) at (0,-2.0) {all-reduce: average gradients};
+    \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
+    \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
+  \end{tikzpicture}
+  \par\vspace{10pt}
+  \begin{minipage}{.92\linewidth}\small\raggedright
+    \textbf{What changes?}     Different data on each device; the model and optimizer are replicated. After synchronization, every replica applies the same update.
+  \end{minipage}\par\vspace{4pt}
+  {\scriptsize Equal-size batches; identical initial model and optimizer state.}
+\end{frame}
+
 \begin{frame}{Each rank owns a full model and different examples}
   \begin{columns}[c]
     \begin{column}{0.53\linewidth}
@@ -35,7 +96,7 @@
     \begin{column}{0.43\linewidth}
       \begin{block}{Global batch}
         \[
-          B_{\text{global}}=W\,B_{\text{local}},K
+          B_{\text{global}}=W\,B_{\text{local}}\,K
         \]
         $K$ is the number of accumulated micro-steps.
       \end{block}
@@ -110,6 +171,7 @@
       \end{tikzpicture}
     \end{column}
     \begin{column}{0.28\linewidth}
+      \small
       \[
         T_{\rm comm}(m)\approx\alpha+\beta m
       \]

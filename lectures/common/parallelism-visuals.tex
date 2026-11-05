@@ -1,0 +1,36 @@
+% Shared two-GPU visual grammar for the parallelism lectures.
+\tikzset{
+  parallel device/.style={draw=themebluedraw!65,fill=themebluebg!25!white,
+    sharp corners,line width=.65pt,minimum width=5.0cm,minimum height=2.0cm,
+    align=center,font=\footnotesize},
+  parallel exchange/.style={draw=accentdarkdraw,fill=accentdarkbg,
+    sharp corners,line width=.7pt,minimum width=7.5cm,minimum height=.68cm,
+    align=center,font=\small\bfseries},
+  parallel connection/.style={line width=.8pt,draw=accentdarkdraw},
+}
+% One outlined bar is a conceptual tensor, split into two logical partitions.
+% Explicit sharp corners prevent device-node styling leaking into nested TikZ.
+\newcommand{\ParallelFull}[1]{\tikz[baseline=-.55ex,x=.50cm,y=.25cm,sharp corners]{\path[sharp corners,fill=#1] (0,0) rectangle (2,1);\draw[sharp corners,draw=#1,line width=.5pt] (0,0) rectangle (2,1);\draw[sharp corners,white,line width=.5pt] (1,0)--(1,1);}}
+\newcommand{\ParallelLeft}[1]{\tikz[baseline=-.55ex,x=.50cm,y=.25cm,sharp corners]{\path[sharp corners,fill=#1] (0,0) rectangle (1,1);\path[sharp corners,fill=white] (1,0) rectangle (2,1);\draw[sharp corners,draw=#1,line width=.5pt] (0,0) rectangle (2,1);\draw[sharp corners,draw=#1,line width=.5pt] (1,0)--(1,1);}}
+\newcommand{\ParallelRight}[1]{\tikz[baseline=-.55ex,x=.50cm,y=.25cm,sharp corners]{\path[sharp corners,fill=white] (0,0) rectangle (1,1);\path[sharp corners,fill=#1] (1,0) rectangle (2,1);\draw[sharp corners,draw=#1,line width=.5pt] (0,0) rectangle (2,1);\draw[sharp corners,draw=#1,line width=.5pt] (1,0)--(1,1);}}
+% Aligned columns keep the same position for state and activation glyphs on both devices.
+\newcommand{\ParallelCardTwo}[5]{%
+  \begin{tabular}{@{}l@{\hspace{6pt}}l@{}}
+    \multicolumn{2}{@{}l}{\textbf{#1}}\\[6pt]
+    #2 & #3\\[5pt]
+    #4 & #5
+  \end{tabular}%
+}
+\newcommand{\ParallelCardThree}[7]{%
+  \begin{tabular}{@{}l@{\hspace{6pt}}l@{}}
+    \multicolumn{2}{@{}l}{\textbf{#1}}\\[5pt]
+    #2 & #3\\[4pt]
+    #4 & #5\\[4pt]
+    #6 & #7
+  \end{tabular}%
+}
+\newcommand{\ParallelLegend}{%
+  {\scriptsize \textcolor{themenavy}{\rule{7pt}{7pt}\ model state}\quad
+  \textcolor{leafreddraw}{\rule{7pt}{7pt}\ data / activations}\quad
+  \textcolor{accentdark}{\rule{7pt}{7pt}\ communication}\quad outline = held elsewhere}%
+}

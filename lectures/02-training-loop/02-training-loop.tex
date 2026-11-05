@@ -1,5 +1,7 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
 
 \title[TASLLM -- Module 2]{Module 2: Training-Loop Anatomy\\[4pt]
 \normalsize\itshape Every State Change Behind One Optimizer Update}
@@ -35,6 +37,59 @@
   \begin{block}{Different lifetimes}
     Saved activations serve backward; gradients are cleared between updates. Weights and optimizer state persist across updates.
   \end{block}
+\end{frame}
+
+\begin{frame}{A loss landscape: follow the downhill direction}
+  \begin{columns}[c]
+    \begin{column}{.55\linewidth}
+      \centering
+      \begin{tikzpicture}
+        \begin{axis}[
+          width=6.6cm,height=5cm,
+          view={-35}{27},
+          domain=-2:2,y domain=-2:2,
+          xmin=-2.1,xmax=2.1,ymin=-2.1,ymax=2.1,zmin=0,zmax=2.6,
+          samples=21,samples y=21,
+          axis lines=box, tick style={draw=none},
+          xtick=\empty,ytick=\empty,ztick=\empty,
+          xlabel={$\theta_1$},ylabel={$\theta_2$},zlabel={loss $\mathcal L$},
+          label style={font=\scriptsize},
+          colormap={landscape}{color(0cm)=(themebluebg);color(1cm)=(themeteal!80!white)},
+          z buffer=sort,
+        ]
+          \addplot3[surf,shader=interp,draw=themeteal!45!white,thin,opacity=.8]
+            {0.28*(x^2 + y^2)};
+          % The red path follows gradient descent on this quadratic.
+          \addplot3[very thick,leafreddraw,mark=*,mark size=1.9pt]
+            coordinates {(1.6,-1.4,1.266) (.98,-.86,.477) (.6,-.52,.197) (.36,-.31,.083)};
+          \draw[-{Stealth},very thick,leafreddraw]
+            (axis cs:1.6,-1.4,1.266) -- (axis cs:.98,-.86,.477);
+          % Upward tangent: (g, grad f dot g) at the starting point.
+          \draw[-{Stealth},very thick,themenavy]
+            (axis cs:1.6,-1.4,1.266) -- (axis cs:1.86,-1.627,1.675);
+        \end{axis}
+      \end{tikzpicture}\\[-2pt]
+      {\scriptsize \textcolor{themenavy}{↑ gradient}\quad \textcolor{leafreddraw}{↓ descent steps}}
+    \end{column}
+    \begin{column}{.42\linewidth}
+      \small
+      \begin{block}{Gradient}
+        $g_t=\nabla_\theta\mathcal L(\theta_t)$ points locally uphill.
+      \end{block}
+      \begin{alertblock}{Descent step}
+        Move against the gradient:
+        \[\theta_{t+1}=\theta_t-\eta g_t\]
+      \end{alertblock}
+      \textbf{Learning rate $\eta$} scales the step:\\[-2pt]
+      \begin{tikzpicture}[baseline, every node/.style={font=\scriptsize}]
+        \draw[-{Stealth},thick,leafreddraw] (0,0)--(.45,0) node[right,black] {small $\eta$};
+        \draw[-{Stealth},thick,leafreddraw] (2.2,0)--(3.45,0) node[right,black] {large $\eta$};
+      \end{tikzpicture}\\[-2pt]
+      {\scriptsize Too large can overshoot.}
+    \end{column}
+  \end{columns}
+  \vspace{4pt}
+  {\scriptsize\color{neutraldark}Schematic: two parameters and one fixed loss surface.}
 \end{frame}
 
 \begin{frame}{Gradient descent and SGD}

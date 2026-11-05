@@ -1,5 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
+\input{../common/parallelism-visuals.tex}
 \title[TASLLM -- Module 8]{Module 8: Context, Pipeline and Expert Parallelism\\[4pt]
 \normalsize\itshape Splitting Sequence Length and Model Depth}
 \date{\today}
@@ -20,6 +21,27 @@
 {Map parallel dimensions to a real cluster topology.}
 
 \section{Context parallelism}
+
+\begin{frame}{Parallelism map: CP splits the context}
+  \centering
+  \ParallelLegend\par\vspace{6pt}
+  \begin{tikzpicture}
+    \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
+      {\ParallelFull{themenavy}}{same layer weights $\theta$}
+      {\ParallelLeft{leafreddraw}}{tokens 0 $\to Q_0,K_0,V_0$}};
+    \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
+      {\ParallelFull{themenavy}}{same layer weights $\theta$}
+      {\ParallelRight{leafreddraw}}{tokens 1 $\to Q_1,K_1,V_1$}};
+    \node[parallel exchange] (comm) at (0,-2.0) {attention: exchange key/value blocks};
+    \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
+    \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
+  \end{tikzpicture}
+  \par\vspace{10pt}
+  \begin{minipage}{.92\linewidth}\small\raggedright
+    \textbf{What changes?}     Each GPU owns different positions of one sequence. Queries need visible keys and values from other GPUs.
+  \end{minipage}\par\vspace{4pt}
+  {\scriptsize Causality masks future tokens; weight gradients also synchronize across context ranks.}
+\end{frame}
 
 \begin{frame}{Two techniques shard the sequence axis for different reasons}
   \begin{columns}[t]
@@ -103,6 +125,26 @@
       \end{block}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Four parallelism maps, one comparison}
+  \footnotesize
+  \begin{center}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.10\linewidth}>{\raggedright\arraybackslash}p{.24\linewidth}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.28\linewidth}@{}}
+      \toprule
+      Scheme & Work split & Weights / state & Communication \\
+      \midrule
+      DDP & different batches & full replica & average gradients \\[4pt]
+      FSDP & different batches & persistent state shards & gather parameters; scatter gradients \\[4pt]
+      TP & same tokens, different features & weight slices & combine activation slices / partials \\[4pt]
+      CP & different positions, same sequence & full weights along CP axis & exchange attention K/V; combine weight gradients \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \vfill
+  \begin{block}{Read this as a map, not four exclusive choices}
+    Each row isolates one parallelism axis. Real systems can compose several axes across the same cluster.
+  \end{block}
 \end{frame}
 
 \section{Pipeline parallelism}

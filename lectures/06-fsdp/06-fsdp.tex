@@ -1,5 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
+\input{../common/parallelism-visuals.tex}
 \title[TASLLM -- Module 6]{Module 6: FSDP and ZeRO\\[4pt]
 \normalsize\itshape Trading Redundant Memory for Collective Communication}
 \date{\today}
@@ -20,6 +21,27 @@
 {Choose wrapping, precision, and checkpoint strategies from evidence.}
 
 \section{From replication to sharding}
+
+\begin{frame}{Parallelism map: FSDP shards model state}
+  \centering
+  \ParallelLegend\par\vspace{6pt}
+  \begin{tikzpicture}
+    \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
+      {\ParallelLeft{themenavy}}{params + optimizer shard 0}
+      {\ParallelLeft{leafreddraw}}{batch 0; local activations}};
+    \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
+      {\ParallelRight{themenavy}}{params + optimizer shard 1}
+      {\ParallelRight{leafreddraw}}{batch 1; local activations}};
+    \node[parallel exchange] (comm) at (0,-2.0) {all-gather parameters \quad$\cdot$\quad reduce-scatter gradients};
+    \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
+    \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
+  \end{tikzpicture}
+  \par\vspace{10pt}
+  \begin{minipage}{.92\linewidth}\small\raggedright
+    \textbf{What changes from DDP?}     Model state is sharded. Each device gathers the active unit's full parameters to compute its batch.
+  \end{minipage}\par\vspace{4pt}
+  {\scriptsize Full-shard example. Gradient shards persist after reduction; details depend on FSDP configuration.}
+\end{frame}
 
 \begin{frame}{DDP replicates persistent state on every rank}
   \small

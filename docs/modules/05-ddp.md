@@ -25,6 +25,29 @@ By the end of the module, students should be able to:
 - test parameter synchronization and sample coverage;
 - separate throughput scaling from optimization equivalence.
 
+## From accumulation to data parallelism
+
+In Module 2, one GPU processed two micro-batches **sequentially** at the same
+weights. It accumulated their gradients and applied one update using their mean.
+DDP can perform the same two gradient computations **in parallel** on two GPUs:
+
+```text
+One GPU:   batch 1 → forward/backward → g₁
+           batch 2 → forward/backward → g₂   → average → update once
+
+Two GPUs:  GPU 0: batch 1 → forward/backward → g₁ ┐
+           GPU 1: batch 2 → forward/backward → g₂ ┘ → all-reduce mean
+                                                    → update both replicas
+```
+
+If the micro-batches contain equal numbers of valid tokens and use the same
+starting parameters, both paths use $(g_1+g_2)/2$. DDP must additionally
+communicate the gradients and keep model and optimizer replicas in sync. Exact
+equivalence also depends on matching optimizer state and loss normalization;
+randomness and batch-dependent operations can change the result. DDP averages
+across ranks on the synchronized backward pass; additional *local* accumulation
+is possible and is covered later in the lecture.
+
 ## One process, one GPU, one model replica
 
 In standard DDP, every rank owns:

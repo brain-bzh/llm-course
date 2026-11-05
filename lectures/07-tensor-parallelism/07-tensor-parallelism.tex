@@ -1,5 +1,6 @@
 \documentclass[handout]{beamer}
 \input{../common/preamble.tex}
+\input{../common/parallelism-visuals.tex}
 \title[TASLLM -- Module 7]{Module 7: Tensor Parallelism\\[4pt]
 \normalsize\itshape Splitting Matrix Multiplication Inside Each Layer}
 \date{\today}
@@ -20,6 +21,29 @@
 {Choose tensor-parallel degree from layer shapes and topology.}
 
 \section{Start from one matrix multiplication}
+
+\begin{frame}{Parallelism map: TP splits a layer's width}
+  \centering
+  \ParallelLegend\par\vspace{6pt}
+  \begin{tikzpicture}
+    \node[parallel device] (g0) at (-2.7,0) {\ParallelCardThree{GPU 0}
+      {\ParallelLeft{themenavy}}{weight columns $W_0$}
+      {\ParallelFull{leafreddraw}}{same input $X$}
+      {\ParallelLeft{leafreddraw}}{output shard $Y_0$}};
+    \node[parallel device] (g1) at (2.7,0) {\ParallelCardThree{GPU 1}
+      {\ParallelRight{themenavy}}{weight columns $W_1$}
+      {\ParallelFull{leafreddraw}}{same input $X$}
+      {\ParallelRight{leafreddraw}}{output shard $Y_1$}};
+    \node[parallel exchange] (comm) at (0,-2.0) {optional all-gather of $Y_0,Y_1$};
+    \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
+    \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
+  \end{tikzpicture}
+  \par\vspace{10pt}
+  \begin{minipage}{.92\linewidth}\small\raggedright
+    \textbf{What changes?}     Devices cooperate on the \emph{same} tokens and hold different weight slices. Here $Y=[XW_0\;XW_1]$.
+  \end{minipage}\par\vspace{4pt}
+  {\scriptsize A following row-parallel layer can consume sharded outputs without an intermediate gather.}
+\end{frame}
 
 \begin{frame}{Column parallelism shards output features}
   Let $Y=XW$ and split $W$ by columns:
@@ -52,6 +76,32 @@
   \begin{block}{Local computation and collective}
     Each rank computes a partial replicated-shape output. An all-reduce sum produces the full $Y$ on every rank.
   \end{block}
+\end{frame}
+
+\begin{frame}{Follow a tensor-parallel MLP across two GPUs}
+  \centering
+  \ParallelLegend\par\vspace{4pt}
+  \begin{tikzpicture}[
+    every node/.style={font=\scriptsize,align=center},
+    op/.style={draw=themebluedraw,fill=themebluebg,sharp corners,thick,minimum width=3.6cm,minimum height=.60cm},
+    arr/.style={-{Stealth},thick,draw=themenavy}]
+    \node[font=\small\bfseries] at (-2.8,3.15) {GPU 0};
+    \node[font=\small\bfseries] at (2.8,3.15) {GPU 1};
+    \node[op] (a0) at (-2.8,2.45) {same input $X$ $\times$ \ParallelLeft{themenavy} $W_{1,0}$};
+    \node[op] (a1) at (2.8,2.45) {same input $X$ $\times$ \ParallelRight{themenavy} $W_{1,1}$};
+    \node[op] (h0) at (-2.8,1.45) {\ParallelLeft{leafreddraw} $H_0=\operatorname{GELU}(XW_{1,0})$};
+    \node[op] (h1) at (2.8,1.45) {\ParallelRight{leafreddraw} $H_1=\operatorname{GELU}(XW_{1,1})$};
+    \node[op] (z0) at (-2.8,.45) {\ParallelLeft{themenavy} $W_{2,0}$ $\to$ partial $Z_0$};
+    \node[op] (z1) at (2.8,.45) {\ParallelRight{themenavy} $W_{2,1}$ $\to$ partial $Z_1$};
+    \node[parallel exchange] (sum) at (0,-.65) {all-reduce sum: $Y=Z_0+Z_1$};
+    \draw[arr] (a0)--(h0); \draw[arr] (a1)--(h1);
+    \draw[arr] (h0)--(z0); \draw[arr] (h1)--(z1);
+    \draw[arr] (z0.south) -- (z0.south |- sum.north);
+    \draw[arr] (z1.south) -- (z1.south |- sum.north);
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \small Keep $H_0,H_1$ sharded between the two linear layers; sum the partial outputs before the residual add.
+  \par{\scriptsize Forward pass; biases omitted.}
 \end{frame}
 
 \begin{frame}{Column then row parallelism forms an efficient sandwich}
