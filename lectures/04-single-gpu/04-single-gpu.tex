@@ -102,6 +102,46 @@
   \smallsource{JAX Scaling Book, How to Think About GPUs}
 \end{frame}
 
+\begin{frame}{GEMM: the matrix multiplication behind our model}
+  \begin{block}{General matrix--matrix multiplication}
+    $C \leftarrow \alpha AB + \beta C$, with $A\in\mathbb{R}^{M\times K}$,
+    $B\in\mathbb{R}^{K\times N}$ and $C\in\mathbb{R}^{M\times N}$.
+    A plain matrix product is the case $\alpha=1,\ \beta=0$.
+  \end{block}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{In a Transformer}
+        Linear layers reshape $B\times T$ token vectors into rows: Q/K/V, attention output, MLP and vocabulary projections.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{In attention}
+        Per-head $QK^\top$ forms scores; $PV$ mixes values. These are batched matrix products around a softmax.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small GEMMs dominate much of the model's arithmetic; shape, dtype and data movement determine speed.
+\end{frame}
+
+\begin{frame}{Tensor Cores and the rest of the GPU}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.34\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}@{}}
+    \toprule
+    Unit & Typical work & Transformer examples \\
+    \midrule
+    Tensor Cores & Matrix-tile multiply--accumulate & Linear layers; attention products \\[5pt]
+    CUDA cores & General scalar / vector arithmetic & Residual adds; optimizer updates \\[5pt]
+    Other execution paths & Reductions and special functions & Norm statistics; softmax; GELU \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{These are typical mappings, not guarantees}
+    Kernels combine work across units. Tensor Core use depends on GPU, dtype, shapes and backend; non-matmul operations and HBM traffic still matter.
+  \end{alertblock}
+  \smallsource{NVIDIA, Matrix Multiplication Background; GPU Performance Background}
+\end{frame}
+
 \begin{frame}{Warps reward regular work}
   \begin{columns}[t]
     \begin{column}{0.47\linewidth}
@@ -249,20 +289,52 @@
   Idealized traffic: 8 versus 4 element transfers. Cache reuse, broadcasting and actual kernels change the result; measure the trace.
 \end{frame}
 
-\begin{frame}{FlashAttention changes traffic, not the attention equation}
-  Naive attention materializes the $T\times T$ score and probability matrices in HBM. FlashAttention tiles the computation and maintains online softmax statistics in SRAM.
+\begin{frame}{Why is attention difficult to run fast?}
+  \small
+  \[
+    S=QK^\top/\sqrt{d_h}\quad\longrightarrow\quad
+    P=\operatorname{softmax}(S+\text{mask})\quad\longrightarrow\quad O=PV
+  \]
+  \begin{itemize}
+    \setlength{\itemsep}{5pt}
+    \item The two matrix products can use fast matrix hardware; masking and row-wise softmax add reductions and elementwise work.
+    \item Writing and rereading $S$ and $P$, each $T\times T$ per head, costs quadratic storage and HBM traffic.
+    \item Irregular tiles, causal masking and limited on-chip memory complicate efficient GPU execution.
+  \end{itemize}
+  \begin{alertblock}{The target}
+    Preserve the attention result while moving fewer intermediates through HBM.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{FlashAttention: tile, fuse, and avoid the large intermediates}
   \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Naive path}
-        write scores\\read for softmax\\write probabilities\\read to multiply values
+    \begin{column}{.48\linewidth}
+      \begin{alertblock}{Straightforward attention}
+        $QK^\top$ $\to$ write scores\\[3pt]
+        softmax $\to$ write probabilities\\[3pt]
+        $PV$ $\to$ write output
       \end{alertblock}
     \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Tiled path}
-        load $Q,K,V$ blocks\\update exact softmax statistics\\write only the final output
+    \begin{column}{.48\linewidth}
+      \begin{block}{FlashAttention}
+        Load blocks of $Q,K,V$; compute score and value tiles; update online softmax statistics and partial outputs on chip.
       \end{block}
     \end{column}
   \end{columns}
+  \vfill
+  \small It avoids materializing the full $T\times T$ scores and probabilities in HBM; backward recomputes tiles using saved statistics. Dense attention still has quadratic arithmetic. Results can differ slightly from rounding.
+  \smallsource{Dao et al., FlashAttention (2022)}
+\end{frame}
+
+\begin{frame}{Using efficient attention in this course}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Module 1 implements $QK^\top$, masking, softmax and $PV$ explicitly.
+    \item In the GPU lab, switch to PyTorch \texttt{scaled\_dot\_product\_attention} (SDPA) and compare outputs and gradients.
+    \item SDPA selects an eligible backend; it may use FlashAttention, another fused kernel, or the math implementation.
+    \item Inspect the actual backend and profile the update: hardware, dtype, shapes and mask affect eligibility and performance.
+  \end{enumerate}
+  \smallsource{PyTorch SDPA documentation; Dao et al., FlashAttention (2022)}
 \end{frame}
 
 \checkpoint{roofline diagnosis}

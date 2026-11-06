@@ -83,6 +83,33 @@ Calling all of these pieces “GPU compute” hides the questions that matter:
 - Does the working set remain on chip or repeatedly travel to HBM?
 - Are many tiny kernels dominated by launch overhead?
 
+## GEMM and the operations in a Transformer
+
+**GEMM** means general matrix–matrix multiplication:
+
+\[
+C \leftarrow \alpha AB + \beta C,
+\quad A\in\mathbb{R}^{M\times K},\quad
+B\in\mathbb{R}^{K\times N},\quad C\in\mathbb{R}^{M\times N}.
+\]
+
+Ordinary `A @ B` is the case \(\alpha=1,\beta=0\). In the course GPT,
+linear projections flatten batch and token positions into rows: Q, K and V,
+the attention output projection, the two MLP projections, and the vocabulary
+head all involve matrix products. Attention also performs batched products
+\(QK^\top\) and \(PV\) per head. These operations account for much of the
+model's arithmetic, so their shape, dtype and implementation matter.
+
+Tensor Cores accelerate supported matrix-tile multiply–accumulate operations;
+general CUDA cores handle many scalar and vector instructions. Reductions and
+special-function paths also contribute to operations such as normalization,
+softmax and GELU. A kernel can combine several kinds of work, and matrix
+multiplication is not guaranteed to use Tensor Cores: dispatch depends on the
+GPU, precision, dimensions, layout and chosen backend. Similarly, avoiding a
+slow pointwise kernel or unnecessary memory traffic can matter even when most
+FLOPs belong to GEMMs. [NVIDIA's matrix multiplication guide](https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html)
+discusses tiling and shape effects.
+
 ## From thread to warp to SM
 
 CUDA exposes a hierarchy:
@@ -193,6 +220,31 @@ For \(A\in\mathbb{R}^{M\times K}\) and
 Larger matrices reuse each loaded element many times, raising arithmetic
 intensity. Small batch or token dimensions can leave the same linear layer
 bandwidth- or latency-bound even though its large-batch form is compute-bound.
+
+## Why attention needs a specialized implementation
+
+Scaled dot-product attention is
+\(P=\operatorname{softmax}(QK^\top/\sqrt{d_h}+\text{mask})\), followed by
+\(O=PV\). The two products are matrix operations, but masking and softmax add
+pointwise work and row-wise reductions. A straightforward implementation also
+materializes the \(T\times T\) scores and probabilities for each head. Writing
+and rereading those intermediates costs HBM bandwidth and grows quadratically
+with sequence length. Causal masking and limited on-chip storage add further
+implementation constraints.
+
+[FlashAttention](https://arxiv.org/abs/2205.14135) computes blocks of scores
+and value products while maintaining online softmax statistics and partial
+outputs in on-chip memory. It avoids writing the complete score and probability
+matrices to HBM; during backward it recomputes tiles using saved statistics. It
+computes the same dense attention mathematically, up to floating-point rounding:
+the dense arithmetic still grows quadratically with sequence length. Its benefit
+comes from reducing data movement, not from making attention sparse or linear.
+
+In the lab, `torch.nn.functional.scaled_dot_product_attention` (SDPA) provides
+an API that can select FlashAttention or another backend when eligible. It does
+not promise a particular implementation for every GPU, dtype, shape or mask;
+inspect the selected path and compare results and timings. See the
+[PyTorch SDPA documentation](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html).
 
 ## Training memory: what occupies VRAM?
 
