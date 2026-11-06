@@ -338,11 +338,30 @@ The model receives integer token IDs with shape `B × T`: batch size by sequence
 length. An embedding table maps each token to a vector of width `d_model`, giving
 `X ∈ B × T × d_model`.
 
-Attention alone does not know whether a token came first or last. The original
-Transformer adds sinusoidal position vectors. GPT-2 learns absolute position
-embeddings, while many newer LLMs apply rotary position embeddings inside
-attention. For the first implementation, the important invariant is simply that
-token content and position both reach the block.
+Without positional information or a position-dependent mask, self-attention is
+**permutation equivariant**: permuting the input permutes its output in the same
+way. A causal mask changes the situation: each token sees a different prefix,
+so changing token order changes the permitted interactions. In a stack of
+causal layers, contextualized earlier tokens can carry order information even
+without explicit position embeddings. This does not mean every sequence is
+guaranteed to be distinguishable; see [Haviv et al. (2022)](https://aclanthology.org/2022.findings-emnlp.99/).
+
+Explicit position representations provide an additional signal. The original
+Transformer adds sinusoidal position vectors; GPT-2 learns absolute position
+embeddings; and many newer LLMs apply rotary position embeddings inside
+attention. For our GPT-2 implementation, token and position embeddings are
+added before entering the first block.
+
+The original Transformer uses fixed sinusoidal absolute position vectors. For
+position $p$, feature-pair index $i$, and model width $d$:
+
+$$
+\operatorname{PE}(p,2i)=\sin\!\left(\frac{p}{10000^{2i/d}}\right),\qquad
+\operatorname{PE}(p,2i+1)=\cos\!\left(\frac{p}{10000^{2i/d}}\right).
+$$
+
+Each feature pair varies at its own frequency. Unlike these fixed sinusoids,
+GPT-2's absolute position vectors are learned.
 
 ## Scaled dot-product attention
 

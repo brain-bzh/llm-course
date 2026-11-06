@@ -27,9 +27,9 @@
 \begin{frame}{The workload we already built}
   \begin{center}
     \begin{tikzpicture}[
-      every node/.style={font=\small,align=center},
-      box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=2.3cm,minimum height=.75cm,thick},
-      arr/.style={-{Stealth},thick,draw=accentdark}]
+        every node/.style={font=\small,align=center},
+        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=2.3cm,minimum height=.75cm,thick},
+      arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
       \node[box] (batch) at (0,0) {token\\batch};
       \node[box] (fw) at (2.9,0) {GPT\\forward};
       \node[box] (loss) at (5.8,0) {next-token\\loss};
@@ -63,7 +63,7 @@
 
 \begin{frame}{What happens when PyTorch runs on CUDA?}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item CPU prepares a batch and issues PyTorch operations.
     \item Tensors are copied to the device when needed; GPU-resident weights and activations stay in device memory.
     \item The CPU enqueues GPU kernels; the GPU executes them asynchronously.
@@ -88,14 +88,14 @@
       \end{itemize}
     \end{column}
     \begin{column}{0.42\linewidth}
-      \begin{tikzpicture}[node distance=.28cm,every node/.style={font=\scriptsize},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.5cm,minimum height=.52cm}]
+      \begin{tikzpicture}[node distance=.48cm,every node/.style={font=\scriptsize},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.5cm,minimum height=.46cm}]
         \node[box] (grid) {kernel grid};
         \node[box,below=of grid] (block) {thread blocks};
         \node[box,fill=warningbg,draw=warningdraw,below=of block] (warp) {warps};
         \node[box,fill=successbg,draw=successdraw,below=of warp] (sm) {SM execution units};
-        \draw[-{Stealth},thick] (grid)--(block);
-        \draw[-{Stealth},thick] (block)--(warp);
-        \draw[-{Stealth},thick] (warp)--(sm);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (grid)--(block);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (block)--(warp);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (warp)--(sm);
       \end{tikzpicture}
     \end{column}
   \end{columns}
@@ -203,8 +203,8 @@
       \begin{tikzpicture}[x=.72cm,y=.72cm,every node/.style={font=\scriptsize}]
         \fill[themebluebg] (0,0)--(4.4,4.2)--(4.4,0)--cycle;
         \fill[warningbg] (4.4,0)--(4.4,4.2)--(9.2,4.2)--(9.2,0)--cycle;
-        \draw[-{Stealth},thick] (0,0)--(9.55,0);
-        \draw[-{Stealth},thick] (0,0)--(0,4.65) node[above,rotate=90,anchor=south east]{attained FLOP/s};
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(9.55,0);
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.65) node[above,rotate=90,anchor=south east]{attained FLOP/s};
         \draw[very thick,themebluedraw] (0,0)--(4.4,4.2);
         \draw[very thick,warningdraw] (4.4,4.2)--(9.2,4.2);
         \draw[dashed,neutraldark] (4.4,0)--(4.4,4.2);
@@ -296,7 +296,7 @@
     P=\operatorname{softmax}(S+\text{mask})\quad\longrightarrow\quad O=PV
   \]
   \begin{itemize}
-    \setlength{\itemsep}{5pt}
+      \setlength{\itemsep}{5pt}
     \item The two matrix products can use fast matrix hardware; masking and row-wise softmax add reductions and elementwise work.
     \item Writing and rereading $S$ and $P$, each $T\times T$ per head, costs quadratic storage and HBM traffic.
     \item Irregular tiles, causal masking and limited on-chip memory complicate efficient GPU execution.
@@ -328,7 +328,7 @@
 
 \begin{frame}{Using efficient attention in this course}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Module 1 implements $QK^\top$, masking, softmax and $PV$ explicitly.
     \item In the GPU lab, switch to PyTorch \texttt{scaled\_dot\_product\_attention} (SDPA) and compare outputs and gradients.
     \item SDPA selects an eligible backend; it may use FlashAttention, another fused kernel, or the math implementation.
@@ -417,7 +417,7 @@
 
 \begin{frame}{What does \texttt{torch.compile} do?}
   \begin{enumerate}
-    \setlength{\itemsep}{6pt}
+      \setlength{\itemsep}{6pt}
     \item Wrap a model or function: \texttt{compiled = torch.compile(model)}.
     \item On execution, TorchDynamo captures supported PyTorch operations in graphs with guards on assumptions such as shapes.
     \item For training, PyTorch captures forward and backward regions. The default TorchInductor backend generates optimized code, potentially fusing operations.
@@ -492,7 +492,7 @@
 
 \begin{frame}{Lab: measure one change in a GPT update}
   \begin{enumerate}
-    \setlength{\itemsep}{5pt}
+      \setlength{\itemsep}{5pt}
     \item Start with manual FP32 attention; form a bottleneck hypothesis.
     \item Verify the SDPA path exists and compare outputs and gradients before timing it.
     \item Compare supported BF16 or compiled execution against the matching eager baseline.

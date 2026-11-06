@@ -28,10 +28,10 @@
   \begin{tikzpicture}
     \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
       {\ParallelFull{themenavy}}{same layer weights $\theta$}
-      {\ParallelLeft{leafreddraw}}{tokens 0 $\to Q_0,K_0,V_0$}};
+    {\ParallelLeft{leafreddraw}}{tokens 0 $\to Q_0,K_0,V_0$}};
     \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
       {\ParallelFull{themenavy}}{same layer weights $\theta$}
-      {\ParallelRight{leafreddraw}}{tokens 1 $\to Q_1,K_1,V_1$}};
+    {\ParallelRight{leafreddraw}}{tokens 1 $\to Q_1,K_1,V_1$}};
     \node[parallel exchange] (comm) at (0,-2.0) {attention: exchange key/value blocks};
     \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
     \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
@@ -83,10 +83,10 @@
     \node[rank] (r1) at (9.0,2.0) {\textbf{$Q_1$ fixed}\\\color{warningdraw}$KV_1$ moves};
     \node[rank] (r2) at (5.4,.3) {\textbf{$Q_2$ fixed}\\\color{accentvioletdraw}$KV_2$ moves};
     \node[rank] (r3) at (1.8,2.0) {\textbf{$Q_3$ fixed}\\\color{leafreddraw}$KV_3$ moves};
-    \draw[-{Stealth},very thick,themebluedraw] (r0)--(r1);
-    \draw[-{Stealth},very thick,themebluedraw] (r1)--(r2);
-    \draw[-{Stealth},very thick,themebluedraw] (r2)--(r3);
-    \draw[-{Stealth},very thick,themebluedraw] (r3)--(r0);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r0)--(r1);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r1)--(r2);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r2)--(r3);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r3)--(r0);
     \node[draw=successdraw,fill=successbg,rounded corners,align=center,minimum width=3.1cm,minimum height=.9cm,font=\scriptsize\bfseries] at (5.4,2.0) {update online softmax\\state $(m,\ell,o)$};
     \node[text=accentdark,font=\small\bfseries] at (5.4,-.65) {after $C$ rounds: every $Q_r$ has seen all $KV$ blocks};
   \end{tikzpicture}
@@ -151,14 +151,14 @@
 
 \begin{frame}{Pipeline parallelism assigns layer ranges to stages}
   \begin{center}
-    \begin{tikzpicture}[node distance=.30cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,align=center,minimum width=2.3cm,minimum height=.7cm}]
+    \begin{tikzpicture}[node distance=.55cm,every node/.style={font=\small},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,align=center,minimum width=2.2cm,minimum height=.7cm}]
       \node[box] (s0) {stage 0\\ layers 0--5};
       \node[box,right=of s0] (s1) {stage 1\\ layers 6--11};
       \node[box,right=of s1] (s2) {stage 2\\ layers 12--17};
       \node[box,right=of s2] (s3) {stage 3\\ layers 18--23};
-      \draw[-{Stealth},thick] (s0)--(s1);
-      \draw[-{Stealth},thick] (s1)--(s2);
-      \draw[-{Stealth},thick] (s2)--(s3);
+      \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (s0)--(s1);
+      \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (s1)--(s2);
+      \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (s2)--(s3);
     \end{tikzpicture}
   \end{center}
   \begin{block}{Why micro-batches?}

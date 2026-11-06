@@ -37,11 +37,11 @@
 
     \node[distribution] (dist) at (7.9,0) {\textbf{Top continuations}\\[2pt] \textbf{soup} \hfill \textbf{40\%}\\ sauce \hfill 27\%\\ steak \hfill 17\%\\ other \hfill 16\%};
 
-    \draw[-{Stealth},thick,neutraldark] (t4.east) -- (dist.west);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (t4.east) -- (dist.west);
 
     \node[newtok] (t5) at (6.35,-2.5) {soup};
-    \draw[-{Stealth},thick,accentdarkdraw] (dist.south) |- (t5.east) node[pos=0.35,right=4pt,font=\scriptsize\bfseries,text=accentdark] {pick token};
-    \draw[-{Stealth},thick,accentdarkdraw,dashed] (t5.west) -| (t4.south) node[pos=0.62,left=5pt,font=\scriptsize\bfseries,text=accentdark] {3. append \& repeat};
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,accentdarkdraw] (dist.south) |- (t5.east) node[pos=0.35,right=4pt,font=\scriptsize\bfseries,text=accentdark] {pick token};
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,accentdarkdraw,dashed] (t5.west) -| (t4.south) node[pos=0.62,left=5pt,font=\scriptsize\bfseries,text=accentdark] {3. append \& repeat};
   \end{tikzpicture}
   \vfill
   \small At every step, use the prefix to score the vocabulary $\mathcal{V}$, append one token, and repeat.\\[4pt]
@@ -97,14 +97,14 @@
         \node[output] (p1) at (0,2.36) {$P(x_2)$};
         \node[output] (p2) at (1.9,2.36) {$P(x_3)$};
         \node[output] (p3) at (3.8,2.36) {$P(x_4)$};
-        \draw[-{Stealth},thick,neutraldark] (x1)--(h1);
-        \draw[-{Stealth},thick,neutraldark] (x2)--(h2);
-        \draw[-{Stealth},thick,neutraldark] (x3)--(h3);
-        \draw[-{Stealth},thick,neutraldark] (h1)--(p1);
-        \draw[-{Stealth},thick,neutraldark] (h2)--(p2);
-        \draw[-{Stealth},thick,neutraldark] (h3)--(p3);
-        \draw[-{Stealth},very thick,leafreddraw] (h1)--(h2);
-        \draw[-{Stealth},very thick,leafreddraw] (h2)--(h3);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (x1)--(h1);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (x2)--(h2);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (x3)--(h3);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (h1)--(p1);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (h2)--(p2);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (h3)--(p3);
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (h1)--(h2);
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (h2)--(h3);
       \end{tikzpicture}
       \par\vspace{10pt}
       \footnotesize $h_t = f(h_{t-1}, x_t)$: step $t$ waits on step $t-1$.
@@ -128,15 +128,15 @@
         \node[output] (q1) at (0,2.36) {$P(x_2)$};
         \node[output] (q2) at (1.9,2.36) {$P(x_3)$};
         \node[output] (q3) at (3.8,2.36) {$P(x_4)$};
-        \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a1.south);
-        \draw[-{Stealth},thin,inkmuted!70] (u1.north)--(a2.south);
-        \draw[-{Stealth},thin,inkmuted!70] (u2.north)--(a2.south);
-        \draw[-{Stealth},thick,themeteal] (u1.north)--(a3.south);
-        \draw[-{Stealth},thick,themeteal] (u2.north)--(a3.south);
-        \draw[-{Stealth},thick,themeteal] (u3.north)--(a3.south);
-        \draw[-{Stealth},thick,neutraldark] (a1)--(q1);
-        \draw[-{Stealth},thick,neutraldark] (a2)--(q2);
-        \draw[-{Stealth},thick,neutraldark] (a3)--(q3);
+        \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted!70] (u1.north)--(a1.south);
+        \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted!70] (u1.north)--(a2.south);
+        \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted!70] (u2.north)--(a2.south);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,themeteal] (u1.north)--(a3.south);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,themeteal] (u2.north)--(a3.south);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,themeteal] (u3.north)--(a3.south);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (a1)--(q1);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (a2)--(q2);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (a3)--(q3);
       \end{tikzpicture}
       \par\vspace{10pt}
       \footnotesize No $h_{t-1}\to h_t$ wait: every position gathers $x_{\le t}$ directly via attention in one pass.
@@ -149,27 +149,27 @@
 \begin{frame}{The whole model, at a glance}
   \centering
   \begin{tikzpicture}[
-      x=0.95cm,
+      x=0.98cm,
       every node/.style={font=\footnotesize,align=center},
-      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=1.75cm,minimum width=1.85cm,minimum height=0.74cm},
-      block/.style={draw=leafreddraw,fill=leafredbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=0.74cm},
-      head/.style={draw=warningdraw,fill=warningbg,rounded corners,text width=1.75cm,minimum width=1.85cm,minimum height=0.74cm},
-      prob/.style={draw=successdraw,fill=successbg,rounded corners,text width=1.85cm,minimum width=1.95cm,minimum height=0.74cm}
+      stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=1.55cm,minimum width=1.65cm,minimum height=0.68cm,inner sep=2pt},
+      block/.style={draw=leafreddraw,fill=leafredbg,rounded corners,text width=1.65cm,minimum width=1.75cm,minimum height=0.68cm,inner sep=2pt},
+      head/.style={draw=warningdraw,fill=warningbg,rounded corners,text width=1.55cm,minimum width=1.65cm,minimum height=0.68cm,inner sep=2pt},
+      prob/.style={draw=successdraw,fill=successbg,rounded corners,text width=1.65cm,minimum width=1.75cm,minimum height=0.68cm,inner sep=2pt}
     ]
     \node[stage] (text) at (0,0) {Token IDs\footnotemark\\[0pt]{\scriptsize $T$}};
-    \node[stage,draw=themebluedraw,fill=themebluecard] (tokens) at (2.4,0) {Embeddings\\[0pt]{\scriptsize $T \times d$}};
-    \node[block] (decoder) at (4.8,0) {Transformer\\blocks ($\times N$)\\[0pt]{\scriptsize $T \times d$}};
-    \node[head] (logits) at (7.2,0) {LM head\\logits\\[0pt]{\scriptsize $T \times V$}};
-    \node[prob] (probs) at (9.6,0) {Next-token\\probs\\[0pt]{\scriptsize $T \times V$}};
+    \node[stage,draw=themebluedraw,fill=themebluecard] (tokens) at (2.5,0) {Embeddings\\[0pt]{\scriptsize $T \times d$}};
+    \node[block] (decoder) at (5.0,0) {Transformer\\blocks ($\times N$)\\[0pt]{\scriptsize $T \times d$}};
+    \node[head] (logits) at (7.5,0) {LM head\\logits\\[0pt]{\scriptsize $T \times V$}};
+    \node[prob] (probs) at (10.0,0) {Next-token\\probs\\[0pt]{\scriptsize $T \times V$}};
 
-    \draw[-{Stealth},thick,neutraldark] (text)--(tokens);
-    \draw[-{Stealth},thick,neutraldark] (tokens)--(decoder);
-    \draw[-{Stealth},thick,neutraldark] (decoder)--(logits);
-    \draw[-{Stealth},thick,neutraldark] (logits)--(probs);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (text)--(tokens);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (tokens)--(decoder);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (decoder)--(logits);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (logits)--(probs);
   \end{tikzpicture}
   \footnotetext{For now, 1 token = 1 word.}
 
-  \vspace{1pt}
+  \vspace{-2pt}
   \begin{columns}[T]
     \begin{column}{0.31\linewidth}
       \begin{coursebox}{themeblue}{1. Embed}
@@ -210,7 +210,7 @@
       spacebox/.style={rounded corners=3pt, inner sep=2.5pt, minimum height=1.86cm}
     ]
     % Panel 1: Token ID Space
-    \node[spacebox, draw=themebluedraw, fill=themebluebg, text width=3.2cm] (idbox) at (0,0) {
+    \node[spacebox, draw=themebluedraw, fill=themebluebg, text width=2.85cm] (idbox) at (0,0) {
       \textbf{\textcolor{themenavy}{Token ID space}}\\[1pt]
       \tiny Discrete indices $\in \{0, \dots, V-1\}$\\[2pt]
       \scriptsize
@@ -228,7 +228,7 @@
     };
 
     % Panel 2: Vocabulary Space
-    \node[spacebox, draw=warningdraw, fill=warningbg, text width=3.3cm] (vocabbox) at (4.0,0) {
+    \node[spacebox, draw=warningdraw, fill=warningbg, text width=2.95cm] (vocabbox) at (4.2,0) {
       \textbf{\textcolor{signaldark}{Vocabulary space}}\\[1pt]
       \tiny Embedding table $W_E \in \mathbb{R}^{V \times d}$\\[2pt]
       \scriptsize
@@ -245,7 +245,7 @@
     };
 
     % Panel 3: Latent Space
-    \node[spacebox, draw=successdraw, fill=successbg, text width=3.2cm] (latentbox) at (8.0,0) {
+    \node[spacebox, draw=successdraw, fill=successbg, text width=2.85cm] (latentbox) at (8.4,0) {
       \textbf{\textcolor{successgreen}{Latent space}}\\[1pt]
       \tiny Continuous vectors in $\mathbb{R}^d$\\[2pt]
       \scriptsize
@@ -263,13 +263,13 @@
     };
 
     % Connecting arrows
-    \draw[-{Stealth},very thick,signaldark] (idbox.east) -- (vocabbox.west)
-    node[pos=0.5,above=1pt,font=\tiny\bfseries] {index}
-    node[pos=0.5,below=1pt,font=\tiny] {$\text{row } x_t$};
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick,signaldark] (idbox.east) -- (vocabbox.west)
+    node[pos=0.5,above=2pt,font=\tiny\bfseries] {index}
+    node[pos=0.5,below=2pt,font=\tiny] {$\text{row } x_t$};
 
-    \draw[-{Stealth},very thick,themeteal] (vocabbox.east) -- (latentbox.west)
-    node[pos=0.5,above=1pt,font=\tiny\bfseries] {extract}
-    node[pos=0.5,below=1pt,font=\tiny] {$W_E[x_t, :]$};
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick,themeteal] (vocabbox.east) -- (latentbox.west)
+    node[pos=0.5,above=2pt,font=\tiny\bfseries] {extract}
+    node[pos=0.5,below=2pt,font=\tiny] {$W_E[x_t, :]$};
   \end{tikzpicture}
 
   \vspace{2pt}
@@ -296,9 +296,9 @@
     \node[tok] (t3) at (5.0,0) {\texttt{seasoned}\\$x_3$};
     \node[cur] (t4) at (7.5,0) {\texttt{the}\\$x_4$ (query)};
 
-    \draw[-{Stealth},thin,inkmuted] (t4.north) to[bend right=45] node[pos=0.55,above=1pt,font=\tiny] {low relevance} (t1.north);
-    \draw[-{Stealth},very thick,leafreddraw] (t4.north) to[bend right=35] node[pos=0.52,above=1pt,font=\scriptsize\bfseries,text=signaldark] {who? (high weight)} (t2.north);
-    \draw[-{Stealth},very thick,leafreddraw] (t4.north) to[bend right=25] node[pos=0.5,above=1pt,font=\scriptsize\bfseries,text=signaldark] {did what?} (t3.north);
+    \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted] (t4.north) to[bend right=45] node[pos=0.55,above=1pt,font=\tiny] {low relevance} (t1.north);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (t4.north) to[bend right=35] node[pos=0.52,above=1pt,font=\scriptsize\bfseries,text=signaldark] {who? (high weight)} (t2.north);
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (t4.north) to[bend right=25] node[pos=0.5,above=1pt,font=\scriptsize\bfseries,text=signaldark] {did what?} (t3.north);
   \end{tikzpicture}
   \vfill
   \begin{block}{The goal of self-attention}
@@ -315,18 +315,18 @@
   \vspace{-2pt}
   \centering
   \begin{tikzpicture}[
-      x=0.92cm,
+      x=0.96cm,
       every node/.style={font=\scriptsize,align=center},
-      stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.25cm,minimum height=1.05cm}
+      stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.20cm,inner sep=1.5pt,minimum height=1.05cm}
     ]
     \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top / \sqrt{d_k}$\\[1pt]\textcolor{inkmuted}{scaled similarity}};
-    \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (2.95,0) {\textbf{2. Causal mask}\\$S + M$\\[1pt]\textcolor{signaldark}{hide future $j > i$}};
-    \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (5.9,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[1pt]\textcolor{accentdark}{row weights $\sum = 1$}};
-    \node[stepbox,draw=successdraw,fill=successbg] (s4) at (8.85,0) {\textbf{4. Mix values}\\$O = AV$\\[1pt]\textcolor{successgreen}{contextual states}};
+    \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (3.05,0) {\textbf{2. Causal mask}\\$S + M$\\[1pt]\textcolor{signaldark}{hide future $j > i$}};
+    \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (6.10,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[1pt]\textcolor{accentdark}{row weights $\sum = 1$}};
+    \node[stepbox,draw=successdraw,fill=successbg] (s4) at (9.15,0) {\textbf{4. Mix values}\\$O = AV$\\[1pt]\textcolor{successgreen}{contextual states}};
 
-    \draw[-{Stealth},thick,neutraldark] (s1)--(s2);
-    \draw[-{Stealth},thick,neutraldark] (s2)--(s3);
-    \draw[-{Stealth},thick,neutraldark] (s3)--(s4);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (s1)--(s2);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (s2)--(s3);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (s3)--(s4);
   \end{tikzpicture}
   \vspace{3pt}
   \begin{alertblock}{Why divide by $\sqrt{d_k}$? Preserving gradient flow}
@@ -417,7 +417,7 @@
     every node/.style={font=\scriptsize,align=center},
     box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.55cm,thick},
     head/.style={draw=accentdarkdraw,fill=accentdarkbg,rounded corners=3pt,minimum width=2.4cm,minimum height=.46cm,thick},
-    arr/.style={-{Stealth},thick,draw=neutraldark}]
+    arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=neutraldark}]
     \node[font=\footnotesize\bfseries,anchor=west] at (-.1,2.9) {One head: width $d$};
     \node[box,minimum width=2.5cm] (singlein) at (1.25,2.0) {$Q,K,V$\\$T\times d$};
     \node[head,minimum width=3.2cm] (single) at (5.1,2.0) {one attention\\$T\times d\;\to\;T\times d$};
@@ -431,8 +431,8 @@
     \node[head] (h4) at (5.1,-.95) {head 4: $T\times d_k$};
     \node[box,minimum width=2.8cm,minimum height=1.4cm] (multiout) at (9.35,-.12) {concatenate\\$T\times d$};
     \foreach \h in {1,2,3,4} {
-      \draw[arr] (multiin.east) -- ++(.25,0) |- (h\h.west);
-      \draw[arr] (h\h.east) -| ([xshift=-.25cm]multiout.west) -- (multiout.west);
+      \draw[arr] (multiin.east) -- ++(.70,0) |- (h\h.west);
+      \draw[arr] (h\h.east) -| ([xshift=-.82cm]multiout.west) -- (multiout.west);
     }
   \end{tikzpicture}
   \vspace{2pt}
@@ -450,7 +450,7 @@
     \begin{tikzpicture}[
       every node/.style={font=\small,align=center},
       box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.8cm,minimum width=3.1cm,thick},
-      arr/.style={-{Stealth},thick,draw=neutraldark}]
+      arr/.style={-{Stealth[length=4.5pt,width=3.2pt]},thick,draw=neutraldark}]
       \node[box] (q) at (0,0) {$B\times T\times d$};
       \node[box] (split) at (4.0,0) {$B\times T\times h\times d_k$};
       \node[box,draw=accentdarkdraw,fill=accentdarkbg] (swap) at (8.0,0) {$B\times h\times T\times d_k$};
@@ -488,34 +488,66 @@
   {\scriptsize Dense products; two FLOPs per multiply-add. Excludes masking, softmax and biases. Causal kernels may skip work and avoid materializing scores.}
 \end{frame}
 
-\begin{frame}{Wait---attention alone is blind to token order!}
+\begin{frame}{What does the causal mask reveal about order?}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Without a mask or positions}
+        Self-attention is \textbf{permutation equivariant}: reordering the input reorders its outputs in the same way.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{With a causal mask}
+        Each token sees a different prefix. Reordering tokens changes who can see whom, even without explicit positional embeddings.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering\small
+  \begin{tabular}{lll}
+    \toprule
+    Sequence & History visible to $A$ & History visible to $B$ \\
+    \midrule
+    $A\ B\ C$ & $A$ & $A, B$ \\
+    $B\ A\ C$ & $B, A$ & $B$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \footnotesize Earlier token representations can therefore differ; a later layer can use them to distinguish the two orders.
+  \smallsource{Haviv et al. (2022); Irie (2025)}
+\end{frame}
+
+\begin{frame}{Explicit position information in GPT-2 and beyond}
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
-      \begin{alertblock}{Permutation problem}
-        \small Dot products $q_i^\top k_j$ depend only on token vectors, not their indices. Without positions, attention treats the prefix like an unordered \textbf{bag of words}.
-      \end{alertblock}
-      \begin{block}{Solution: Positional Encoding (PE)}
-        \small Inject position information so identical words at different positions have distinct vectors:
-        \par\vspace{2pt}
-        \centering $X_0 = W_E[\text{ids}] + P_{0:T} \quad\in\mathbb{R}^{B\times T\times d}$
-        \par\vspace{2pt}\raggedright\scriptsize
-        \textbf{GPT-2}: learned $W_{pe} \in \mathbb{R}^{T_{\max}\times d}$. \textbf{Modern LLMs}: RoPE rotates $Q, K$ by relative distance.
+      \begin{block}{Add an explicit positional signal}
+        \footnotesize GPT-2 adds learned position vectors to token embeddings:
+        \[X_0 = W_E[\text{ids}] + P_{0:T}.\]
+        Many modern LLMs apply RoPE to $Q$ and $K$ instead.
       \end{block}
+      \footnotesize The causal mask itself also provides order information.
     \end{column}
     \begin{column}{0.42\linewidth}
       \centering
-      \begin{tikzpicture}[node distance=0.34cm, every node/.style={font=\small}]
-        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.60cm] (ids) {Token IDs ($B\times T$)};
-        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.60cm] (tok) {Token vectors $W_E[\text{ids}]$};
-        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.2cm,minimum height=.60cm] (pos) {$+$ Position vectors $P_{0:T}$};
-        \node[draw=successdraw,fill=successbg,rounded corners,below=of pos,minimum width=3.2cm,minimum height=.60cm] (x) {$X_0$: residual stream};
-        \draw[-{Stealth},thick] (ids)--(tok);
-        \draw[-{Stealth},thick] (tok)--(pos);
-        \draw[-{Stealth},thick] (pos)--(x);
+      \begin{tikzpicture}[node distance=0.48cm, every node/.style={font=\footnotesize}]
+        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.2cm,minimum height=.48cm] (ids) {Token IDs ($B\times T$)};
+        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of ids,minimum width=3.2cm,minimum height=.48cm] (tok) {Token vectors $W_E[\text{ids}]$};
+        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.2cm,minimum height=.48cm] (pos) {$+$ Position vectors $P_{0:T}$};
+        \node[draw=successdraw,fill=successbg,rounded corners,below=of pos,minimum width=3.2cm,minimum height=.48cm] (x) {$X_0$: residual stream};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (ids)--(tok);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (tok)--(pos);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (pos)--(x);
       \end{tikzpicture}
     \end{column}
   \end{columns}
-  \smallsource{Vaswani et al. (2017); Radford et al. (2019); Su et al. (2021, RoPE)}
+  \vspace{2pt}
+  \begin{block}{Original Transformer: fixed sinusoidal positions}
+    \footnotesize For position $p$ and feature pair $2i,2i+1$ ($d=d_{\rm model}$):
+    \[
+      \operatorname{PE}(p,2i)=\sin\!\left(\frac{p}{10000^{2i/d}}\right),\qquad
+      \operatorname{PE}(p,2i+1)=\cos\!\left(\frac{p}{10000^{2i/d}}\right).
+    \]
+  \end{block}
+  \smallsource{Vaswani et al. (2017); Radford et al. (2019); Su et al. (2021)}
 \end{frame}
 
 \section{The Transformer block}
@@ -526,25 +558,43 @@
       \centering
       \begin{tikzpicture}[scale=.78,transform shape,
         every node/.style={font=\scriptsize,align=center},
-        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum width=2.9cm,minimum height=.54cm,thick},
-        add/.style={draw=successdraw,fill=successbg,circle,minimum size=.55cm,inner sep=0pt,thick,font=\small\bfseries},
-        flow/.style={-{Stealth},thick,draw=themenavy},
-        skip/.style={-{Stealth},very thick,draw=leafreddraw}]
-        \node[box] (x) at (0,5.35) {input $X$};
-        \node[box] (n1) at (0,4.45) {LayerNorm 1};
-        \node[box] (attn) at (0,3.60) {causal multi-head attention};
-        \node[add] (add1) at (0,2.75) {$+$};
-        \node[box] (n2) at (0,1.90) {LayerNorm 2};
-        \node[box] (mlp) at (0,1.05) {per-token MLP};
-        \node[add] (add2) at (0,.20) {$+$};
-        \node[box] (out) at (0,-.70) {output $X''$};
-        \draw[flow] (x)--(n1); \draw[flow] (n1)--(attn); \draw[flow] (attn)--(add1);
-        \draw[flow] (add1)--(n2); \draw[flow] (n2)--(mlp); \draw[flow] (mlp)--(add2); \draw[flow] (add2)--(out);
-        \draw[skip] (0,4.95)--(-1.95,4.95)--(-1.95,2.75)--(add1.west);
-        \draw[skip] (0,2.35)--(1.95,2.35)--(1.95,.20)--(add2.east);
-        \node[anchor=east,text=leafreddraw,font=\scriptsize] at (-2.0,3.85) {$X$};
-        \node[anchor=west,text=leafreddraw,font=\scriptsize] at (2.0,1.28) {$X'$};
-        \node[anchor=east,font=\scriptsize] at (-.18,2.35) {$X'$};
+        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum width=2.9cm,minimum height=.48cm,thick},
+        add/.style={draw=successdraw,fill=successbg,circle,minimum size=.48cm,inner sep=0pt,thick,font=\small\bfseries},
+        flow/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy},
+        skip/.style={-{Stealth[length=4pt,width=3pt]},very thick,draw=leafreddraw}]
+        \node[box] (x) at (0,6.0) {input $X$};
+        \node[box] (n1) at (0,4.95) {LayerNorm 1};
+        \node[box] (attn) at (0,3.90) {causal multi-head attention};
+        \node[add] (add1) at (0,2.85) {$+$};
+        \node[box] (n2) at (0,1.80) {LayerNorm 2};
+        \node[box] (mlp) at (0,0.75) {per-token MLP};
+        \node[add] (add2) at (0,-0.30) {$+$};
+        \node[box] (out) at (0,-1.35) {output $X''$};
+
+        % Main flow
+        \draw[flow] (x)--(n1);
+        \draw[flow] (n1)--(attn);
+        \draw[flow] (attn)--(add1);
+        \draw[flow] (add1)--(n2);
+        \draw[flow] (n2)--(mlp);
+        \draw[flow] (mlp)--(add2);
+        \draw[flow] (add2)--(out);
+
+        % Branch points
+        \coordinate (b1) at (0,5.50);
+        \coordinate (b2) at (0,2.35);
+        \fill[leafreddraw] (b1) circle (1.5pt);
+        \fill[leafreddraw] (b2) circle (1.5pt);
+
+        % Residual skips
+        \draw[skip,rounded corners=5pt] (b1) -- (-2.15,5.50) -- (-2.15,2.85) -- (add1.west);
+        \draw[skip,rounded corners=5pt] (b2) -- (2.15,2.35) -- (2.15,-0.30) -- (add2.east);
+
+        % Labels
+        \node[anchor=east,text=leafreddraw,font=\scriptsize\bfseries] at (-2.22,4.20) {$X$};
+        \node[anchor=west,text=leafreddraw,font=\scriptsize\bfseries] at (2.22,1.05) {$X'$};
+        \node[anchor=west,text=themenavy,font=\scriptsize] at (0.15,5.50) {$X$};
+        \node[anchor=east,text=themenavy,font=\scriptsize] at (-0.15,2.35) {$X'$};
       \end{tikzpicture}
     \end{column}
     \begin{column}{.49\linewidth}
@@ -780,7 +830,7 @@
 
 \takeaways
 {Next-token prediction factorizes sequence probability; removing the $h_{t-1}\to h_t$ dependency makes training inherently parallel across positions on GPUs.}
-{Causal multi-head attention routes information across tokens ($1/3$ of params), while positional encodings supply token order.}
+{Causal multi-head attention routes information across tokens ($1/3$ of params), while the causal mask and position representations supply order information.}
 {A pre-norm Transformer block pairs cross-token attention with a per-token $4d$ MLP ($2/3$ of params) along a clean residual highway.}
 {Shape invariants, causality perturbation tests, and exact GPT-2 checkpoint parity verify the model before we train it in Module 2.}
 

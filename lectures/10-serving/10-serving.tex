@@ -74,11 +74,11 @@
     \node[token,draw=successdraw,fill=successbg] at (6.1,2.25) {$\checkmark$};
     \node[token,draw=alertdraw,fill=alertbg] at (6.8,2.25) {$\times$};
     \node[stage,draw=successdraw,fill=successbg,minimum width=2.5cm] (commit) at (9.15,2.4) {commit $d_1,d_2$\\+ correction};
-    \draw[-{Stealth},thick] (ctx)--(d1);
-    \draw[-{Stealth},thick] (draft.south)--(d2.north);
-    \draw[-{Stealth},thick] (d3)--(5.1,2.25);
-    \draw[-{Stealth},thick] (target.south)--(6.1,2.55);
-    \draw[-{Stealth},thick] (7.15,2.25)--(commit);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (ctx)--(d1);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (draft.south)--(d2.north);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (d3)--(5.1,2.25);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (target.south)--(6.1,2.55);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (7.15,2.25)--(commit);
     \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=8.4cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries] at (5.4,.75)
     {speedup needs high acceptance, cheap drafting, and efficient block verification};
   \end{tikzpicture}

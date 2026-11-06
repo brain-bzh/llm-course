@@ -62,10 +62,10 @@
           % The red path follows gradient descent on this quadratic.
           \addplot3[very thick,leafreddraw,mark=*,mark size=1.9pt]
             coordinates {(1.6,-1.4,1.266) (.98,-.86,.477) (.6,-.52,.197) (.36,-.31,.083)};
-          \draw[-{Stealth},very thick,leafreddraw]
+          \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw]
             (axis cs:1.6,-1.4,1.266) -- (axis cs:.98,-.86,.477);
           % Upward tangent: (g, grad f dot g) at the starting point.
-          \draw[-{Stealth},very thick,themenavy]
+          \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themenavy]
             (axis cs:1.6,-1.4,1.266) -- (axis cs:1.86,-1.627,1.675);
         \end{axis}
       \end{tikzpicture}\\[-2pt]
@@ -82,8 +82,8 @@
       \end{alertblock}
       \textbf{Learning rate $\eta$} scales the step:\\[-2pt]
       \begin{tikzpicture}[baseline, every node/.style={font=\scriptsize}]
-        \draw[-{Stealth},thick,leafreddraw] (0,0)--(.45,0) node[right,black] {small $\eta$};
-        \draw[-{Stealth},thick,leafreddraw] (2.2,0)--(3.45,0) node[right,black] {large $\eta$};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,leafreddraw] (0,0)--(.55,0) node[right,black] {small $\eta$};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,leafreddraw] (2.2,0)--(3.45,0) node[right,black] {large $\eta$};
       \end{tikzpicture}\\[-2pt]
       {\scriptsize Too large can overshoot.}
     \end{column}

@@ -27,23 +27,23 @@
     \begin{column}{.46\linewidth}
       \centering\textbf{One GPU: sequential}\\[-2pt]
       \begin{tikzpicture}[
-        every node/.style={font=\scriptsize,align=center},
-        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.55cm,minimum height=.65cm,thick},
-        arr/.style={-{Stealth},thick,draw=themenavy}]
+          every node/.style={font=\scriptsize,align=center},
+          box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.55cm,minimum height=.65cm,thick},
+        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy}]
         \node[box] (a) at (0,2.45) {micro-batch 1: forward + backward $\to g_1$};
         \node[box] (b) at (0,1.40) {micro-batch 2: forward + backward $\to g_2$};
         \node[box,draw=successdraw,fill=successbg] (c) at (0,.35) {accumulate and average $g_1,g_2$};
         \draw[arr] (a)--(b); \draw[arr] (b)--(c);
-        \node[font=\scriptsize,text=neutraldark] at (0,-.30) {one optimizer update};
-        \draw[arr] (c.south)--++(0,-.12);
+        \node[font=\scriptsize,text=neutraldark] at (0,-.35) {one optimizer update};
+        \draw[arr] (c.south)--++(0,-.28);
       \end{tikzpicture}
     \end{column}
     \begin{column}{.50\linewidth}
       \centering\textbf{Two GPUs: in parallel}\\[-2pt]
       \begin{tikzpicture}[
-        every node/.style={font=\scriptsize,align=center},
-        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=2.0cm,minimum height=.95cm,thick},
-        arr/.style={-{Stealth},thick,draw=themenavy}]
+          every node/.style={font=\scriptsize,align=center},
+          box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=2.0cm,minimum height=.95cm,thick},
+        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy}]
         \node[box] (a) at (-1.25,2.15) {GPU 0\\batch 1\\F/B $\to g_1$};
         \node[box] (b) at (1.25,2.15) {GPU 1\\batch 2\\F/B $\to g_2$};
         \node[draw=accentdarkdraw,fill=accentdarkbg,rounded corners,minimum width=4.35cm,minimum height=.65cm,thick] (reduce) at (0,.95) {all-reduce: average $g_1,g_2$};
@@ -67,10 +67,10 @@
   \begin{tikzpicture}
     \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
       {\ParallelFull{themenavy}}{model + optimizer}
-      {\ParallelLeft{leafreddraw}}{batch 0 $\to$ gradient $g_0$}};
+    {\ParallelLeft{leafreddraw}}{batch 0 $\to$ gradient $g_0$}};
     \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
       {\ParallelFull{themenavy}}{model + optimizer}
-      {\ParallelRight{leafreddraw}}{batch 1 $\to$ gradient $g_1$}};
+    {\ParallelRight{leafreddraw}}{batch 1 $\to$ gradient $g_1$}};
     \node[parallel exchange] (comm) at (0,-2.0) {all-reduce: average gradients};
     \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
     \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
@@ -126,10 +126,10 @@
       \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {1. reduce-scatter};
       \node[rank] (a0) at (2.4,3.0) {0}; \node[rank] (a1) at (4.0,1.8) {1};
       \node[rank] (a2) at (2.4,.6) {2}; \node[rank] (a3) at (.8,1.8) {3};
-      \draw[-{Stealth},very thick,themebluedraw] (a0)--(a1);
-      \draw[-{Stealth},very thick,themebluedraw] (a1)--(a2);
-      \draw[-{Stealth},very thick,themebluedraw] (a2)--(a3);
-      \draw[-{Stealth},very thick,themebluedraw] (a3)--(a0);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a0)--(a1);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a1)--(a2);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a2)--(a3);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a3)--(a0);
       \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (2.4,1.8) {circulate + sum\\matching chunks};
       \node at (2.4,-.05) {one reduced chunk per rank};
     \end{scope}
@@ -137,10 +137,10 @@
       \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {2. all-gather};
       \node[rank] (b0) at (2.4,3.0) {0}; \node[rank] (b1) at (4.0,1.8) {1};
       \node[rank] (b2) at (2.4,.6) {2}; \node[rank] (b3) at (.8,1.8) {3};
-      \draw[-{Stealth},very thick,successdraw] (b0)--(b1);
-      \draw[-{Stealth},very thick,successdraw] (b1)--(b2);
-      \draw[-{Stealth},very thick,successdraw] (b2)--(b3);
-      \draw[-{Stealth},very thick,successdraw] (b3)--(b0);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b0)--(b1);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b1)--(b2);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b2)--(b3);
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b3)--(b0);
       \node[draw=successdraw,fill=successbg,rounded corners,align=center] at (2.4,1.8) {circulate reduced\\chunks};
       \node at (2.4,-.05) {full reduced buffer on every rank};
     \end{scope}
@@ -159,8 +159,8 @@
       \begin{tikzpicture}[x=.72cm,y=.72cm,every node/.style={font=\scriptsize}]
         \fill[warningbg] (0,0) rectangle (4.1,4.0);
         \fill[themebluebg] (4.1,0) rectangle (9.0,4.0);
-        \draw[-{Stealth},thick] (0,0)--(9.35,0) node[below left]{message size $m$};
-        \draw[-{Stealth},thick] (0,0)--(0,4.45) node[above,rotate=90,anchor=south east]{communication time};
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(9.35,0) node[below left]{message size $m$};
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.45) node[above,rotate=90,anchor=south east]{communication time};
         \draw[very thick,warningdraw] (.2,.55)--(8.4,3.85);
         \draw[very thick,themebluedraw] (.2,1.45)--(8.8,3.2);
         \draw[dashed,neutraldark] (4.1,0)--(4.1,4.0);
@@ -193,7 +193,7 @@
   \vspace{6pt}
   \begin{center}
     \begin{tikzpicture}[x=.82cm,y=.65cm,every node/.style={font=\scriptsize}]
-      \draw[->] (0,0)--(10.4,0) node[right]{time};
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(10.4,0) node[right]{time};
       \fill[themebluecard] (0,.4) rectangle (8,1.0);
       \node at (4,.7) {backward compute};
       \fill[warningbg] (2.0,1.25) rectangle (4.0,1.85);

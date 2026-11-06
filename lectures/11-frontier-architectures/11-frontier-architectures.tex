@@ -33,13 +33,13 @@
       \centering
       \begin{tikzpicture}[
           every node/.style={font=\scriptsize},
-          box/.style={draw=themebluedraw, fill=themebluebg, rounded corners=3pt, thick, align=center, minimum width=3.1cm, minimum height=0.48cm},
-          arr/.style={->, >=Stealth, thick, accentdarkdraw}
+          box/.style={draw=themebluedraw, fill=themebluebg, rounded corners=3pt, thick, align=center, minimum width=3.1cm, minimum height=0.44cm},
+          arr/.style={-{Stealth[length=4pt,width=3pt]}, thick, accentdarkdraw}
         ]
         \node[box] (dense) {Dense Transformer: $\mathcal{O}(T)$ KV};
-        \node[box, fill=warningbg, draw=warningdraw, below=0.25cm of dense] (moe) {Sparse MoE: Top-$k$ Routing};
-        \node[box, fill=themebluecard, below=0.25cm of moe] (ssm) {State Space Models: $\mathcal{O}(1)$ State};
-        \node[box, fill=successbg, draw=successdraw, below=0.25cm of ssm] (synth) {Hybrid Systems Frontier};
+        \node[box, fill=warningbg, draw=warningdraw, below=0.45cm of dense] (moe) {Sparse MoE: Top-$k$ Routing};
+        \node[box, fill=themebluecard, below=0.45cm of moe] (ssm) {State Space Models: $\mathcal{O}(1)$ State};
+        \node[box, fill=successbg, draw=successdraw, below=0.45cm of ssm] (synth) {Hybrid Systems Frontier};
 
         \draw[arr] (dense) -- (moe);
         \draw[arr] (moe) -- (ssm);

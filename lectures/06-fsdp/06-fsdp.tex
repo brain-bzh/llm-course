@@ -28,10 +28,10 @@
   \begin{tikzpicture}
     \node[parallel device] (g0) at (-2.7,0) {\ParallelCardTwo{GPU 0}
       {\ParallelLeft{themenavy}}{params + optimizer shard 0}
-      {\ParallelLeft{leafreddraw}}{batch 0; local activations}};
+    {\ParallelLeft{leafreddraw}}{batch 0; local activations}};
     \node[parallel device] (g1) at (2.7,0) {\ParallelCardTwo{GPU 1}
       {\ParallelRight{themenavy}}{params + optimizer shard 1}
-      {\ParallelRight{leafreddraw}}{batch 1; local activations}};
+    {\ParallelRight{leafreddraw}}{batch 1; local activations}};
     \node[parallel exchange] (comm) at (0,-2.0) {all-gather parameters \quad$\cdot$\quad reduce-scatter gradients};
     \draw[parallel connection] (g0.south) -- (g0.south |- comm.north);
     \draw[parallel connection] (g1.south) -- (g1.south |- comm.north);
@@ -86,7 +86,7 @@
 \begin{frame}{Sharding changes when full parameters exist}
   \centering
   \begin{tikzpicture}[x=.82cm,y=.85cm,scale=.90,transform shape,every node/.style={font=\scriptsize}]
-    \draw[-{Stealth},thick] (0,0)--(11.8,0) node[below left]{time};
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(11.8,0) node[below left]{time};
     \draw[dashed,neutrallight] (0,3.8)--(11.5,3.8);
     \draw[dashed,neutrallight] (0,1.45)--(11.5,1.45);
     \node[left,font=\scriptsize\bfseries,text=warningdraw] at (0,3.8) {full unit};
@@ -138,7 +138,7 @@
 \begin{frame}{Prefetching tries to move the next unit early}
   \begin{center}
     \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
-      \draw[->] (0,0)--(10.2,0) node[right]{time};
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(10.2,0) node[right]{time};
       \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
       \node at (2.8,.7) {compute unit $\ell$};
       \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
@@ -217,8 +217,8 @@
     \begin{column}{0.68\linewidth}
       \centering
       \begin{tikzpicture}[x=.75cm,y=.75cm,every node/.style={font=\scriptsize}]
-        \draw[-{Stealth},thick] (0,0)--(8.8,0);
-        \draw[-{Stealth},thick] (0,0)--(0,4.4) node[above,rotate=90,anchor=south east]{expected overhead};
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(8.8,0);
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.4) node[above,rotate=90,anchor=south east]{expected overhead};
         \draw[very thick,warningdraw] (.35,4.0) .. controls (1.8,2.2) and (4.8,.9) .. (8.3,.55);
         \draw[very thick,themebluedraw] (.35,.55)--(8.3,3.85);
         \draw[very thick,accentdark] (.35,4.05) .. controls (2.3,1.35) and (4.15,.85) .. (4.75,1.12) .. controls (6.3,1.75) and (7.2,2.8) .. (8.3,4.0);

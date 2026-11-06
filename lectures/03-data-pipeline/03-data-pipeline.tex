@@ -27,8 +27,8 @@
   \begin{tikzpicture}[
       every node/.style={font=\small,align=center},
       stage/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,
-                    minimum width=3.0cm,minimum height=.85cm,thick},
-      arrow/.style={-{Stealth},thick,draw=accentdark}]
+      minimum width=3.0cm,minimum height=.85cm,thick},
+    arrow/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
     \node[stage] (raw) at (0,1.7) {1. Collect\\documents};
     \node[stage] (clean) at (3.75,1.7) {2. Filter and\\deduplicate};
     \node[stage] (split) at (7.5,1.7) {3. Split by\\document};
@@ -37,7 +37,7 @@
     \node[stage] (batch) at (7.5,0) {6. Load shifted\\input / target};
     \draw[arrow] (raw)--(clean);
     \draw[arrow] (clean)--(split);
-    \draw[arrow] (split.east)--++(.35,0)--++(0,-.85)--(-1.85,.85)--(-1.85,0)--(tok.west);
+    \draw[arrow] (split.east)--++(.45,0)--++(0,-.85)--(-2.05,.85)--(-2.05,0)--(tok.west);
     \draw[arrow] (tok)--(pack);
     \draw[arrow] (pack)--(batch);
   \end{tikzpicture}
@@ -87,7 +87,7 @@
 
 \begin{frame}{Filter, deduplicate, then split by document}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item \textbf{Filter:} inspect rules for empty, short, or repetitive text; record what they remove.
     \item \textbf{Deduplicate:} group repeated documents before splitting to reduce train--validation leakage.
     \item \textbf{Split:} assign documents to train or validation, then keep their streams separate.
@@ -339,7 +339,7 @@
 
 \begin{frame}{Lab: follow a document into a batch}
   \begin{enumerate}
-    \setlength{\itemsep}{6pt}
+      \setlength{\itemsep}{6pt}
     \item Identify duplicates and keep train and validation documents disjoint.
     \item Trace two BPE merges; fit the tokenizer on training text only.
     \item Pack each split with EOT delimiters and inspect a boundary.

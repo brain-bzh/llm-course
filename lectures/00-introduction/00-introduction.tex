@@ -64,8 +64,8 @@
         \node[text=signaldark,font=\tiny\bfseries] at (3.37,3.1) {Distributed Cluster Required};
 
         % Axes
-        \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Training compute $C$ (FLOPs, log scale)};
-        \draw[-{Stealth},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\tiny] {Loss $L$ (log scale)};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Training compute $C$ (FLOPs, log scale)};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\tiny] {Loss $L$ (log scale)};
 
         % Single GPU wall
         \draw[dashed,thick,leafreddraw] (1.85,0.3) -- (1.85,3.3);
@@ -146,16 +146,16 @@
       \end{itemize}
     \end{column}
     \begin{column}{0.44\linewidth}
-      \begin{tikzpicture}[node distance=0.32cm, every node/.style={font=\scriptsize}]
-        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.4cm,minimum height=.52cm] (txt) {Raw web text};
-        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of txt,minimum width=3.4cm,minimum height=.52cm] (tok) {BPE \& binary shards};
-        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.4cm,minimum height=.52cm] (gpt) {Minimal GPT from scratch};
-        \node[draw=warningdraw,fill=warningbg,rounded corners,below=of gpt,minimum width=3.4cm,minimum height=.52cm] (dist) {Distributed scaling (DDP/FSDP)};
-        \node[draw=successdraw,fill=successbg,rounded corners,below=of dist,minimum width=3.4cm,minimum height=.52cm] (serve) {Fast KV-cached serving};
-        \draw[-{Stealth},thick] (txt)--(tok);
-        \draw[-{Stealth},thick] (tok)--(gpt);
-        \draw[-{Stealth},thick] (gpt)--(dist);
-        \draw[-{Stealth},thick] (dist)--(serve);
+      \begin{tikzpicture}[node distance=0.46cm, every node/.style={font=\scriptsize}]
+        \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.4cm,minimum height=.46cm] (txt) {Raw web text};
+        \node[draw=themebluedraw,fill=themebluecard,rounded corners,below=of txt,minimum width=3.4cm,minimum height=.46cm] (tok) {BPE \& binary shards};
+        \node[draw=leafreddraw,fill=leafredbg,rounded corners,below=of tok,minimum width=3.4cm,minimum height=.46cm] (gpt) {Minimal GPT from scratch};
+        \node[draw=warningdraw,fill=warningbg,rounded corners,below=of gpt,minimum width=3.4cm,minimum height=.46cm] (dist) {Distributed scaling (DDP/FSDP)};
+        \node[draw=successdraw,fill=successbg,rounded corners,below=of dist,minimum width=3.4cm,minimum height=.46cm] (serve) {Fast KV-cached serving};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (txt)--(tok);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (tok)--(gpt);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (gpt)--(dist);
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (dist)--(serve);
       \end{tikzpicture}
     \end{column}
   \end{columns}

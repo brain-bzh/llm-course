@@ -2,7 +2,7 @@
   <title id="title">Tokenizer fidelity and efficiency trade-offs</title>
   <desc id="desc">A tokenizer must first preserve the input exactly. Moving from fine to coarse tokens lowers tokens per byte but makes each token harder to predict. Bits per byte combines tokens per byte and bits per token.</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="#68798a"/></marker>
+    <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto"><path d="M0 1L8.5 4L0 7z" fill="#68798a"/></marker>
     <style>
       text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
       .gate{fill:#10233f}
