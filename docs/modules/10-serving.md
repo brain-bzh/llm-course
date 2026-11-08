@@ -37,6 +37,11 @@ A model forward pass accepts tensors and returns logits. A serving engine must
 also handle request arrival, tokenization, scheduling, memory allocation,
 sampling, stopping, streaming and failures.
 
+<figure markdown="span">
+  ![Waiting requests are scheduled, assigned KV blocks, run on the GPU, sampled and streamed; unfinished requests return to the scheduler.](../assets/figures/serving-engine-loop.svg){ loading=lazy }
+  <figcaption>One iteration of a simplified inference engine.</figcaption>
+</figure>
+
 A useful decomposition is:
 
 | Component | Responsibility |
@@ -216,11 +221,13 @@ Paged allocation divides cache storage into fixed-size blocks. A request owns a
 logical sequence of block IDs stored in a block table. Its logical tokens can
 map to non-contiguous physical blocks.
 
-```text
-request tokens:  [0 ........ 15] [16 ....... 31] [32 ...]
-logical blocks:       0               1             2
-physical blocks:     417             92            811
-```
+For example, with four token slots per block, a ten-token request needs three
+logical blocks. Its block table can map them to physical blocks 4, 1 and 6.
+
+<figure markdown="span">
+  ![Logical blocks 0, 1 and 2 map to physical blocks 4, 1 and 6; a ten-token request leaves two slots unused in the last four-token block.](../assets/figures/paged-kv-block-table.svg){ loading=lazy }
+  <figcaption>Example: three logical blocks map to non-contiguous physical blocks.</figcaption>
+</figure>
 
 The cache manager maintains a free-block pool, allocates new blocks as a request
 grows, and returns them when it finishes. A paged-attention kernel follows the
@@ -297,6 +304,11 @@ captured graph size. Distinguish semantic token waste from an implementation's
 shape specialization.
 
 ## Latency and throughput metrics
+
+<figure markdown="span">
+  ![A request timeline marks queueing, time to first token, one inter-token gap, and end-to-end latency.](../assets/figures/serving-latency-clocks.svg){ loading=lazy }
+  <figcaption>These clocks share a request timeline but answer different questions.</figcaption>
+</figure>
 
 For request arrival time \(t_0\), first-token time \(t_1\), completion
 \(t_f\), and \(N\) output tokens:

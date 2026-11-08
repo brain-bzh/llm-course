@@ -365,9 +365,12 @@ state what the new trace should look like if the hypothesis is correct.
 
 ## Expected output
 
-A multi-GPU run with a one-update equivalence test, verified parameter
-synchronization, audited sample coverage, global token accounting and a strong-
-scaling report supported by a profiler trace.
+A hand-written data-parallel update on two CPU ranks that matches a
+single-process global-batch run, with zero replica drift and the intended
+sample partition; the same check with `DistributedDataParallel` and `no_sync`;
+explained failure cases; and a strong-scaling plan at fixed tokens/update.
+A measured multi-GPU scaling report with a profiler trace is an extension on
+allocated GPUs.
 
 ## References
 

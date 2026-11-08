@@ -51,7 +51,7 @@ layout (`dp_size=1`, `tp_size=2`, `pp_size=1`, `cp_size=1`, `ep_size=1`,
 implementation:
 
 ```bash
-uv run torchrun --standalone --nproc_per_node=2 scripts/08_parallelism_layout.py --gloo-check
+uv run torchrun --standalone --local-addr=127.0.0.1 --nproc_per_node=2 scripts/08_parallelism_layout.py --gloo-check
 ```
 
 This verifies the DDP averaging primitive and a small TP forward/backward on
@@ -79,3 +79,17 @@ do not. The calculator does not predict peak VRAM or network time.
 **Fallback:** use the module's worked rank layout and hand-calculate its device
 count and pipeline fraction. Combined EP/FSDP layouts are an optional extension
 requiring separate expert synchronization and shard-group definitions.
+
+!!! success "What to take away"
+    - **A layout is a factorization of the device count.** Write $G = P \times T_P \times C \times D$
+      explicitly; FSDP and EP subdivide data parallelism and add no devices.
+    - **Each axis splits something different.** TP and PP split model state, CP
+      splits the sequence's activations, DP splits the batch. Choose the axis for
+      the resource that is actually short.
+    - **Put the chattiest groups on the fastest links.** TP communicates every
+      layer; pipeline stages communicate only at their boundaries, so they tolerate slower links.
+    - **Bubbles are arithmetic.** For AFAB and 1F1B the idle fraction is
+      $(P-1)/(m+P-1)$; reducing it to 10 % needs $m > 9(P-1)$ micro-batches. 1F1B
+      changes activation residency, not this fraction.
+    - **An estimate is a hypothesis.** The calculator gives persistent state and
+      payloads, not peak VRAM or step time. Name the measurement that would choose between two layouts.

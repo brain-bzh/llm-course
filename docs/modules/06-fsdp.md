@@ -247,10 +247,11 @@ offloads gradients and runs the optimizer step on CPU. See the
 for the exact API and limitations. Host–device transfers and CPU computation
 can increase step time; measure peak GPU memory and throughput together.
 
-The companion's `nanolm/fsdp_utils.py` demonstrates **FSDP1**, including a
-Transformer-block wrapping policy. The current lab is an analytical exercise,
-not an FSDP execution or timing measurement. For the newer `fully_shard` API,
-see the [PyTorch FSDP2 tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html),
+The companion uses the current **FSDP2** API (`fully_shard`): `nanolm/fsdp_utils.py`
+makes each Transformer block a unit, then the root. The lab runs it on CPU
+ranks to show the gather/reshard lifecycle and per-rank state; it does not
+measure GPU memory or speed. See the
+[PyTorch FSDP2 tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html),
 which constructs the optimizer after sharding the model.
 
 ## Mixed precision and reduction precision
@@ -382,13 +383,13 @@ State the loader and validation procedure, not just the format name.
 
 ## Expected output
 
-A focused analytical comparison: persistent-state predictions, an FSDP
-materialization lifecycle sketch, a communication timeline, an excluded-terms
-list, and checkpoint-format decisions for the four scenarios above. The current
-companion script does not run FSDP, so it cannot produce measured memory,
-throughput, update-equivalence, or checkpoint round-trip evidence. Those results
-are an optional extension only when a verified teaching environment and a
-separate executable protocol are available.
+Persistent-state predictions for DDP and the ZeRO stages; a hand-written
+sharded AdamW whose update matches `torch.optim.AdamW` on the global batch; an
+FSDP2 run on CPU ranks with an annotated gather/reshard lifecycle and measured
+per-rank parameter, gradient and optimizer bytes; a list of excluded
+peak-memory terms; and, in Session 21, a sharded checkpoint reloaded into a
+single process. Measured GPU peak memory and throughput are an extension that
+requires allocated GPUs.
 
 ## References
 

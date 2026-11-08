@@ -216,3 +216,14 @@ this point onward, the rest of the companion assumes that `nanolm/model.py` is
 your working Transformer implementation. Module 2 will initialize a much
 smaller version from scratch and prove that it can learn by overfitting one
 batch.
+
+!!! success "What to take away"
+    - **Shapes are the specification.** If you can write the shape of every tensor
+      without running the code, you understand the model.
+    - **A reference beats a plausible output.** Matching official GPT-2 logits is
+      a stronger test than "the text looks reasonable"; a model with a transposed
+      head reshape still produces fluent-looking nonsense.
+    - **Test the property, not just the shape.** The causality test changes the future
+      and checks the past; a shape test would pass with the mask on the wrong side.
+    - **Keep the explicit version.** Every later optimization (SDPA, compilation,
+      KV caching, tensor parallelism) is checked against this implementation.

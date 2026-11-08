@@ -2,7 +2,7 @@
 \input{../common/preamble.tex}
 \input{../common/parallelism-visuals.tex}
 \title[TASLLM -- Module 8]{Module 8: Context, Pipeline and Expert Parallelism\\[4pt]
-\normalsize\itshape Splitting Sequence Length and Model Depth}
+\normalsize\itshape Splitting Context, Depth, and Experts}
 \date{\today}
 
 \begin{document}
@@ -17,7 +17,7 @@
 \learninggoals
 {Distinguish context parallelism from sequence parallelism.}
 {Explain exact ring attention through online softmax.}
-{Compute pipeline bubbles for a micro-batch schedule.}
+{Trace pipeline schedules, token routing, and their communication.}
 {Map parallel dimensions to a real cluster topology.}
 
 \section{Context parallelism}
@@ -111,20 +111,42 @@
   Final attention is $o/\ell$. Rescaling preserves contributions computed under earlier maxima.
 \end{frame}
 
-\begin{frame}{Causal attention can imbalance ring work}
-  Early query positions have few valid keys. Late queries have many. A naive contiguous partition gives ranks unequal useful work after masking.
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Symptom}
-        Some ranks wait while others process large valid attention regions.
-      \end{alertblock}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Mitigation}
-        Interleave or pair early and late context blocks so valid attention work is balanced.
-      \end{block}
-    \end{column}
-  \end{columns}
+\begin{frame}{Balance causal work by pairing early and late chunks}
+  \small Split a sequence into eight equal chunks; count valid causal attention tiles per query chunk as $1,2,\ldots,8$.
+  \begin{center}
+  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+      bar/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.3cm,minimum height=.66cm},
+      paired/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.3cm,minimum height=.66cm}]
+    \node[anchor=east,font=\scriptsize\bfseries] at (0,3.95) {paired sequence};
+    \foreach \i/\col in {0/themenavy,1/accentdark,2/accentviolet,3/signaldark,4/signaldark,5/accentviolet,6/accentdark,7/themenavy}{
+      \fill[\col,draw=\col] (.3+\i*.91,3.65) rectangle (.3+\i*.91+.85,4.25);
+      \node[font=\scriptsize,text=white] at (.725+\i*.91,3.95) {\i}; }
+    \node[font=\small\bfseries] at (1.05,2.9) {GPU 0}; \node[font=\small\bfseries] at (2.9,2.9) {GPU 1};
+    \node[font=\small\bfseries] at (4.75,2.9) {GPU 2}; \node[font=\small\bfseries] at (6.6,2.9) {GPU 3};
+    \node[anchor=east,font=\small\bfseries] at (0,2.15) {contiguous};
+    \foreach \x/\chunks/\work in {1.05/{0, 1}/3,2.9/{2, 3}/7,4.75/{4, 5}/11,6.6/{6, 7}/15}{
+      \node[bar] at (\x,2.15) {\chunks}; \node[font=\scriptsize] at (\x,1.55) {\work\ tiles}; }
+    \node[anchor=east,font=\small\bfseries,text=accentdark] at (0,.65) {paired};
+    \foreach \x/\chunks in {1.05/{0, 7},2.9/{1, 6},4.75/{2, 5},6.6/{3, 4}}{
+      \node[paired] at (\x,.65) {\chunks}; \node[font=\scriptsize] at (\x,.05) {9 tiles}; }
+  \end{tikzpicture}
+  \end{center}
+  \footnotesize Tile count includes each diagonal tile once; it is an illustration, not a runtime prediction. Pairing balances useful work but adds layout/scheduling considerations.
+\end{frame}
+
+\begin{frame}{CP communication: stream KV, then synchronize gradients}
+  \small Let $C$ ranks split $T$ tokens; each local KV block contains $B(T/C)d_{kv}$ elements per K or V.
+  \begin{block}{Illustrative forward ring payload per rank}
+    \[
+      (C-1)\times 2B(T/C)d_{kv}\,b\quad\text{bytes sent}
+    \]
+    $b$ is bytes/element; $d_{kv}$ is total KV width. Assumes $C-1$ full-block sends and equal chunks.
+  \end{block}
+  \begin{itemize}
+    \item Causal skipping, GQA, block layout and implementation change actual traffic and compute.
+    \item Backward exchanges information for gradients; replicated weights require gradient synchronization across CP ranks.
+    \item Overlap can hide some transfer, but exposed cost depends on link bandwidth and latency.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}{Four parallelism maps, one comparison}
@@ -180,6 +202,46 @@
   \end{alertblock}
 \end{frame}
 
+\begin{frame}{Two stages, three micro-batches: compare schedules}
+  \centering
+  \begin{tikzpicture}[x=.75cm,y=.7cm,every node/.style={font=\tiny,align=center},
+    fw/.style={draw=themebluedraw,fill=themebluebg,minimum width=.72cm,minimum height=.48cm,inner sep=1pt},
+    bw/.style={draw=leafreddraw,fill=leafredbg,minimum width=.72cm,minimum height=.48cm,inner sep=1pt},
+    idle/.style={draw=neutrallight,dashed,minimum width=.72cm,minimum height=.48cm,inner sep=1pt}]
+    \node[anchor=east,font=\scriptsize\bfseries] at (-.7,3.7) {AFAB};
+    \node[anchor=east,font=\scriptsize] at (-.7,3.05) {stage 0}; \node[anchor=east,font=\scriptsize] at (-.7,2.35) {stage 1};
+    \foreach \i/\v in {0/0,1/1,2/2}{\node[fw] at (\i,3.05) {$F_\v$};}
+    \foreach \i in {3,4}{\node[idle] at (\i,3.05) {};}
+    \foreach \i/\v in {5/0,6/1,7/2}{\node[bw] at (\i,3.05) {$B_\v$};}
+    \node[idle] at (0,2.35) {}; \node[idle] at (7,2.35) {};
+    \foreach \i/\v in {1/0,2/1,3/2}{\node[fw] at (\i,2.35) {$F_\v$};}
+    \foreach \i/\v in {4/0,5/1,6/2}{\node[bw] at (\i,2.35) {$B_\v$};}
+    \node[anchor=east,font=\scriptsize\bfseries] at (-.7,1.45) {1F1B};
+    \node[anchor=east,font=\scriptsize] at (-.7,.8) {stage 0}; \node[anchor=east,font=\scriptsize] at (-.7,.1) {stage 1};
+    \foreach \i/\v in {0/0,1/1,4/2}{\node[fw] at (\i,.8) {$F_\v$};}
+    \foreach \i/\v in {3/0,5/1,7/2}{\node[bw] at (\i,.8) {$B_\v$};}
+    \foreach \i in {2,6}{\node[idle] at (\i,.8) {};}
+    \foreach \i/\v in {1/0,3/1,5/2}{\node[fw] at (\i,.1) {$F_\v$};}
+    \foreach \i/\v in {2/0,4/1,6/2}{\node[bw] at (\i,.1) {$B_\v$};}
+    \foreach \i in {0,7}{\node[idle] at (\i,.1) {};}
+    \draw[-{Stealth[length=4pt]},thick] (-.35,-.55)--(7.75,-.55) node[right,font=\scriptsize]{time};
+    \node[anchor=west,font=\scriptsize,align=left] at (8.25,2.3) {\textcolor{themebluedraw}{$F_i$: forward}\\[5pt]\textcolor{leafreddraw}{$B_i$: backward}\\[5pt]dashed: idle};
+  \end{tikzpicture}
+  \par\vspace{3pt}\footnotesize Equal-duration slots, zero transfer time, one optimizer update. Same ideal makespan; 1F1B releases activations earlier.
+\end{frame}
+
+\begin{frame}{Explore pipeline schedules interactively}
+  \begin{block}{Pipeline parallelism simulator}
+    \href{https://brain-bzh.github.io/llm-course/demos/pipeline-parallelism.html}{\textbf{Open the pipeline schedule demo} $\nearrow$}
+  \end{block}
+  \begin{enumerate}
+    \item Fix stages and micro-batches; compare AFAB with 1F1B.
+    \item Track stage idle time, boundary sends and outstanding activations.
+    \item Increase micro-batches; then try interleaving and compare added transfers.
+  \end{enumerate}
+  \small Illustrative schedule model: real stage timings, communication, and memory must be measured.
+\end{frame}
+
 \begin{frame}{AFAB and 1F1B trade memory for schedule complexity}
   \begin{columns}[t]
     \begin{column}{0.47\linewidth}
@@ -210,23 +272,115 @@
   \end{itemize}
 \end{frame}
 
+\begin{frame}{PP communication: activation and gradient at each boundary}
+  \begin{center}
+  \begin{tikzpicture}[every node/.style={font=\small,align=center},
+    stage/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.3cm,minimum height=.9cm}]
+    \node[stage] (a) at (0,0) {stage $s$}; \node[stage] (b) at (5,0) {stage $s+1$};
+    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (a.20)--node[above,font=\scriptsize]{forward activation}(b.160);
+    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (b.200)--node[below,font=\scriptsize]{backward gradient}(a.340);
+  \end{tikzpicture}
+  \end{center}
+  \small For boundary shape $B_\mu\times T\times d$ and $b$ bytes/element: one forward activation and one backward gradient per micro-batch, approximately $2B_\mu Tdb$ bytes sent across the boundary.
+  \begin{alertblock}{Cost depends on placement}
+    Latency, link bandwidth, stage imbalance and overlap determine exposed time. More micro-batches increase message count; total bytes depend on batch and schedule.
+  \end{alertblock}
+\end{frame}
+
 \checkpoint{schedule arithmetic}
 {For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
 
 \section{Expert parallelism}
 
-\begin{frame}{Routing tokens to distributed experts}
-  \begin{enumerate}
-      \setlength{\itemsep}{8pt}
-    \item A router selects top-$k$ of $E$ expert MLPs for each token.
-    \item Dispatch sends tokens to ranks hosting those experts.
-    \item Local experts compute and return outputs for weighted combination.
-  \end{enumerate}
-  \begin{block}{What changes?}
-    EP distributes expert weights. Shared attention weights remain replicated
-    over EP ranks. Uneven routing can overload one rank.
+\begin{frame}{From one dense MLP to routed experts}
+  \begin{columns}[c]
+    \begin{column}{.43\linewidth}
+      \begin{block}{Dense MLP}
+        Every token passes through the same MLP.
+      \end{block}
+    \end{column}
+    \begin{column}{.53\linewidth}
+      \begin{block}{Mixture of experts}
+        A router scores $E$ expert MLPs and selects top-$k$ for each token. Combine the selected outputs using routing weights.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \[
+    y(x)=\sum_{e\in\operatorname{top-}k(x)}p_e(x)\,\operatorname{MLP}_e(x)
+  \]
+  \small Total expert parameters grow with $E$; active expert work per token depends on $k$ and expert size. EP distributes expert weights across GPUs.
+\end{frame}
+
+\begin{frame}{Top-1 example: route tokens to expert MLPs}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+    src/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.9cm,minimum height=.75cm},
+    expert/.style={draw=themenavy,fill=themenavy!12,minimum width=2.1cm,minimum height=.85cm},
+    net/.style={-{Stealth[length=4pt]},very thick,draw=accentvioletdraw}]
+    \node[src] (s0) at (-3.5,1.5) {GPU 0 tokens\\$a,b$};
+    \node[src] (s1) at (-3.5,-.3) {GPU 1 tokens\\$c,d$};
+    \node[expert] (e0) at (2.6,1.5) {GPU 0: expert 0\\process $a,d$};
+    \node[expert,draw=leafreddraw,fill=leafredbg] (e1) at (2.6,-.3) {GPU 1: expert 1\\process $b,c$};
+    \draw[-{Stealth[length=4pt]},thick,themebluedraw] (s0.east)--node[above,font=\scriptsize] {$a$} (e0.west);
+    \draw[-{Stealth[length=4pt]},thick,themebluedraw] (s1.east)--node[below,font=\scriptsize] {$c$} (e1.west);
+    \draw[net] (s0.east)--node[above,pos=.27,font=\scriptsize] {$b$} (e1.west);
+    \draw[net] (s1.east)--node[below,pos=.27,font=\scriptsize] {$d$} (e0.west);
+    \node[text=accentvioletdraw,font=\small\bfseries] at (-.4,-1.2) {purple: remote dispatch};
+  \end{tikzpicture}
+  \par\vspace{4pt}\small Each rank routes its tokens, exchanges remote assignments, and runs the experts it owns. Outputs return to token owners; the original order is restored.
+  \par\footnotesize Top-1 shown. Top-$k$ can send a token to several experts; self-routes stay local.
+\end{frame}
+
+\begin{frame}{EP uses all-to-all to dispatch and combine}
+  \begin{center}
+  \begin{tikzpicture}[scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
+    local/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.8cm,minimum height=.8cm},
+    comm/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=1.9cm,minimum height=.8cm},
+    arrow/.style={-{Stealth[length=4pt]},thick}]
+    \node[local] (route) at (0,0) {router\\pack tokens};
+    \node[comm] (dispatch) at (2.45,0) {all-to-all\\dispatch};
+    \node[local] (expert) at (4.9,0) {local\\expert MLPs};
+    \node[comm] (combine) at (7.35,0) {all-to-all\\return outputs};
+    \node[local] (out) at (9.8,0) {weighted sum\\restore order};
+    \draw[arrow] (route)--(dispatch); \draw[arrow] (dispatch)--(expert); \draw[arrow] (expert)--(combine); \draw[arrow] (combine)--(out);
+  \end{tikzpicture}
+  \end{center}
+  \begin{block}{Why all-to-all?}
+    Every source rank can send different token groups to every expert rank. Backward reverses the data movement and propagates gradients through selected experts and routing weights.
   \end{block}
-  \smallsource{Megatron Core parallel configuration: EP subdivides the data-parallel dimension}
+  \small Group size, skew, message size and topology determine cost; implementations may use other dispatch primitives or fuse steps.
+\end{frame}
+
+\begin{frame}{EP communication grows with active routes}
+  \small Let each rank originate $n$ tokens of width $d$, routed to $k$ experts; each element uses $b$ bytes.
+  \begin{block}{Simple forward payload per source rank}
+    \[
+      \text{dispatch + return}\ \approx\ 2n k d b\quad\text{bytes}
+    \]
+    Counts one full vector per assignment in each direction. Uniform routing over $E_P$ ranks gives a remote fraction near $1-1/E_P$.
+  \end{block}
+  \begin{itemize}
+    \item Backward adds traffic; metadata, padding, skew and protocol overhead are excluded.
+    \item Local routes do not traverse the network; coalescing and TP/SP layouts can alter payloads.
+    \item Measure exposed dispatch/combine time and expert GEMM efficiency, not only average bytes.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Load balance is an MoE performance constraint}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{alertblock}{Skewed routing}
+        One expert receives many tokens: its GPU becomes the straggler, buffers grow, and small experts run inefficient GEMMs.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{block}{Ways to respond}
+        Auxiliary balancing losses or router biases; capacity limits and optional padding/dropping; better dispatch and placement.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small Monitor tokens per expert and rank, maximum / mean load, dropped tokens if applicable, and all-to-all time. Balancing can affect model behavior, not just throughput.
 \end{frame}
 
 \section{Composing parallel dimensions}
@@ -296,6 +450,17 @@
 \takeaways
 {Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
 {Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
-{Load balance matters across causal context blocks and pipeline stages.}
+{Expert parallelism routes tokens through distributed MLPs using dispatch and return communication.}
 {Count independent axes once and test placement against measured memory and communication.}
+\begin{frame}{Explore a complete parallelism layout}
+  \begin{block}{Parallelism composer}
+    \href{https://brain-bzh.github.io/llm-course/demos/parallelism-composer.html}{\textbf{Open the parallelism composer} $\nearrow$}
+  \end{block}
+  \begin{enumerate}
+    \item Choose model, devices and network topology; map TP, CP, PP and DP groups.
+    \item For a sparse model, add EP and inspect the expert placement and all-to-all estimate.
+    \item Compare memory, exposed communication and step-time estimates; change one choice and explain the result.
+  \end{enumerate}
+  \small The composer is an analytical teaching model; check its assumptions and validate a real configuration with measurements. Combined EP/FSDP layouts are not modeled.
+\end{frame}
 \end{document}

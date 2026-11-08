@@ -24,7 +24,7 @@
   --md-primary-fg-color--light: var(--course-navy);
   --md-primary-fg-color--dark: #08172a;
   --md-primary-bg-color: #ffffff;
-  --md-accent-fg-color: var(--course-signal);
+  --md-accent-fg-color: var(--course-signal-text);
   --md-accent-fg-color--transparent: rgb(232 104 63 / 0.1);
 
   --md-default-bg-color: var(--course-paper);
@@ -229,7 +229,7 @@
 }
 
 .md-typeset a.headerlink:hover {
-  color: var(--course-signal);
+  color: var(--course-signal-text);
 }
 
 .md-typeset code {
@@ -578,6 +578,16 @@
   width: 100%;
   max-width: 100%;
   height: auto;
+}
+
+/* External SVGs resolve their color-scheme media query against the image.
+   Follow the selected site palette, including the manual theme toggle. */
+[data-md-color-scheme="default"] .md-typeset img[src*="/figures/"][src$=".svg"] {
+  color-scheme: light;
+}
+
+[data-md-color-scheme="slate"] .md-typeset img[src*="/figures/"][src$=".svg"] {
+  color-scheme: dark;
 }
 
 .md-typeset figcaption {

@@ -1,26 +1,101 @@
-# Module 7 Lab — Implement & Verify Tensor Parallelism (Gloo)
+# Module 7 Lab — Implement tensor parallelism; read a sharded checkpoint
 
-This lab accompanies [Module 7: Tensor parallelism](../modules/07-tensor-parallelism.md).
+This lab accompanies [Module 7: Tensor parallelism](../modules/07-tensor-parallelism.md)
+and finishes the checkpoint part of [Module 6](../modules/06-fsdp.md#checkpointing-is-a-distributed-data-problem).
+Session 21 has two parts:
 
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
+- **Part A (25 min):** save a model trained by two FSDP2 ranks in two formats,
+  then reload both into one process and prove they hold the same model.
+- **Part B (50 min):** implement Megatron-style column- and row-parallel layers,
+  including the collectives autograd needs in backward, and verify them on two CPU ranks.
 
-    - **Lab script:** [`scripts/07_tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/07_tensor_parallel.py)
-    - **Reference module:** [`nanolm/tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tensor_parallel.py)
-    - **Unit tests:** [`tests/test_module_07_tp.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_07_tp.py)
+!!! tip "Files used in this lab"
+    - **Starter:** [`starter/07_tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/07_tensor_parallel.py)
+    - **Your implementation:** [`nanolm/tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tensor_parallel.py)
+    - **Experiments:** [`scripts/07_tensor_parallel.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/07_tensor_parallel.py) · [`scripts/06_fsdp2.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_fsdp2.py) · [`scripts/06_checkpoint_formats.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_checkpoint_formats.py)
+    - **Tests:** [`tests/test_module_07_tp.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_07_tp.py)
 
----
+## Before class (20 minutes)
 
-## Objective
+Read the derivation below and [Forward and backward are conjugate](../modules/07-tensor-parallelism.md#forward-and-backward-are-conjugate).
+Then answer on paper, for a GPT-2 MLP with $d=768$ on two TP ranks and an input
+of shape $B\times T\times d$:
 
-1. **Understand matrix partitioning mechanics**: Derive Column Parallelism and Row Parallelism from basic matrix multiplication.
-2. **Eliminate intermediate communication**: Understand why pairing a Column-Parallel layer with a Row-Parallel layer allows an MLP to execute with only a single `all_reduce` collective.
-3. **Implement with PyTorch's Gloo backend**: Build working `ColumnParallelLinear` and `RowParallelLinear` modules that run on CPU using `torch.distributed` and `backend="gloo"`, enabling distributed execution on any laptop or development environment.
-4. **Verify numerical equivalence**: Prove that the parallelized MLP computes the exact mathematical output as a standard reference `nn.Linear` MLP ($|Y_{\text{TP}} - Y_{\text{ref}}| < 10^{-5}$).
+1. the shape of each rank's `c_fc` weight, its hidden activation, and its `c_proj` weight;
+2. which tensors are replicated, which are sharded, and where the single
+   forward all-reduce happens;
+3. why the **backward** pass needs an all-reduce at the **input** of the column layer.
 
----
+Prepare the environment:
 
-## Part 1 — The Mathematics of Matrix Partitioning
+```bash
+git switch -c session-21-tp
+cp starter/07_tensor_parallel.py nanolm/tensor_parallel.py
+uv run pytest tests/test_module_07_tp.py -q   # 2 tests fail with NotImplementedError
+```
+
+## Session 21 protocol — 75 minutes
+
+| Time | Activity | Evidence |
+| --- | --- | --- |
+| 0–25 min | Part A: save, inspect and reload full vs sharded checkpoints | `PASS:` from the reload; a format choice for four scenarios |
+| 25–35 min | Part B, step 1: the two autograd functions | Single-rank test passes |
+| 35–50 min | Part B, step 2: column and row layers; two-rank run | `PASS:` with outputs, input gradient and weight shards |
+| 50–65 min | Part B, step 3: break the backward contract on purpose | Explanation of which gradient breaks and why the forward still passes |
+| 65–75 min | Shape ledger and degree discussion | Completed ledger for a GPT-2 block at TP=2 |
+
+## Part A — Checkpoint formats (25 minutes)
+
+A training job usually saves one of two things:
+
+- a **full** checkpoint: rank 0 gathers every tensor into one file. It is simple
+  to load anywhere, but every byte travels to one rank, and the whole model must
+  fit in that rank's memory;
+- a **sharded (distributed) checkpoint**: every rank writes its own slice in
+  parallel, plus a metadata file that records which slice of each tensor lives
+  where. It is fast to write and needs no single rank to hold everything, but
+  it needs a loader that understands the metadata.
+
+Produce both from a two-rank FSDP2 run, then reload both in a single process:
+
+```bash
+uv run torchrun --standalone --local-addr=127.0.0.1 --nproc_per_node=2 scripts/06_fsdp2.py --save runs/fsdp2-ckpt
+uv run python scripts/06_checkpoint_formats.py runs/fsdp2-ckpt
+```
+
+```text
+files on disk:
+  runs/fsdp2-ckpt/full.pt                         123,097 B
+  runs/fsdp2-ckpt/sharded/.metadata                38,799 B
+  runs/fsdp2-ckpt/sharded/__0_0.distcp            259,338 B
+  runs/fsdp2-ckpt/sharded/__1_0.distcp            305,137 B
+
+sharded metadata: 20 model tensors, 69 optimizer entries
+  model.transformer.h.0.mlp.c_fc.weight: global (128, 32), slice at (0, 0) size (64, 32), slice at (64, 0) size (64, 32)
+
+max |full - resharded| over all tensors = 0.0e+00
+identical logits from both reloads: True
+PASS: a 2-rank sharded checkpoint reloads into 1 process and equals the gathered full checkpoint.
+```
+
+Answer:
+
+1. Why are the sharded files together much larger than `full.pt`? (Look at what
+   was saved in each format.)
+2. The checkpoint was written by 2 ranks and read by 1. Which line of the
+   metadata made that **resharding** possible?
+3. The script's last line lists what it does not cover. Which of those items
+   would break *exact* resumption of training (compare with the
+   [Module 2 recovery test](02-training-loop.md#recovery-experiment))?
+4. Choose a format, and say how you would validate it, for each scenario in
+   [Module 6, Part C](../modules/06-fsdp.md#part-c-checkpoint-choice): fast restart of a 256-GPU job;
+   publishing weights for single-GPU inference; resuming on a different world size;
+   archiving optimizer state for exact recovery.
+
+## Part B — Tensor-parallel layers (50 minutes)
+
+### The mathematics (read before class)
+
 
 Consider a standard linear layer mapping an input vector $X \in \mathbb{R}^{B \times d_{\text{in}}}$ to an output $Y \in \mathbb{R}^{B \times d_{\text{out}}}$ using weight matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$:
 
@@ -28,7 +103,7 @@ $$Y = X W^T$$
 
 In Tensor Parallelism (TP), we divide $W$ across $P$ ranks (our tensor-parallel world size). There are two complementary ways to partition the matrix.
 
-### 1. Column Parallelism (Partitioning Output Features)
+#### Column parallelism (Partitioning Output Features)
 
 We split $W$ along its output dimension (the columns of $W^T$):
 
@@ -47,7 +122,7 @@ $$Y_p = X W_p^T \in \mathbb{R}^{B \times \frac{d_{\text{out}}}{P}}$$
 - **Computation:** Completely independent (zero communication).
 - **Output:** Sharded across ranks along the feature dimension ($B \times \frac{d_{\text{out}}}{P}$).
 
-### 2. Row Parallelism (Partitioning Input Features)
+#### Row parallelism (Partitioning Input Features)
 
 We split $W$ along its input dimension (the rows of $W^T$):
 
@@ -70,7 +145,7 @@ This summation is performed using an **All-Reduce** collective with the `SUM` op
 
 ---
 
-## Part 2 — The Megatron Composed MLP Pattern
+#### The Megatron column → row MLP
 
 Why not simply use Column Parallelism everywhere?
 
@@ -98,50 +173,105 @@ The breakthrough insight of Megatron-LM (Shoeybi et al., 2019) is that **Column 
 
 The entire 2-layer MLP executes with **only one communication collective** in the forward pass.
 
----
+### Step 1 — The communication contract (10 minutes)
 
-## Part 3 — Forward and backward communication
-
-Inspect `ColumnParallelLinear`, `RowParallelLinear`, and the two autograd
-mappings in `nanolm/tensor_parallel.py`:
+Each rank evaluates the **same** replicated loss, so autograd needs exactly one
+collective at each boundary. The forward and backward collectives are each
+other's conjugate:
 
 | Boundary | Forward | Backward |
 | --- | --- | --- |
-| Replicated input to column-parallel projections | Identity | Sum input-gradient contributions across TP ranks |
-| Row-parallel partial outputs to replicated result | Sum partial outputs | Identity for the replicated downstream gradient |
+| Replicated $X$ → column-parallel layer (`_CopyToTP`) | identity | **sum** $\partial L/\partial X$ over ranks |
+| Row-parallel partial sums → replicated $Y$ (`_ReduceFromTP`) | **sum** over ranks | identity |
 
-A raw in-place `dist.all_reduce` in forward does not specify this backward
-contract. The reference uses explicit autograd functions. Each rank evaluates
-the same replicated loss; summing its gradient again at the row-output boundary
-would introduce an unwanted factor of the TP degree.
+Implement `_CopyToTP.backward` and `_ReduceFromTP.forward`. `dist.all_reduce`
+works **in place**, so clone first. Skip the collective when `world_size == 1`.
+Why does `_ReduceFromTP.backward` *not* all-reduce? Every rank already holds
+the same $\partial L/\partial Y$. Summing it again would multiply it by the TP degree.
 
-## Part 4 — Verify actual ranks
+### Step 2 — The layers (15 minutes)
 
-Run from the companion root:
+- `ColumnParallelLinear.forward`: `F.linear(_CopyToTP.apply(x, world), weight, bias)`.
+  Each rank owns `out_features / world` output rows of the weight and bias.
+- `RowParallelLinear.forward`: partial product with **no bias**, then
+  `_ReduceFromTP.apply`, then add the bias **once**. If every rank added it
+  before the sum, the bias would be counted `world` times.
 
 ```bash
-uv run torchrun --standalone --nproc_per_node=2 scripts/07_tensor_parallel.py
-uv run pytest tests/test_module_07_tp.py tests/test_distributed_experiments.py -q
+uv run pytest tests/test_module_07_tp.py -k single_rank -q
+uv run torchrun --standalone --local-addr=127.0.0.1 --nproc_per_node=2 scripts/07_tensor_parallel.py
 ```
 
-The script uses Gloo on CPU. It copies slices of one reference MLP into real
-sharded layers, then compares outputs, input gradients, and both weight-gradient
-shards. All ranks participate in the backward collectives. Running with ordinary
-`python` checks only the single-rank path; it is not evidence of communication.
+```text
+PASS: TP outputs, input gradients and both parameter shards match the reference.
+```
 
-## Session 21 TP exercise
+`verify_sharded_mlp` (in your file, provided) copies **slices** of one dense MLP
+into the two ranks. Rank $r$ gets rows $[r\frac{4d}{P}, (r+1)\frac{4d}{P})$ of
+`fc1` and the matching **columns** of `fc2`. It then compares the output, the
+input gradient and both weight-gradient shards with the dense model.
 
-Use the TP portion of the combined FSDP/TP session for a 30-minute investigation:
+### Step 3 — Break the backward contract (15 minutes)
 
-1. **10 min:** predict activation shapes and communication boundaries for two ranks.
-2. **10 min:** run the verification and inspect the two autograd mappings.
-3. **10 min:** explain why removing the input-gradient reduction can leave forward
-   outputs correct while breaking backpropagation into preceding layers.
+In `_CopyToTP.backward`, comment out the all-reduce and rerun the two-rank
+script. Before reading the error, predict which comparison fails first:
 
-**Minimum evidence:** actual two-rank forward/backward equivalence, a shape ledger,
-and an explanation of each collective. The implementation uses the default
-process group for TP only; combining it with DP requires explicit TP subgroups.
+- the forward output?
+- `fc1`'s and `fc2`'s weight gradients?
+- the input gradient $\partial L/\partial X$?
 
-**Fallback:** hand-trace the partitioned arithmetic test, recording that real
-collective execution remains unverified. **Extension:** include bias parameters
-or change TP degree while preserving divisibility and gradient equivalence.
+Only the input gradient is wrong: each rank returns the contribution of its own
+columns. The forward pass and both local weight gradients are still correct.
+In a full model, that wrong $\partial L/\partial X$ flows into the attention
+block, the LayerNorm and the embeddings, so **every earlier layer** trains on
+a corrupted gradient while the loss can still go down. Restore the all-reduce
+and write the lesson in your log.
+
+### Step 4 — Shape ledger (10 minutes)
+
+Complete the ledger for one GPT-2-small block ($d=768$, 12 heads) at TP=2,
+$B\times T$ tokens, as in [Module 7, Part A](../modules/07-tensor-parallelism.md#part-a-layout-ledger):
+
+| Tensor | Shape per rank | Replicated or sharded | Collective (forward / backward) |
+| --- | --- | --- | --- |
+| block input $X$ | | | |
+| Q, K, V weights | | | |
+| attention heads per rank | | | |
+| attention output projection | | | |
+| `c_fc` weight / hidden activation | | | |
+| `c_proj` weight / output | | | |
+
+How many all-reduces does one block need in forward, and how many in backward?
+What constraint does the head count put on the TP degree?
+
+## Definition of done
+
+- Part A: `06_checkpoint_formats.py` prints `PASS:`, and you have a format and a
+  validation procedure for each of the four scenarios;
+- `tests/test_module_07_tp.py` passes with your `nanolm/tensor_parallel.py`, and
+  the two-rank script prints `PASS:`;
+- you can explain why removing the input-gradient all-reduce leaves the forward
+  output and the local weight gradients correct but breaks training;
+- a completed shape ledger with the per-block collective count.
+
+**Fallback:** if two ranks cannot run on your machine, pass the single-rank
+test, hand-trace the two-rank arithmetic in `test_tensor_parallel_mlp_equivalence`,
+and annotate the Part A output above. Record that your own collective execution is unverified.
+
+**Extensions:** run with `--nproc_per_node=4` and check the divisibility
+assertions; add biases to `ShardedMLP` and extend `verify_sharded_mlp` to compare
+the bias gradients (which bias gradient needs no communication, and why?). The
+reference uses the default process group for TP only. Combining it with data
+parallelism requires separate TP subgroups, which is the subject of Session 23.
+
+!!! success "What to take away"
+    - **Tensor parallelism splits a matrix multiply, not the model's mathematics.**
+      Pairing a column split with a row split keeps the hidden activation sharded,
+      so an MLP needs one all-reduce in forward and one in backward.
+    - **Every forward collective has a conjugate in backward.** Identity in forward
+      means a sum in backward, and the reverse. Get one wrong and the forward still passes.
+    - **Test the gradients that leave a layer, not only the layer's own.** The bug in
+      Step 3 is invisible to forward checks and to local weight gradients.
+    - **A checkpoint format is a promise about who can read it.** A full checkpoint
+      is portable; a sharded one is fast and can be resharded, but only through its
+      metadata. Training state also includes the optimizer, RNG and data position.

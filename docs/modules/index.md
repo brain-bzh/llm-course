@@ -93,9 +93,9 @@ intended and token accounting is global rather than rank-local.
 ## 6. FSDP and ZeRO
 
 **Understand:** which states are sharded, when all-gather and reduce-scatter
-occur, and how checkpointing changes. The current companion exercise is analytical.
+occur, and how checkpointing changes.
 
-**Inspect:** the reference FSDP wrapper and compare ZeRO state formulas with DDP.
+**Implement:** a sharded AdamW with reduce-scatter and all-gather, then run FSDP2 on CPU ranks and compare measured per-rank state with the ZeRO formulas.
 
 **Explain:** predicted persistent-state savings, transient-memory costs, and
 which DDP/FSDP measurements are required before claiming a fit or speedup.

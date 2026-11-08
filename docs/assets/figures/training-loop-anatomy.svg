@@ -21,7 +21,7 @@
       .inverse { fill: #ffffff; font-size: 14px; font-weight: 700; }
       .inverse-sub { fill: #c5d3e0; font-size: 12px; font-weight: 500; }
       .repeat { fill: #007f86; font-size: 14px; font-weight: 700; }
-      .accent { fill: #ea580c; font-size: 14px; font-weight: 700; }
+      .accent { fill: #b8481f; font-size: 14px; font-weight: 700; }
       .accent-sub { fill: #9a3412; font-size: 11px; font-weight: 500; }
       .arrow-head { fill: #68798a; }
       .teal-arrow-head { fill: #007f86; }

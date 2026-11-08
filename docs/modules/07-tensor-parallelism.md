@@ -20,6 +20,11 @@ Flatten the batch and sequence dimensions into `B`. A linear layer receives
 `X ∈ B × d` and stores `W ∈ d × m`. There are two useful ways to partition the
 matrix product.
 
+First consider a **replicated matmul**: both GPUs hold the full weight $W$
+and, for the same input $X$, each computes the same full $Y=XW$. This repeats
+the work. DDP normally feeds different data to its replicated models; here we
+hold the input fixed to compare a single operation.
+
 **Partition the output features.** Write `W = [W[0] | W[1]]`. Each rank can
 compute one output shard independently:
 
@@ -59,10 +64,21 @@ partial output `Ŷ_i = H_i W2_i`.
   <figcaption>Row parallelism sums partial results with one all-reduce.</figcaption>
 </figure>
 
-The complete result is `Y = Σ_i Ŷ_i`. An all-reduce performs that sum and leaves
-the same `Y` on every rank. A standalone row-parallel layer would first need its
+Each partial result has the **full output shape**, but not the full value: each
+contains only the contribution from that rank's input features. This is
+different from a column-parallel output shard, which contains complete values
+for only some output features. The complete result is `Y = Σ_i Ŷ_i`. An
+all-reduce performs that sum and leaves the same `Y` on every rank. A standalone row-parallel layer would first need its
 input scattered into compatible shards; composition gives it those shards for
 free.
+
+## Compare the three layouts
+
+| Layout | GPU 0 | GPU 1 | How to obtain the full result |
+| --- | --- | --- | --- |
+| Replicated | $XW=Y$ | $XW=Y$ | Each GPU already has $Y$ |
+| Column | $XW_0=Y_0$ | $XW_1=Y_1$ | Concatenate output features if needed |
+| Row | $X_0W_0=Z_0$ | $X_1W_1=Z_1$ | Sum the full-shape partial values |
 
 ## Column followed by row parallelism
 
@@ -71,7 +87,7 @@ The two layouts are deliberately paired:
 `X replicated → W1 column-parallel → H sharded → φ local → W2 row-parallel → all-reduce Y`
 
 <figure markdown="span">
-  ![A materialized layer boundary uses an all-gather, while a composed MLP carries hidden shards directly to the row-parallel layer.](../assets/figures/tp-mlp-chain.svg){ loading=lazy }
+  ![Two GPUs keep their hidden shards local through the activation and second projection, then sum partial outputs with all-reduce.](../assets/figures/tp-mlp-chain.svg){ loading=lazy }
   <figcaption>Keeping `H` sharded removes the intermediate all-gather.</figcaption>
 </figure>
 
@@ -87,6 +103,25 @@ This removes one intermediate collective; it does **not** make tensor
 parallelism communication-free. The backward pass has the complementary
 communication pattern, and collectives occur in every Transformer block.
 
+### Why not start with a row-sharded projection?
+
+A row-sharded first projection produces full-shape partial values $Z_0$ and
+$Z_1$. GELU is nonlinear, so in general
+$\operatorname{GELU}(Z_0+Z_1)\ne\operatorname{GELU}(Z_0)+\operatorname{GELU}(Z_1)$.
+The ranks must sum the partial values **before** GELU. Row-first is therefore
+possible, but it needs this communication; a replicated second projection would
+then repeat its work. Column-first instead produces separate hidden features,
+so GELU is local and the following row-sharded projection consumes those same
+shards. Its forward sum happens at the output. Backward communication still
+applies, and other layouts can make different trade-offs.
+
+The [original Megatron-LM block](https://arxiv.org/abs/1909.08053) uses this
+same column–GELU–row composition. With biases, each first-projection bias is
+sharded with its output features; the replicated second-projection bias is
+added **once after** the partial outputs are summed, before dropout. The backward
+pass sums the ranks' input-gradient contributions. PyTorch stores `nn.Linear`
+weights transposed relative to the mathematical $XW$ orientation used here.
+
 ## Inside a Transformer block
 
 The same pairing appears in both major sublayers:
@@ -97,10 +132,23 @@ The same pairing appears in both major sublayers:
   assigning attention heads to ranks, while the output projection is
   row-parallel.
 
-Each rank can run its local pointwise activation or its local attention heads
-without communication between the paired projections. Grouped-query and
+<figure markdown="span">
+  ![Two GPUs compute different pairs of attention heads, then sum their output-projection contributions.](../assets/figures/tp-attention-heads.svg){ loading=lazy }
+  <figcaption>Heads remain local between the sharded projections.</figcaption>
+</figure>
+
+For example, with four ordinary attention heads and two ranks, rank 0 computes
+heads 0–1 and rank 1 computes heads 2–3 for the same tokens. The row-parallel
+output projection produces full-width partial contributions that are summed
+before the residual addition. Each rank can run its local pointwise activation
+or its local attention heads without communication between the paired projections. Grouped-query and
 multi-query attention need extra care because KV heads may be shared across
 multiple query heads.
+
+This is the original Megatron ordinary-MHA pattern. If present, QKV biases
+are sharded with their heads; the output bias is added once after the partial
+outputs are summed. The backward pass sums input-gradient contributions, as in
+the MLP. GQA and sequence parallelism introduce additional layout choices.
 
 ## Sequence parallelism
 
@@ -112,6 +160,11 @@ At a tensor-parallel boundary, the final all-reduce can become a reduce-scatter:
 it both sums the partial results and keeps only a sequence shard on each rank.
 Before the next tensor-parallel region, an all-gather restores the replicated
 input expected by the column-parallel projection.
+
+<figure markdown="span">
+  ![Reduce-scatter creates token shards for local operations; all-gather restores the tokens for the next tensor-parallel region.](../assets/figures/tp-sequence-parallel.svg){ loading=lazy }
+  <figcaption>Sequence shards persist between tensor-parallel regions.</figcaption>
+</figure>
 
 Sequence parallelism primarily reduces activation residency. It changes the
 layout transitions, not the model's arithmetic.

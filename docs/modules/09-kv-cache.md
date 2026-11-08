@@ -47,6 +47,11 @@ token's projections at the next decode step.
 
 ## Two phases with different shapes
 
+<figure markdown="span">
+  ![Prompt prefill builds the cache and samples y1; decoding y1 updates the cache and samples y2.](../assets/figures/serving-prefill-decode.svg){ loading=lazy }
+  <figcaption>Prefill produces the first output token; each later decode step processes the previous output.</figcaption>
+</figure>
+
 ### Prefill
 
 The prompt of \(P\) tokens is processed together.
@@ -68,7 +73,9 @@ One new token is processed at a time.
 - often bandwidth-bound because matrices are skinny and model/cache bytes must
   be read for very little new-token work.
 
-This difference is why a user sees an initial pause followed by a stream of
+Prefill's final prompt-position logits produce the first sampled output token
+$y_1$. The next model call consumes $y_1$, appends its K/V and produces logits
+for $y_2$. This difference is why a user sees an initial pause followed by a stream of
 tokens. The corresponding metrics are time to first token (TTFT) and inter-token
 latency (ITL), or its reciprocal tokens/s for one request.
 
@@ -105,6 +112,11 @@ new query still reads and scores visible keys.
 <figure markdown="span">
   ![Past key-value projections remain in a layer-local cache. The new token produces one query, key and value; its key and value append to the cache while the query scans all visible cached positions.](../assets/figures/kv-cache-decode.svg){ loading=lazy }
   <figcaption>One decode step appends one K/V pair per layer and computes only the newest attention row.</figcaption>
+</figure>
+
+<figure markdown="span">
+  ![Each Transformer layer retains keys and values for the cached token positions.](../assets/figures/kv-cache-layers.svg){ loading=lazy }
+  <figcaption>Each request has logically separate K and V state at every layer.</figcaption>
 </figure>
 
 ## Cache shape and memory
@@ -165,6 +177,11 @@ Queries remain separate, but several query heads share the same K/V head. This
 reduces cache capacity and bandwidth, with a possible quality trade-off that is
 decided during model design/training. Converting an already trained MHA model
 to MQA by reshaping tensors is not generally equivalent.
+
+<figure markdown="span">
+  ![Four query heads use four KV heads in MHA, two in GQA, and one in MQA.](../assets/figures/mha-gqa-mqa.svg){ loading=lazy }
+  <figcaption>Fewer stored KV heads reduce cache size while query heads remain distinct.</figcaption>
+</figure>
 
 ### Example
 
@@ -280,8 +297,10 @@ For a fixed prompt and model in evaluation mode:
 4. compare cached and uncached logits, not only sampled token IDs;
 5. repeat across multiple lengths, batch sizes and cache boundaries.
 
-Use greedy decoding for the end-to-end token test. Stochastic sampling can
-diverge after tiny floating-point differences even when both paths are correct.
+Use greedy decoding for the end-to-end token test. Its tokens should agree when
+the winning logit remains stable; near ties can change the argmax even when
+logits are within tolerance. Stochastic sampling can also diverge after tiny
+floating-point differences even when both paths are correct.
 
 Test these failure-prone cases:
 

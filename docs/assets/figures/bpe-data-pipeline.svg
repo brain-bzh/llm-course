@@ -8,8 +8,16 @@
     .sub { fill: #4b6372; font-size: 13px; }
     .arrow { stroke: #547384; stroke-width: 2; fill: #547384; }
     .foot { fill: #3c5a69; font-size: 14px; }
+    .background { fill: #fff; }
+    @media (prefers-color-scheme: dark) {
+      .background { fill: #172534; }
+      .box { fill: #263d4f; stroke: #80a9bd; }
+      .title { fill: #eff7fb; }
+      .sub, .foot { fill: #cadce5; }
+      .arrow { stroke: #acc7d5; fill: #acc7d5; }
+    }
   </style>
-  <rect x="0" y="0" width="1000" height="225" rx="10" fill="#fff"/>
+  <rect x="0" y="0" width="1000" height="225" rx="10" class="background"/>
   <rect class="box" x="12" y="40" width="140" height="95" rx="9"/>
   <text class="title" x="82" y="78">1. Collect</text><text class="sub" x="82" y="104">documents</text>
   <rect class="box" x="179" y="40" width="140" height="95" rx="9"/>

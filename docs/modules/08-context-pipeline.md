@@ -79,6 +79,23 @@ which masked blocks the kernel skips and whether transfers overlap compute.
 (e.g., assigning chunk $i$ and chunk $2C - 1 - i$ to the same rank), balancing ideal valid-pair counts for equally sized chunks. Runtime also
 depends on kernel efficiency and communication.
 
+<figure markdown="span">
+  ![Eight sequence chunks mapped contiguously and in early-late pairs across four GPUs, with their illustrative causal tile counts.](../assets/figures/cp-causal-pairing.svg){ loading=lazy }
+  <figcaption>Paired chunks balance valid causal tiles in this equal-chunk example.</figcaption>
+</figure>
+
+Counting each diagonal tile as one, contiguous assignments have 3, 7, 11 and
+15 valid tiles per rank; the paired assignments have 9 each. This is a count of
+potential non-masked tiles, not a timing prediction; diagonal work, kernel
+skipping, packing and communication affect runtime.
+
+For a simple forward ring with $C$ ranks, local batch $B$, sequence length $T$,
+KV width $d_{kv}$ and $b$ bytes per element, $C-1$ full-block sends per rank
+move approximately $(C-1)2B(T/C)d_{kv}b$ bytes per rank. This counts K and V,
+and assumes equal chunks without causal communication skipping. Backward and
+weight-gradient synchronization add communication; overlap and topology govern
+the exposed cost. See the [Megatron Core context-parallel guide](https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/features/context_parallel.html).
+
 ---
 
 ## Pipeline parallelism (PP)
@@ -88,8 +105,9 @@ divided across $P$ sequential stages.
 
 ### All-forward-all-backward (AFAB / GPipe)
 
-All $m$ micro-batches execute forward through stage $1 \dots P$, then all $m$
-micro-batches execute backward in reverse order.
+All $m$ micro-batches execute forward through the pipeline before backward
+starts. Each micro-batch then traverses the stages in reverse depth order; the
+order of micro-batches is schedule-dependent.
 
 - **Bubble fraction:** $F_{\text{bubble}} = \frac{P - 1}{m + P - 1}$. Under balanced stage times and negligible communication, $F_{\text{bubble}}<0.1$
   requires $m>9(P-1)$. At $P=4,m=16$, the fraction is $3/19\approx15.8\%$.
@@ -115,6 +133,15 @@ physical device (e.g. device 0 runs layers 1–4 and 17–20). In an ideal balan
 roughly by $v$, while introducing more boundary transfers. Actual benefit depends
 on schedule constraints, micro-batch count, stage balance, and communication.
 
+### Communication at a stage boundary
+
+For a boundary activation of shape $B_\mu\times T\times d$ with $b$ bytes
+per element, one forward activation and one backward gradient transfer about
+$2B_\mu Tdb$ bytes per micro-batch across that boundary, assuming matching
+dtypes and shapes. Link bandwidth, latency, stage imbalance and overlap control
+how much transfer is visible in step time. More micro-batches mean more messages;
+total bytes also depend on the global batch and schedule.
+
 ### Interactive pipeline schedule simulator
 
 To explore how these pipeline schedules behave under different numbers of stages ($p$) and micro-batches ($m$), launch the dedicated interactive simulator:
@@ -138,6 +165,15 @@ token to the selected experts, and combines their outputs. Top-$k$ controls
 active expert work, not total stored parameters. Uneven routing can overload one
 rank; capacity limits or balancing policies change both runtime and model behavior.
 Shared attention weights are not divided by EP merely because experts are.
+
+<figure markdown="span">
+  ![Tokens a and d route to expert 0 on GPU 0; tokens b and c route to expert 1 on GPU 1. Purple arrows identify the remote routes.](../assets/figures/ep-token-routing.svg){ loading=lazy }
+  <figcaption>Top-1 example: the router sends each token to one expert MLP.</figcaption>
+</figure>
+
+This illustrates the forward dispatch. After expert computation, outputs return
+to their source ranks and are restored to token order. With top-$k$, a token can
+have several assignments and its expert outputs are combined using routing weights.
 
 ### Token routing and All-to-All communication
 
@@ -168,6 +204,16 @@ uniform routing across $E_P$ ranks, a simple estimate multiplies by
 $1-1/E_P$. Declare the token layout before setting $n$: TP/SP can change whether
 tokens are replicated or partitioned. Metadata, padding, skew, and protocol
 traffic are additional costs.
+
+### Load balancing and capacity
+
+An overloaded expert makes its rank a straggler; underfilled experts may run
+small, inefficient matrix multiplications. Monitor tokens per expert and rank,
+max-to-mean load, dispatch/combine time, and any dropped-token rate. Balancing
+can use auxiliary router losses or other routing policies. Capacity limits,
+padding and optional token dropping can bound or regularize shapes, but affect
+memory, compute, and potentially model behavior. See the
+[Megatron Core MoE guide](https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/features/moe.html).
 
 ## Map communication to the network
 

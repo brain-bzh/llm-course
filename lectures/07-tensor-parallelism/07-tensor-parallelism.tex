@@ -45,40 +45,114 @@
   {\scriptsize A following row-parallel layer can consume sharded outputs without an intermediate gather.}
 \end{frame}
 
-\begin{frame}{Column parallelism shards output features}
-  Let $Y=XW$ and split $W$ by columns:
-  \[
-    W=[W_1\;W_2\;\cdots\;W_p]
-  \]
-  \[
-    Y=[XW_1\;XW_2\;\cdots\;XW_p]
-  \]
-  \begin{block}{Local computation}
-    Every rank receives replicated $X$, stores one $W_i$, and produces one output-feature shard $Y_i$ without forward communication.
+\begin{frame}{First: a fully replicated matrix multiplication}
+  \centering
+  \begin{tikzpicture}[every node/.style={font=\small,align=center},
+    box/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.55cm,minimum height=.9cm}]
+    \foreach \y/\rank in {1.9/0,0/1}{
+      \node[font=\small\bfseries,text=themenavy] at (-4.75,\y) {GPU \rank};
+      \node[box] at (-2.95,\y) {$X$}; \node at (-1.85,\y) {$\times$};
+      \node[box,fill=themenavy!20] at (-.75,\y) {$W$}; \node at (.35,\y) {$=$};
+      \node[box] at (1.45,\y) {$Y$};
+      \node[anchor=west,font=\scriptsize] at (2.55,\y) {full input, weight and output};
+    }
+  \end{tikzpicture}
+  \par\vspace{8pt}
+  \begin{block}{Same work on the same input}
+    Each GPU holds the complete $W$ and computes $Y=XW$. With identical $X$, the results are identical: no tensor-parallel communication is needed.
   \end{block}
-  \begin{alertblock}{Layout change}
-    Input is replicated. Output is sharded across the hidden-feature axis.
-  \end{alertblock}
+  \footnotesize DDP normally feeds different data to its replicated models; here we use the same $X$ to compare one operation.
 \end{frame}
 
-\begin{frame}{Row parallelism shards input features}
-  Split both input and weight along their contracting dimension:
-  \[
-    X=[X_1\;X_2\;\cdots\;X_p],
-    \qquad
-    W=
-    \begin{bmatrix}W_1\\W_2\\\vdots\\W_p
-    \end{bmatrix}
-  \]
-  \[
-    Y=\sum_{i=1}^{p}X_iW_i
-  \]
-  \begin{block}{Local computation and collective}
-    Each rank computes a partial replicated-shape output. An all-reduce sum produces the full $Y$ on every rank.
-  \end{block}
+\begin{frame}{Column parallelism: split output features}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+    rank/.style={font=\small\bfseries,text=themenavy}]
+    \node[rank] at (-5.2,2.2) {GPU 0}; \node[rank] at (-5.2,.15) {GPU 1};
+    \foreach \y/\i/\col in {2.2/0/themenavy,.15/1/signaldark}{
+      \fill[themebluebg,draw=themebluedraw] (-4.3,\y-.42) rectangle (-2.95,\y+.42);
+      \node at (-3.63,\y) {$X$};
+      \node at (-2.65,\y) {$\times$};
+      \ifnum\i=0
+        \fill[\col,draw=\col] (-2.3,\y-.65) rectangle (-1.55,\y+.65);
+        \node[text=white] at (-1.93,\y) {$W_0$};
+        \draw[\col,dashed] (-1.55,\y-.65) rectangle (-.8,\y+.65);
+        \fill[\col,draw=\col] (-.1,\y-.42) rectangle (.75,\y+.42);
+        \node[text=white] at (.33,\y) {$Y_0$};
+        \draw[\col,dashed] (.75,\y-.42) rectangle (1.6,\y+.42);
+      \else
+        \draw[\col,dashed] (-2.3,\y-.65) rectangle (-1.55,\y+.65);
+        \fill[\col,draw=\col] (-1.55,\y-.65) rectangle (-.8,\y+.65);
+        \node[text=white] at (-1.18,\y) {$W_1$};
+        \draw[\col,dashed] (-.1,\y-.42) rectangle (.75,\y+.42);
+        \fill[\col,draw=\col] (.75,\y-.42) rectangle (1.6,\y+.42);
+        \node[text=white] at (1.18,\y) {$Y_1$};
+      \fi
+      \node at (-.45,\y) {$=$};
+    }
+    \node[anchor=west,align=left] at (2.1,2.2) {same input $X$\\left weight columns\\left output features};
+    \node[anchor=west,align=left] at (2.1,.15) {same input $X$\\right weight columns\\right output features};
+    \node[font=\small] at (-2.8,-1.1) {$Y=[XW_0\mid XW_1]$};
+    \node[text=accentdark,font=\small\bfseries] at (2.2,-1.1) {No forward collective};
+  \end{tikzpicture}
+  \par\vspace{3pt}\footnotesize Filled = local shard; dashed = held by the other GPU. Both GPUs process the same tokens.
 \end{frame}
 
-\begin{frame}{Follow a tensor-parallel MLP across two GPUs}
+\begin{frame}{Row parallelism: sum partial outputs}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+    rank/.style={font=\small\bfseries,text=themenavy}]
+    \node[rank] at (-5.0,2.15) {GPU 0}; \node[rank] at (-5.0,.1) {GPU 1};
+    \foreach \y/\i/\col in {2.15/0/themenavy,.1/1/signaldark}{
+      \fill[\col,draw=\col] (-4.1,\y-.38) rectangle (-3.25,\y+.38); \node[text=white] at (-3.68,\y) {$X_{\i}$};
+      \node at (-2.95,\y) {$\times$};
+      \ifnum\i=0
+        \fill[\col,draw=\col] (-2.6,\y) rectangle (-1.15,\y+.5); \node[text=white] at (-1.88,\y+.25) {$W_0$};
+        \draw[\col,dashed] (-2.6,\y-.5) rectangle (-1.15,\y);
+      \else
+        \draw[\col,dashed] (-2.6,\y) rectangle (-1.15,\y+.5);
+        \fill[\col,draw=\col] (-2.6,\y-.5) rectangle (-1.15,\y); \node[text=white] at (-1.88,\y-.25) {$W_1$};
+      \fi
+      \node at (-.82,\y) {$=$};
+      \fill[\col!25,draw=\col] (-.5,\y-.38) rectangle (.85,\y+.38); \node at (.18,\y) {$Z_{\i}$};
+    }
+    \node[font=\scriptsize,align=left] at (-1.9,-1.1) {matching input and\\weight row shards};
+    \node[draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.2cm,minimum height=1cm] (sum) at (2.55,1.12) {all-reduce\\$Z_0+Z_1$};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.9,2.15)--(sum.north west);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.9,.1)--(sum.south west);
+    \fill[themebluebg,draw=themebluedraw] (4.2,.75) rectangle (5.5,1.5); \node at (4.85,1.12) {$Y$};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (sum)--(4.2,1.12);
+    \node[align=center] at (4.85,.25) {full result\\on both GPUs};
+  \end{tikzpicture}
+  \par\vspace{2pt}\small $Y=X_0W_0+X_1W_1$: each $Z_i$ has the full output shape but only a \emph{partial value}.
+\end{frame}
+
+\begin{frame}{Three ways to distribute the same matmul}
+  \small
+  \begin{center}
+  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+    full/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.35cm,minimum height=.72cm},
+    part0/.style={draw=themenavy,fill=themenavy!12,minimum width=2.35cm,minimum height=.72cm},
+    part1/.style={draw=leafreddraw,fill=leafredbg,minimum width=2.35cm,minimum height=.72cm}]
+    \node[font=\small\bfseries] at (-1.55,3.4) {GPU 0}; \node[font=\small\bfseries] at (1.55,3.4) {GPU 1};
+    \node[anchor=east,font=\small\bfseries] at (-3.05,2.55) {Replicated};
+    \node[full] at (-1.55,2.55) {$XW=Y$}; \node[full] at (1.55,2.55) {$XW=Y$};
+    \node[anchor=west,align=left] at (3.05,2.55) {two full results\\same work};
+    \node[anchor=east,font=\small\bfseries] at (-3.05,1.35) {Column};
+    \node[part0] at (-1.55,1.35) {$XW_0=Y_0$}; \node[part1] at (1.55,1.35) {$XW_1=Y_1$};
+    \node[anchor=west,align=left] at (3.05,1.35) {distinct features\\$Y=[Y_0\mid Y_1]$};
+    \node[anchor=east,font=\small\bfseries] at (-3.05,.15) {Row};
+    \node[part0] at (-1.55,.15) {$X_0W_0=Z_0$}; \node[part1] at (1.55,.15) {$X_1W_1=Z_1$};
+    \node[anchor=west,align=left] at (3.05,.15) {partial values\\$Y=Z_0+Z_1$};
+  \end{tikzpicture}
+  \end{center}
+  \begin{block}{The distinction}
+    Column shards hold complete values for different features. Row shards hold partial contributions to every output feature and need a sum for $Y$.
+  \end{block}
+  \footnotesize Forward pass, two GPUs; inputs are assumed to have the layouts shown.
+\end{frame}
+
+\begin{frame}{Megatron MLP across two GPUs}
   \centering
   \ParallelLegend\par\vspace{4pt}
   \begin{tikzpicture}[
@@ -100,52 +174,65 @@
     \draw[arr] (z1.south) -- (z1.south |- sum.north);
   \end{tikzpicture}
   \par\vspace{4pt}
-  \small Keep $H_0,H_1$ sharded between the two linear layers; sum the partial outputs before the residual add.
-  \par{\scriptsize Forward pass; biases omitted.}
+  \small Keep $H_0,H_1$ sharded; sum partial outputs before the residual.
+  \par{\scriptsize Backward sums input gradients. First bias is sharded; output bias is added once after the sum.}
+  \smallsource{Shoeybi et al., Megatron-LM (2019)}
 \end{frame}
 
-\begin{frame}{Column then row parallelism forms an efficient sandwich}
+\begin{frame}{Why start the MLP with column parallelism?}
   \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},
-      op/.style={draw=accentdark,fill=accentdark,text=white,rounded corners,minimum width=1.72cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries},
-      shard/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=1.55cm,minimum height=.66cm,align=center},
-    collective/.style={draw=successdraw,fill=successbg,rounded corners,minimum width=1.8cm,minimum height=.66cm,align=center,font=\scriptsize\bfseries}]
-    \node[anchor=east,font=\scriptsize\bfseries] at (1.45,3.25) {materialize $H$};
-    \node[op] (m1) at (2.55,3.25) {$W_1$\\column};
-    \node[shard] (mh) at (4.55,3.25) {$H_0\mid H_1$};
-    \node[collective,fill=warningbg,draw=warningdraw] (mag) at (6.65,3.25) {all-gather};
-    \node[op] (m2) at (8.75,3.25) {$W_2$\\row};
-    \node[collective] (mar) at (10.85,3.25) {all-reduce};
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (m1)--(mh); \draw[-{Stealth[length=4pt,width=3pt]},thick] (mh)--(mag); \draw[-{Stealth[length=4pt,width=3pt]},thick] (mag)--(m2); \draw[-{Stealth[length=4pt,width=3pt]},thick] (m2)--(mar);
-    \node[anchor=east,font=\scriptsize\bfseries,text=accentdark] at (1.45,1.55) {composed MLP};
-    \node[op] (c1) at (2.55,1.55) {$W_1$\\column};
-    \node[shard] (ch) at (4.55,1.55) {$H_0\mid H_1$};
-    \node[op] (c2) at (8.75,1.55) {$W_2$\\row};
-    \node[collective] (car) at (10.85,1.55) {all-reduce};
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (c1)--(ch);
-    \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (ch)-- node[above,text=accentdark] {$\phi$ stays sharded} (c2);
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (c2)--(car);
-    \draw[very thick,alertdraw] (5.78,1.25)--(7.52,1.85);
-    \draw[very thick,alertdraw] (5.78,1.85)--(7.52,1.25);
-    \node[text=alertdraw,font=\scriptsize\bfseries] at (6.65,.82) {no intermediate all-gather};
+  \begin{tikzpicture}[scale=.89,transform shape,every node/.style={font=\scriptsize,align=center},
+    op/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.8cm,minimum height=.72cm},
+    comm/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=1.8cm,minimum height=.72cm},
+    arrow/.style={-{Stealth[length=4pt]},thick}]
+    \node[anchor=east,font=\small\bfseries] at (-.5,2.5) {Row first};
+    \node[op] (r1) at (.7,2.5) {$W_1$ row\\partial values};
+    \node[comm] (rs) at (3.05,2.5) {all-reduce\\sum partials};
+    \node[op] (rp) at (5.4,2.5) {$\phi$\\full activation};
+    \node[op] (r2) at (7.75,2.5) {$W_2$ full\\replicated};
+    \draw[arrow] (r1)--(rs); \draw[arrow] (rs)--(rp); \draw[arrow] (rp)--(r2);
+    \node[anchor=east,font=\small\bfseries,text=accentdark] at (-.5,.65) {Column first};
+    \node[op] (c1) at (.7,.65) {$W_1$ column\\feature shards};
+    \node[op] (cp) at (3.05,.65) {$\phi$\\local shards};
+    \node[op] (c2) at (5.4,.65) {$W_2$ row\\partial values};
+    \node[comm] (cs) at (7.75,.65) {all-reduce\\sum output};
+    \draw[arrow] (c1)--(cp); \draw[arrow] (cp)--(c2); \draw[arrow] (c2)--(cs);
   \end{tikzpicture}
-  \vspace{4pt}
-  \footnotesize $H_i=\phi(XW_{1,i})$, then $Y=\sum_i H_iW_{2,i}$: two GEMMs, one forward collective.
-  \smallsource{Hugging Face Ultra-Scale Playbook and Megatron-LM}
+  \par\vspace{5pt}
+  \begin{block}{Nonlinearity determines where the sum must happen}
+    For GELU, in general $\phi(Z_0+Z_1)\ne\phi(Z_0)+\phi(Z_1)$. Row first is valid only if its partial outputs are combined before $\phi$.
+  \end{block}
+  \footnotesize Top: assume sharded input and a replicated second layer. Bottom: sharded intermediate, one forward reduction at the output; backward also communicates.
 \end{frame}
 
 \section{Inside a Transformer block}
 
-\begin{frame}{Attention naturally shards by heads}
-  \begin{itemize}
-      \setlength{\itemsep}{8pt}
-    \item Column-shard the fused $QKV$ projection so each rank owns a subset of heads.
-    \item Compute attention locally for those heads.
-    \item Row-shard the output projection and all-reduce its partial residual update.
-  \end{itemize}
-  \begin{alertblock}{Divisibility invariant}
-    The number of query heads must divide by tensor-parallel degree. With GQA, key-value head partitioning imposes an additional constraint.
-  \end{alertblock}
+\begin{frame}{Megatron attention: keep different heads on each GPU}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+    op/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.8cm,minimum height=.7cm},
+    shard/.style={minimum width=1.45cm,minimum height=.7cm,text=white}]
+    \node[font=\small\bfseries,text=themenavy] at (-5.0,2) {GPU 0};
+    \node[font=\small\bfseries,text=themenavy] at (-5.0,.1) {GPU 1};
+    \foreach \y/\col/\heads/\rank in {2/themenavy/{heads 0, 1}/0,.1/signaldark/{heads 2, 3}/1}{
+      \node[op] (x\rank) at (-3.55,\y) {same $X$};
+      \node[shard,fill=\col] (q\rank) at (-1.65,\y) {local $Q,K,V$};
+      \node[shard,fill=\col] (h\rank) at (.35,\y) {\heads};
+      \node[op] (o\rank) at (2.45,\y) {output proj.\\partial $Z_\rank$};
+      \draw[-{Stealth[length=4pt]},thick] (x\rank)--(q\rank);
+      \draw[-{Stealth[length=4pt]},thick] (q\rank)--(h\rank);
+      \draw[-{Stealth[length=4pt]},thick] (h\rank)--(o\rank);
+    }
+    \node[draw=accentvioletdraw,fill=accentvioletbg,minimum width=2cm,minimum height=.75cm] (sum) at (4.75,1.05) {all-reduce\\$Z_0+Z_1$};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (o0.east)--(sum.north west);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (o1.east)--(sum.south west);
+    \node[font=\scriptsize,text=neutraldark] at (-1.65,2.9) {column-sharded projections};
+    \node[font=\scriptsize,text=neutraldark] at (2.45,2.9) {row-sharded projection};
+  \end{tikzpicture}
+  \par\vspace{4pt}\small Each GPU computes its heads locally on the same token sequence; the summed output is ready for the residual.
+  \par\vspace{3pt}\footnotesize Backward sums input gradients. QKV biases follow head shards; add output bias once after the sum.
+  \par\footnotesize Four-head MHA; GQA may require a different KV-head layout.
+  \smallsource{Shoeybi et al., Megatron-LM (2019)}
 \end{frame}
 
 \begin{frame}{A layout ledger is the core debugging tool}
@@ -166,20 +253,25 @@
   Every operation must declare what is sharded, what is replicated, and what collective changes that layout.
 \end{frame}
 
-\begin{frame}{Sequence parallelism removes replicated token activations}
-  LayerNorm, dropout, and some elementwise work do not require the full hidden tensor on every rank. Sequence parallelism shards the $B\times T$ token dimension between tensor-parallel regions.
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Benefit}
-        lower activation memory for operations that would otherwise remain replicated
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Cost}
-        reduce-scatter and all-gather transitions around tensor-parallel linear regions
-      \end{alertblock}
-    \end{column}
-  \end{columns}
+\begin{frame}{Sequence parallelism shards the residual stream}
+  \centering
+  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+    op/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.0cm,minimum height=.85cm},
+    comm/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.0cm,minimum height=.85cm}]
+    \node[op] (partial) at (0,1.6) {TP output\\partial on each GPU};
+    \node[comm] (rs) at (3,1.6) {reduce-scatter\\sum + split tokens};
+    \node[op] (local) at (6,1.6) {norm / residual\\local token shards};
+    \node[comm] (ag) at (9,1.6) {all-gather\\restore tokens};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (partial)--(rs);
+    \draw[-{Stealth[length=4pt]},thick] (rs)--(local);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (local)--(ag);
+    \node[font=\scriptsize] at (6,.45) {GPU 0: \textcolor{themenavy}{tokens 0--1} \quad GPU 1: \textcolor{leafreddraw}{tokens 2--3}};
+  \end{tikzpicture}
+  \par\vspace{8pt}
+  \begin{block}{Memory versus communication}
+    Shard activations between tensor-parallel regions; gather the input needed by the next region. These transitions change layout, not model math.
+  \end{block}
+  \footnotesize Example assumes per-token normalization and dropout; other operations may require communication.
 \end{frame}
 
 \begin{frame}{Forward and backward collectives are conjugate}

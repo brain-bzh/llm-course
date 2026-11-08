@@ -21,24 +21,22 @@
 
 \section{From model forward to inference engine}
 
-\begin{frame}{A serving engine coordinates four state machines}
-  \begin{columns}[c]
-    \begin{column}{0.52\linewidth}
-      \begin{enumerate}
-          \setlength{\itemsep}{7pt}
-        \item request queue and admission policy
-        \item iteration-level token scheduler
-        \item KV-block allocator and prefix index
-        \item model runner and sampled output stream
-      \end{enumerate}
-    \end{column}
-    \begin{column}{0.44\linewidth}
-      \begin{block}{One engine step}
-        select tokens\\assign cache blocks\\execute model\\sample tokens\\update request state
-      \end{block}
-    \end{column}
-  \end{columns}
-  \smallsource{vLLM Anatomy and Hugging Face Continuous Batching}
+\begin{frame}{One engine iteration: from requests to GPU and back}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
+    box/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.7cm,minimum height=.8cm},
+    cache/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.2cm,minimum height=.8cm},
+    arrow/.style={-{Stealth[length=4pt]},thick}]
+    \node[box] (queue) at (0,2) {waiting\\requests};
+    \node[box] (scheduler) at (2.5,2) {scheduler\\token budget};
+    \node[box] (runner) at (5,2) {GPU model\\one iteration};
+    \node[box] (sampler) at (7.5,2) {sample / stream\\update state};
+    \node[cache] (cache) at (4.2,.25) {KV manager\\allocate / free blocks};
+    \draw[arrow] (queue)--(scheduler); \draw[arrow] (scheduler)--(runner); \draw[arrow] (runner)--(sampler);
+    \draw[arrow,accentvioletdraw] (scheduler)--(cache); \draw[arrow,accentvioletdraw] (cache)--(runner);
+    \draw[arrow] (sampler.south) |- (7.5,-.75) -| node[pos=.25,below]{unfinished requests return} (scheduler.south);
+  \end{tikzpicture}
+  \par\vspace{5pt}\small At each iteration, choose token work, reserve cache space, run the model, then stream outputs and retire finished requests.
 \end{frame}
 
 \begin{frame}{Prefill and decode compete for the same device}
@@ -121,15 +119,15 @@
     \draw[neutrallight] (2.2,3.7)--(10.2,3.7); \draw[neutrallight] (2.2,4.55)--(10.2,4.55); \draw[neutrallight] (2.2,5.4)--(10.2,5.4);
     \foreach \y/\name in {1.9/slot 1,1.05/slot 2,.2/slot 3}{\node[left] at (2.05,\y+.25) {\name};}
     \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
-    \fill[warningdraw] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\tiny\bfseries] at (5.7,2.15) {D prefill};
+    \fill[signaldark] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\tiny\bfseries] at (5.7,2.15) {D};
     \foreach \x in {4,5,6,7}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
     \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,1.05) rectangle (3.2+\x,1.55);}
     \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
-    \fill[warningdraw] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\tiny\bfseries] at (4.7,.45) {E prefill};
+    \fill[signaldark] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\tiny\bfseries] at (4.7,.45) {E};
     \foreach \x in {3,4,5,6,7}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
     \draw[neutrallight] (2.2,.2) rectangle (10.2,2.4);
     \foreach \x in {0,...,7}{\draw[white] (2.2+\x,.2)--(2.2+\x,2.4);}
-    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\scriptsize\bfseries] at (11.25,1.3) {finished leaves\\new work enters};
+    \node[anchor=west,draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny\bfseries] at (10.5,1.3) {orange: prefill\\blue: decode};
   \end{tikzpicture}
   \vspace{3pt}
   \begin{block}{Scheduling unit}
@@ -155,37 +153,55 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Chunked prefill turns long prompts into schedulable pieces}
-  Instead of scheduling a 16k-token prompt atomically, split it into chunks that share iterations with decode work.
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Benefits}
-        lower head-of-line blocking\\bounded iteration size\\better prefill-decode mixing
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Costs}
-        more scheduling boundaries\\possible loss of prefill efficiency\\partial-request state
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  Chunk size is a latency-throughput knob, not a universal constant.
+\begin{frame}{Chunked prefill shares iterations with decode}
+  \centering
+  \begin{tikzpicture}[x=.75cm,y=.65cm,every node/.style={font=\scriptsize,align=center}]
+    \node[anchor=east,font=\small\bfseries] at (-.3,2.8) {one long prefill};
+    \node[anchor=east,font=\small\bfseries] at (-.3,1.15) {chunked};
+    \fill[warningbg,draw=warningdraw] (0,2.45) rectangle (5.5,3.15); \node at (2.75,2.8) {prompt prefill};
+    \fill[themebluebg,draw=themebluedraw] (5.5,2.45) rectangle (7.2,3.15); \node at (6.35,2.8) {decode};
+    \foreach \x in {0,2.4,4.8}{\fill[warningbg,draw=warningdraw] (\x,.8) rectangle (\x+1.5,1.5); \node at (\x+.75,1.15) {$P$};}
+    \foreach \x in {1.5,3.9,6.3}{\fill[themebluebg,draw=themebluedraw] (\x,.8) rectangle (\x+.9,1.5); \node at (\x+.45,1.15) {$D$};}
+    \draw[-{Stealth[length=4pt]},thick] (0,.1)--(7.6,.1) node[right]{time};
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \small P: prefill chunk; D: decode for other active requests. An iteration can mix both kinds of work, limiting long decode stalls.
+  \begin{alertblock}{Trade-off}
+    Smaller chunks can reduce blocking but add scheduling/launch overhead and may lower prefill efficiency. The prompt must complete before its first generated token.
+  \end{alertblock}
 \end{frame}
 
-\begin{frame}{Paged KV allocation matches irregular lifetimes}
-  \begin{itemize}
-      \setlength{\itemsep}{7pt}
-    \item Divide KV memory into fixed-size physical blocks.
-    \item Map each request's logical token blocks to any free physical blocks.
-    \item Allocate as the sequence grows and return blocks on completion.
-    \item Share immutable prefix blocks when requests have identical prefixes.
-  \end{itemize}
-  \begin{block}{What paging solves}
-    External fragmentation and maximum-length over-reservation are reduced because requests need not occupy one contiguous region.
+\begin{frame}{Paged KV: logical tokens map to physical blocks}
+  \centering
+  \begin{tikzpicture}[x=.85cm,y=.75cm,every node/.style={font=\scriptsize,align=center}]
+    \node[anchor=east,font=\small\bfseries] at (-.4,3) {logical};
+    \foreach \i/\label in {0/{0--3},1/{4--7},2/{8--9}}{
+      \fill[themebluebg,draw=themebluedraw] (\i*2,2.6) rectangle (\i*2+1.7,3.4);
+      \node at (\i*2+.85,3) {block \i\\tokens \label}; }
+    \node[anchor=east,font=\small\bfseries] at (-.4,1.35) {physical};
+    \foreach \i in {0,...,6}{\draw[neutrallight] (\i*1.05,1) rectangle (\i*1.05+.9,1.7); \node[font=\tiny] at (\i*1.05+.45,.75) {\i};}
+    \fill[accentdarkbg,draw=accentdarkdraw] (4.2,1) rectangle (5.1,1.7); \node at (4.65,1.35) {0};
+    \fill[accentdarkbg,draw=accentdarkdraw] (1.05,1) rectangle (1.95,1.7); \node at (1.5,1.35) {1};
+    \fill[warningbg,draw=warningdraw] (6.3,1) rectangle (7.2,1.7); \node at (6.75,1.35) {2};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.85,2.6)--(4.65,1.72);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (2.85,2.6)--(1.5,1.72);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (4.85,2.6)--(6.75,1.72);
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \small Block table: $[4,1,6]$. With four token slots per block, ten cached tokens use three blocks; the last has two unused slots.
+  \par\footnotesize Conceptual blocks represent the KV storage for a token range; actual layouts organize layers and devices differently.
+\end{frame}
+
+\begin{frame}{Explore batching and paged allocation}
+  \begin{block}{Interactive serving simulator}
+    \href{https://brain-bzh.github.io/llm-course/demos/continuous-batching.html}{\textbf{Open the batching and paged-KV demo} $\nearrow$}
   \end{block}
-  \begin{alertblock}{What remains}
-    Internal slack in the last block, allocator metadata, capacity limits, and bandwidth cost of reading the cache.
-  \end{alertblock}
+  \begin{enumerate}
+    \item Compare static and continuous batching under the same arrivals.
+    \item Step through a request's logical-to-physical block table as it grows and finishes.
+    \item Change prompt lengths, block size and token budget; compare TTFT and occupancy.
+  \end{enumerate}
+  \small This is a teaching simulation: validate scheduling and performance claims on the target engine and hardware.
 \end{frame}
 
 \begin{frame}{Prefix caching trades index work for avoided prefill}
@@ -240,21 +256,22 @@
 
 \section{Measure the service, not a toy loop}
 
-\begin{frame}{Latency is a distribution with several clocks}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.20\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
-    \toprule
-    Metric & Definition & Dominant factors \\
-    \midrule
-    queue time & arrival to admission & load and policy \\
-    TTFT & arrival to first token & queue plus prefill \\
-    inter-token latency & time between output tokens & decode schedule and batch \\
-    end-to-end latency & arrival to completion & all phases and output length \\
-    throughput & completed or output tokens per second & batching and saturation \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  Report median and tail percentiles. A good average can hide an unusable p99.
+\begin{frame}{A request has several latency clocks}
+  \centering
+  \begin{tikzpicture}[x=.85cm,y=.8cm,every node/.style={font=\scriptsize,align=center}]
+    \draw[-{Stealth[length=4pt]},thick] (0,1)--(10.4,1) node[right]{time};
+    \foreach \x/\lab in {0/arrival,2/admit,5/first token,7/second token,9/finish}{
+      \draw[thick] (\x,.85)--(\x,1.15); \node[above] at (\x,1.2) {\lab}; }
+    \draw[<->,thick,accentdark] (0,.35)--node[above]{queue}(2,.35);
+    \draw[<->,thick,themebluedraw] (0,-.35)--node[above]{TTFT}(5,-.35);
+    \draw[<->,thick,leafreddraw] (5,-1.05)--node[above]{ITL}(7,-1.05);
+    \draw[<->,thick,accentvioletdraw] (0,-1.75)--node[above]{end-to-end}(9,-1.75);
+  \end{tikzpicture}
+  \par\vspace{6pt}
+  \small TTFT includes queueing and prefill; ITL is one gap between streamed tokens. TPOT often summarizes the mean gap per request.
+  \begin{block}{Service goal}
+    Report throughput alongside p50/p95/p99 latency; goodput counts requests satisfying the declared latency objectives.
+  \end{block}
 \end{frame}
 
 \begin{frame}{Open-loop and closed-loop loads answer different questions}

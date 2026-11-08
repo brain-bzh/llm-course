@@ -14,19 +14,19 @@
       .cell-text { fill: #10233f; font-size: 12px; font-weight: 750; text-anchor: middle; }
       .cell-border { stroke: #ffffff; stroke-width: 1.5; }
       .empty-slot { fill: #eef2f6; stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 3 3; rx: 4; }
-      .empty-text { fill: #94a3b8; font-size: 11px; font-weight: 500; text-anchor: middle; }
+      .empty-text { fill: #526071; font-size: 11px; font-weight: 500; text-anchor: middle; }
       .c0 { fill: #54c6cd; }
       .flow { fill: none; stroke: #68798a; stroke-width: 2.5; marker-end: url(#arrow); }
       .api-lbl { fill: #007f86; font-size: 13px; font-weight: 700; text-anchor: middle; font-family: 'JetBrains Mono', monospace; }
       .meta-lbl { fill: #64748b; font-size: 11px; font-weight: 600; text-anchor: middle; }
-      .meta-cost { fill: #ea580c; font-size: 11px; font-weight: 700; text-anchor: middle; }
+      .meta-cost { fill: #b8481f; font-size: 11px; font-weight: 700; text-anchor: middle; }
       @media (prefers-color-scheme: dark) {
         .bg { fill: #131d2a; stroke: #2c4052; }
         .panel-title { fill: #f3f7fa; }
         .rank-lbl { fill: #94a3b8; }
         .cell-border { stroke: #131d2a; }
         .empty-slot { fill: #1e293b; stroke: #334155; }
-        .empty-text { fill: #64748b; }
+        .empty-text { fill: #b8c9d8; }
         .cell-text { fill: #10233f; }
         .flow { stroke: #94a3b8; }
         .api-lbl { fill: #54d2d8; }

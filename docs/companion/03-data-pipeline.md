@@ -1,114 +1,169 @@
-# Module 3 Lab — Pretraining Data Pipeline
+# Module 3 Lab — Build the data path from documents to batches
 
 This lab accompanies [Module 3: Pretraining data pipeline](../modules/03-data-pipeline.md).
+You will implement the three steps between a pile of documents and a training
+batch where silent bugs are most common: **splitting without leakage**,
+**packing with document boundaries**, and **slicing shifted batches** from a
+memory-mapped shard. The tokenizer, filters and loader constructor are provided.
 
-!!! tip "Practical Lab Resources"
-    To work through the hands-on implementation for this module:
-
-    - **Lab script:** [`scripts/03_prepare_dataset.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/03_prepare_dataset.py)
-    - **Reference modules:** [`nanolm/tokenizer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tokenizer.py) · [`nanolm/data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/data.py)
-    - **Unit tests:** [`tests/test_module_03_data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_03_data.py)
-
----
+!!! tip "Files used in this lab"
+    - **Starter:** [`starter/03_data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/03_data.py)
+    - **Your implementation:** [`nanolm/data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/data.py)
+    - **Provided tokenizer:** [`nanolm/tokenizer.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/tokenizer.py) (byte-level BPE, trainable)
+    - **Demo:** [`scripts/03_prepare_dataset.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/03_prepare_dataset.py)
+    - **Tests:** [`tests/test_module_03_data.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_03_data.py)
 
 ## Connection to the baseline
 
-In session 8 the provided baseline encoded UTF-8 bytes directly, added an
-end-of-text token and wrote train and validation shards. Its vocabulary has 257
-entries. Here we inspect a learned BPE vocabulary and implement the same
-boundary and shifted-batch ideas. The demo is a separate small corpus, not an
-automatic replacement for the baseline data: a BPE run needs a matching
-vocabulary size and tokenizer. Byte-token and BPE loss per token are not directly
-comparable; compare a normalized measure on the same held-out text instead.
+In Session 8 the baseline encoded UTF-8 bytes directly (257 symbols with the
+end-of-text token) and wrote train and validation shards. This lab adds a
+learned BPE vocabulary and implements the same boundary and shifted-batch ideas
+yourself. Byte-level and BPE losses per token are **not** comparable: a BPE
+token covers several bytes. Compare models on the same held-out text with a
+normalized measure such as bits per byte.
 
-## Objectives
+## Before class (15 minutes)
 
-1. **Apply heuristic document hygiene**: Filter low-information documents using fast length, alphanumeric ratio, and line repetition rules to conserve GPU FLOPs.
-2. **Train a Byte-Pair Encoding (BPE) tokenizer**: Trace merge rules, run the provided trainer, and verify lossless round-trip decoding.
-3. **Pack documents contiguously**: Serialize token streams with `<|endoftext|>` delimiters into compact binary `uint16` memory-mapped files.
-4. **Stream high-throughput batches**: Inspect the provided loader and measure batch production under declared conditions.
-
----
-
-## Quickstart
-
-Run the dataset preparation test suite and demo script:
+Read [Byte-Pair Encoding from first principles](../modules/03-data-pipeline.md#byte-pair-encoding-bpe-from-first-principles)
+and [Document boundaries & sequence packing](../modules/03-data-pipeline.md#document-boundaries-sequence-packing).
+On paper, apply two BPE merges to `"low lower lowest"`: count adjacent byte
+pairs, merge the most frequent, and repeat once.
 
 ```bash
-uv run pytest tests/test_module_03_data.py -v
-uv run python scripts/03_prepare_dataset.py
+git switch -c session-10-data
+cp starter/03_data.py nanolm/data.py
+uv run pytest tests/test_module_03_data.py -q   # 5 fail with NotImplementedError; BPE tests pass
 ```
 
 ## Session 10 protocol — 75 minutes
 
-**Prepare:** read the module sections on BPE, document boundaries, and shifted
-batches. Run the quickstart before class. The reference tokenizer, filters, and
-memory-mapped loader are provided; rebuilding all three is an optional extension.
-
 | Time | Activity | Evidence |
 | --- | --- | --- |
-| 0–10 min | Inspect document IDs and a fixed train/validation split; identify an exact duplicate that would cross the split | A disjoint document manifest and explanation of the duplicate policy |
-| 10–25 min | Hand-trace two BPE merges, then inspect the reference tokenizer on ASCII and Unicode examples | Decoded text equals the original; report bytes and token counts |
-| 25–50 min | Implement packing with an explicit end-of-document token and shifted batch slices | Show the boundary token IDs and a batch with `Y[:, :-1] == X[:, 1:]` |
-| 50–65 min | Inspect the provided memmap loader and time repeated batches | Batch size, sequence length, dtype, elapsed time, and tokens/s; no claim about GPU throughput from a CPU-only measurement |
-| 65–75 min | Explain one failure: missing delimiter, off-by-one target, or leaked validation document | A corrected example and a short causal explanation |
+| 0–10 min | Check the hand-traced merges against the provided tokenizer | Learned merges and a lossless Unicode round-trip |
+| 10–25 min | Step 1: `assign_splits` (deduplicate before splitting) | Split test passes; list of dropped IDs |
+| 25–45 min | Step 2: `pack_documents` with an end-of-text token after every document | Pack tests pass; printed IDs around a boundary |
+| 45–60 min | Step 3: `get_batch` offsets and shifted targets | Batch test passes; largest valid offset stated |
+| 60–75 min | Step 4: run the pipeline end to end; diagnose one deliberate bug | Corrected example with a causal explanation |
 
-The quickstart uses a toy corpus and writes a temporary shard; it does not
-provide the disjoint manifest for this exercise. The instructor should supply a
-small local corpus with stable IDs and a duplicate that crosses a proposed split,
-or students can construct one explicitly. Show which IDs were retained in each
-partition. Use a small local corpus with stable document IDs. Group identical documents
-before splitting, and train learned tokenizer merges only on the training
-partition. Pack training and validation into separate files. Document the
-source and any filtering rule; preserve a few discarded examples for inspection.
-
-### A small exercise you can run locally
-
-If no course corpus is available, start with the following proposed split. The
-first and fourth records have different IDs but identical text. Resolve the
-cross-split duplicate before fitting the tokenizer; explain which record you
-removed and why. This is a teaching fixture, not a representative corpus.
+### Step 0 — Check your merges (10 minutes)
 
 ```python
-records = [
-    ("train-1", "train", "A small model learns from a sequence of tokens."),
-    ("train-2", "train", "A token sequence can cross a document boundary."),
-    ("val-1", "validation", "A held-out document measures a different example."),
-    ("val-2", "validation", "A small model learns from a sequence of tokens."),
-]
+# scratch.py — run with: uv run python scratch.py
+from nanolm.tokenizer import BPETokenizer
+
+tok = BPETokenizer()
+tok.train("low lower lowest", vocab_size=259)  # 256 bytes + EOT + 2 merges
+for (a, b), new in tok.merges.items():
+    print(tok.vocab[a], "+", tok.vocab[b], "->", tok.vocab[new])
+text = "lowest café 🚀"
+ids = tok.encode(text)
+print(len(text.encode()), "bytes ->", len(ids), "tokens; round-trip:", tok.decode(ids) == text)
 ```
 
-In a scratch Python file, implement the following steps. Use the provided
-`BPETokenizer` from `nanolm.tokenizer` and NumPy; do not modify the reference
-loader while you are learning its contract.
+Do the merges match your paper trace? Why can a byte-level tokenizer encode
+`🚀` even though it never saw it during training?
 
-1. Group exact duplicate text, choose one partition for each group, and print
-   the remaining document IDs in each split. Keep at least one document in
-   each split.
-2. Train a fresh `BPETokenizer` on the **training text only**, requesting a
-   vocabulary size of 280. Print `encode` and `decode` for a held-out Unicode
-   example and check the round-trip. The actual vocabulary may be smaller if
-   the toy corpus has too few repeated pairs.
-3. For each split independently, encode every document, append
-   `tokenizer.eot_token_id` after each, and write the IDs with
-   `numpy.asarray(ids, dtype=numpy.uint16).tofile(path)`. Print a few IDs around
-   each boundary. Check that IDs fit the dtype before writing.
-4. Read each shard with `BinaryShardedDataset`. Use `block_size=8` and
-   `batch_size=2`, and check `y[:, :-1] == x[:, 1:]`. Look up how the loader
-   draws its starting offsets and explain why the last target has no matching
-   input inside the same window.
+### Step 1 — Deduplicate, then split (15 minutes)
 
-Compare your result with `pack_documents` in the reference implementation.
-The delimiter marks a boundary; standard causal attention can still see tokens
-from the preceding document unless an additional isolation mask is used.
+`assign_splits(records)` receives `(doc_id, proposed_split, text)` tuples in a
+fixed order. The policy is: normalize whitespace (`normalize_text` is
+provided), keep the **first** record of each identical text in its proposed
+split, and drop every later copy, wherever it was proposed. Return the splits and the
+`(dropped_id, kept_id)` pairs.
 
-**Minimum completion:** lossless tokenizer round-trip, visible document
-boundaries, disjoint source-document partitions, and correct shifted batches.
-Compression ratio and throughput are observations, not universal thresholds.
+```bash
+uv run pytest tests/test_module_03_data.py -k split -q
+```
 
-**Fallback:** if packing is unfinished, inspect a shard produced by the provided
-script and diagnose deliberately shifted slices. Record that this establishes
-understanding of the example, not completion of the implementation.
+The test fixture has a validation document that repeats a training document,
+up to whitespace. Without this step, part of your "held-out" loss would be measured on
+training text. Why must deduplication also happen **before** the tokenizer is
+trained on the training split? (Hint: what would the tokenizer's merges reveal?)
+Exact matching misses near-duplicates; `nanolm/data_selection.py` has a
+MinHash version for the extension.
 
-**Optional extension:** implement BPE training or a quality filter from scratch,
-then compare retained documents or token counts. Change one component at a time.
+### Step 2 — Pack documents with boundaries (20 minutes)
+
+Implement `pack_documents(documents, tokenizer, path, eot_token_id, dtype)`:
+
+1. encode every document and append `eot_token_id` after **each** one, including the last;
+2. raise `ValueError` if any ID does not fit the dtype (`np.iinfo(dtype)`);
+   a GPT-2 vocabulary fits `uint16`, while a 100k-token vocabulary does not;
+3. create the parent directory, write with
+   `np.asarray(ids, dtype=dtype).tofile(path)`, and return the token count.
+
+```bash
+uv run pytest tests/test_module_03_data.py -k pack -q
+```
+
+Print the IDs around one boundary. The delimiter tells the model where a
+document ends; it does **not** stop attention from looking across it. A window
+that spans two documents still lets the second attend to the first unless you
+add a document mask. Which choice does GPT-2-style pretraining make, and why
+is it usually acceptable?
+
+### Step 3 — Shifted batches from a memory map (15 minutes)
+
+`BinaryShardedDataset` maps the shard with `np.memmap`: the file is not read
+into memory; the OS pages in what you slice. Implement `get_batch`:
+
+- draw `batch_size` start offsets `i` so that the **target** window still fits:
+  `x = data[i : i + block_size]`, `y = data[i + 1 : i + 1 + block_size]`;
+- stack as `int64` tensors and move them to `device`.
+
+```bash
+uv run pytest tests/test_module_03_data.py -k batch -q
+```
+
+The offset test writes the shard `0, 1, …, 19` and checks that `y == x + 1`,
+that offset `0` is reachable, and that the largest offset is exactly
+`num_tokens - block_size - 1`. Explain the `- 1`. What error would one more
+position cause, and which error would be *silent*?
+
+### Step 4 — End to end, then break it (15 minutes)
+
+```bash
+uv run pytest tests/test_module_03_data.py -q
+uv run python scripts/03_prepare_dataset.py
+```
+
+Pick one bug, introduce it in your copy, predict the symptom, and check:
+
+| Bug | What to look for |
+| --- | --- |
+| No end-of-text token after the last document | Token count off by one; the next shard's first document is glued to this one |
+| `y = data[i : i + block_size]` (no shift) | The model learns to copy its input. Loss collapses on train *and* validation, yet generation is useless |
+| Offsets drawn up to `num_tokens - block_size` | Rare short target window: a shape error, or silent padding in other loaders |
+| Validation copy kept | Validation loss looks better than it should, by an amount that depends on the overlap |
+
+Restore your implementation and write the causal explanation in your log.
+
+## Definition of done
+
+- all tests in `tests/test_module_03_data.py` pass with your `nanolm/data.py`;
+- a split report: kept IDs per split and dropped duplicates;
+- printed token IDs around a document boundary;
+- you can state the largest valid batch offset and explain one deliberate bug's symptom.
+
+Compression ratio and loader throughput are observations for your corpus, not
+pass/fail thresholds. A CPU timing of the loader says nothing about GPU input stalls.
+
+**Fallback:** if packing is unfinished, inspect a shard produced by the demo
+script and diagnose deliberately shifted slices by hand; record that the
+implementation is incomplete.
+
+**Extensions:** train the tokenizer on the training split only, then compare
+tokens per byte on validation text; implement a quality filter and keep a few
+rejected documents for inspection; use `minhash_deduplicate` from
+`nanolm/data_selection.py` and count near-duplicates that exact matching missed.
+
+!!! success "What to take away"
+    - **Leakage happens before training.** Deduplicate, then split, then fit
+      anything learned (tokenizer, filters) on the training split only.
+    - **Boundaries are data.** An end-of-text token marks where a document ends;
+      it does not isolate attention. Know which one your model needs.
+    - **Off-by-one bugs rarely crash.** A missing shift makes the loss look
+      excellent. Test invariants (`y[:, :-1] == x[:, 1:]`, offset ranges) instead
+      of trusting the loss curve.
+    - **Units matter when comparing tokenizers.** Loss per token depends on the
+      vocabulary; compare models in bits per byte on the same text.

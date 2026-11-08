@@ -239,3 +239,15 @@ The first two modules form one continuous result:
 Module 1 (sessions 1–4): implement the architecture → reproduce GPT-2 inference
 Module 2 (sessions 5–8): implement the training loop → overfit a small NanoLM locally
 ```
+
+!!! success "What to take away"
+    - **Overfit one batch first.** If a model cannot memorize eight tokens, no
+      amount of data or compute will fix the loop.
+    - **Order is semantics.** Normalize the loss before `backward()`, clip before
+      `step()`, step the schedule per update rather than per micro-batch, and clear
+      gradients after the update.
+    - **A checkpoint is the whole training state.** Weights alone reproduce
+      inference; resuming training also needs the optimizer, the step, the RNG
+      states and the data position. Prove it by comparing an interrupted run with an uninterrupted one.
+    - **Held-out means held out at the document level.** Report validation loss on
+      documents the model never trained on, with the token budget and units stated.

@@ -47,7 +47,7 @@ on it directly:
 - a valid held-out evaluation that does not overlap the selected training data;
 - a validated data ingestion and tokenization pipeline;
 - one measured training-performance improvement;
-- a correct DDP experiment and an FSDP state-accounting exercise (a measured FSDP run only if verified teaching hardware is available);
+- a correct hand-written DDP experiment, a sharded optimizer that matches the reference update, and an FSDP2 run with measured per-rank state;
 - a KV-cache equivalence test;
 - interpretation of a serving benchmark with a declared workload (instructor demonstration; no separate serving report).
 

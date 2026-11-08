@@ -15,7 +15,7 @@
       .cell-text-sm { fill: #10233f; font-size: 11px; font-weight: 750; text-anchor: middle; }
       .cell-border { stroke: #ffffff; stroke-width: 1.5; }
       .empty-slot { fill: #eef2f6; stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 3 3; rx: 4; }
-      .empty-text { fill: #94a3b8; font-size: 11px; font-weight: 500; text-anchor: middle; }
+      .empty-text { fill: #526071; font-size: 11px; font-weight: 500; text-anchor: middle; }
       .c0 { fill: #54c6cd; }
       .c1 { fill: #f59e0b; }
       .c2 { fill: #c084fc; }
@@ -26,20 +26,24 @@
       .c3-light { fill: #fecdd3; }
       .flow { fill: none; stroke: #68798a; stroke-width: 2.5; marker-end: url(#arrow); }
       .api-lbl { fill: #007f86; font-size: 13px; font-weight: 700; text-anchor: middle; font-family: 'JetBrains Mono', monospace; }
+      .api-lbl.api-orange { fill: #9b3513; }
+      .api-lbl.api-purple { fill: #59249a; }
       .meta-lbl { fill: #64748b; font-size: 11px; font-weight: 600; text-anchor: middle; }
-      .meta-cost { fill: #ea580c; font-size: 11px; font-weight: 700; text-anchor: middle; }
+      .meta-cost { fill: #b8481f; font-size: 11px; font-weight: 700; text-anchor: middle; }
       @media (prefers-color-scheme: dark) {
         .bg { fill: #131d2a; stroke: #2c4052; }
         .panel-title { fill: #f3f7fa; }
         .rank-lbl { fill: #94a3b8; }
         .cell-border { stroke: #131d2a; }
         .empty-slot { fill: #1e293b; stroke: #334155; }
-        .empty-text { fill: #64748b; }
+        .empty-text { fill: #b8c9d8; }
         .cell-text, .cell-text-sm { fill: #10233f; }
         .flow { stroke: #94a3b8; }
         .api-lbl { fill: #54d2d8; }
-        .meta-lbl { fill: #94a3b8; }
-        .meta-cost { fill: #fb923c; }
+        .meta-lbl { fill: #e1ebf5; }
+        .meta-cost { fill: #ffbe96; }
+        .api-lbl.api-orange { fill: #ffd0b7; }
+        .api-lbl.api-purple { fill: #e3d5ff; }
       }
     </style>
   </defs>
@@ -63,7 +67,7 @@
 
   <!-- Middle: PCIe / Scale-Up -->
   <rect class="c1-light" x="330" y="60" width="210" height="155" rx="10" style="fill-opacity: 0.25; stroke: #ea580c; stroke-width: 1.5;"/>
-  <text class="api-lbl" x="435" y="84" style="fill: #ea580c;">PCIe Gen 5 / NVSwitch</text>
+  <text class="api-lbl api-orange" x="435" y="84">PCIe Gen 5 / NVSwitch</text>
   <text class="meta-lbl" x="435" y="104">64 GB/s · ~2–5 µs latency</text>
   <text class="meta-cost" x="435" y="122">Scale-Up Domain / Rack</text>
 
@@ -76,7 +80,7 @@
 
   <!-- Right: InfiniBand / Network -->
   <rect class="c2-light" x="585" y="60" width="240" height="155" rx="10" style="fill-opacity: 0.25; stroke: #7c3aed; stroke-width: 1.5;"/>
-  <text class="api-lbl" x="705" y="84" style="fill: #7c3aed;">InfiniBand / RoCE</text>
+  <text class="api-lbl api-purple" x="705" y="84">InfiniBand / RoCE</text>
   <text class="meta-lbl" x="705" y="104">25–100 GB/s · 5–15 µs latency</text>
   <text class="meta-cost" x="705" y="122">Inter-Node Fabric (Cluster)</text>
 
