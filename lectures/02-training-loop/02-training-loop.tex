@@ -28,7 +28,7 @@
 
 \begin{frame}{From predictions to an update}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item The \textbf{forward pass} transforms tokens through activations into logits.
     \item The \textbf{loss} compares predictions with next-token targets.
     \item \textbf{Backward} uses saved activations and the chain rule to compute $g_t=\nabla_\theta\mathcal L_t$.
@@ -45,28 +45,28 @@
       \centering
       \begin{tikzpicture}
         \begin{axis}[
-          width=6.6cm,height=5cm,
-          view={-35}{27},
-          domain=-2:2,y domain=-2:2,
-          xmin=-2.1,xmax=2.1,ymin=-2.1,ymax=2.1,zmin=0,zmax=2.6,
-          samples=21,samples y=21,
-          axis lines=box, tick style={draw=none},
-          xtick=\empty,ytick=\empty,ztick=\empty,
-          xlabel={$\theta_1$},ylabel={$\theta_2$},zlabel={loss $\mathcal L$},
-          label style={font=\scriptsize},
-          colormap={landscape}{color(0cm)=(themebluebg);color(1cm)=(themeteal!80!white)},
-          z buffer=sort,
-        ]
+            width=6.6cm,height=5cm,
+            view={-35}{27},
+            domain=-2:2,y domain=-2:2,
+            xmin=-2.1,xmax=2.1,ymin=-2.1,ymax=2.1,zmin=0,zmax=2.6,
+            samples=21,samples y=21,
+            axis lines=box, tick style={draw=none},
+            xtick=\empty,ytick=\empty,ztick=\empty,
+            xlabel={$\theta_1$},ylabel={$\theta_2$},zlabel={loss $\mathcal L$},
+            label style={font=\scriptsize},
+            colormap={landscape}{color(0cm)=(themebluebg);color(1cm)=(themeteal!80!white)},
+            z buffer=sort,
+          ]
           \addplot3[surf,shader=interp,draw=themeteal!45!white,thin,opacity=.8]
-            {0.28*(x^2 + y^2)};
+          {0.28*(x^2 + y^2)};
           % The red path follows gradient descent on this quadratic.
           \addplot3[very thick,leafreddraw,mark=*,mark size=1.9pt]
-            coordinates {(1.6,-1.4,1.266) (.98,-.86,.477) (.6,-.52,.197) (.36,-.31,.083)};
+          coordinates {(1.6,-1.4,1.266) (.98,-.86,.477) (.6,-.52,.197) (.36,-.31,.083)};
           \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw]
-            (axis cs:1.6,-1.4,1.266) -- (axis cs:.98,-.86,.477);
+          (axis cs:1.6,-1.4,1.266) -- (axis cs:.98,-.86,.477);
           % Upward tangent: (g, grad f dot g) at the starting point.
           \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themenavy]
-            (axis cs:1.6,-1.4,1.266) -- (axis cs:1.86,-1.627,1.675);
+          (axis cs:1.6,-1.4,1.266) -- (axis cs:1.86,-1.627,1.675);
         \end{axis}
       \end{tikzpicture}\\[-2pt]
       {\scriptsize \textcolor{themenavy}{↑ gradient}\quad \textcolor{leafreddraw}{↓ descent steps}}
@@ -97,7 +97,7 @@
     \theta_{t+1}=\theta_t-\eta_t\nabla_\theta\mathcal L_t(\theta_t)
   \]
   \begin{itemize}
-    \setlength{\itemsep}{8pt}
+      \setlength{\itemsep}{8pt}
     \item The gradient gives the local direction of increasing loss; subtract it to move downhill.
     \item The \textbf{learning rate} $\eta_t$ sets the step size. Too large can be unstable; too small can be slow.
     \item \textbf{Stochastic gradient descent (SGD)} estimates the gradient from a sampled example or mini-batch, instead of the full dataset.
@@ -183,7 +183,7 @@
 
 \begin{frame}{Three additions around the same update}
   \begin{enumerate}
-    \setlength{\itemsep}{10pt}
+      \setlength{\itemsep}{10pt}
     \item \textbf{Accumulation:} combine gradients from several micro-batches when the desired batch does not fit at once.
     \item \textbf{Clipping:} limit the global gradient norm before an unusually large update.
     \item \textbf{Scheduler:} vary the learning rate over optimizer updates.
@@ -296,17 +296,17 @@
   Assume $N$ unique parameters, FP32 (4 bytes per scalar), gradients for all parameters, and SGD without momentum.
   \vspace{4pt}
   \begin{center}
-  \begin{tabular}{lrr}
-    \toprule
-    Storage & SGD & Adam \\
-    \midrule
-    Parameters & $4N$ bytes & $4N$ bytes \\
-    Gradients & $4N$ & $4N$ \\
-    First and second moments & 0 & $8N$ \\
-    \midrule
-    Subtotal & $8N$ & $16N$ \\
-    \bottomrule
-  \end{tabular}
+    \begin{tabular}{lrr}
+      \toprule
+      Storage & SGD & Adam \\
+      \midrule
+      Parameters & $4N$ bytes & $4N$ bytes \\
+      Gradients & $4N$ & $4N$ \\
+      First and second moments & 0 & $8N$ \\
+      \midrule
+      Subtotal & $8N$ & $16N$ \\
+      \bottomrule
+    \end{tabular}
   \end{center}
   For $N=124$M: \textbf{0.992 GB} (SGD) versus \textbf{1.984 GB} (Adam), decimal GB.
   \begin{alertblock}{Not peak memory}
@@ -319,12 +319,41 @@
 
 \begin{frame}{Estimate: one possible answer}
   \begin{itemize}
-    \setlength{\itemsep}{9pt}
+      \setlength{\itemsep}{9pt}
     \item Model: $6ND=3\times10^{14}$ FLOPs.
     \item 100 optimizer updates: SGD $2\times10^{10}$ FLOPs; Adam $\approx1.2\times10^{11}$ FLOPs under our simplified convention.
     \item FP32 subtotal: SGD $0.8$ GB; Adam $1.6$ GB, decimal units.
     \item Peak memory also depends on activations, temporary buffers, inputs and allocation overhead.
   \end{itemize}
+\end{frame}
+
+\begin{frame}{A first activation-memory estimate}
+  \small A saved hidden-state tensor has shape $B\times L\times d$.
+  \[
+    \text{bytes for one tensor}=B\,L\,d\,b
+  \]
+  \begin{block}{Try a single tensor}
+    With $B=4$, $L=512$, $d=768$ and BF16 ($b=2$ bytes), one such tensor is \textbf{3 MiB}.
+  \end{block}
+  \begin{alertblock}{What happens as the run changes?}
+    Double the micro-batch or sequence length: this tensor doubles. How many tensors are saved, and for how long? The answer depends on the model and implementation.
+  \end{alertblock}
+  \footnotesize This is one activation, not a peak estimate. Module 4 examines attention's larger intermediates and ways to reduce activation memory.
+\end{frame}
+
+\begin{frame}{When GPU memory is not enough: CPU offload}
+  \begin{center}
+    \begin{tikzpicture}[every node/.style={font=\small,align=center},
+      box/.style={draw=themebluedraw,fill=themebluebg,minimum width=3.5cm,minimum height=1.2cm}]
+      \node[box] (gpu) at (0,0) {GPU memory\\active training tensors};
+      \node[box,draw=warningdraw,fill=warningbg] (cpu) at (6.5,0) {CPU memory\\offloaded state};
+      \draw[<->,very thick,accentdark] (gpu)--node[above,font=\scriptsize]{transfer}(cpu);
+    \end{tikzpicture}
+  \end{center}
+  \begin{block}{Trade capacity for time}
+    For example, keep optimizer state in host memory and perform its update on the CPU. Transfers and CPU work may slow the step.
+  \end{block}
+  \small We revisit the link in GPU profiling and combine offload with sharding in FSDP. The baseline lab keeps its ordinary training loop.
 \end{frame}
 
 \begin{frame}{From a fixed-batch test to a baseline}
@@ -366,7 +395,7 @@
 
 \begin{frame}{Read the baseline as evidence}
   \begin{itemize}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Count tokens: $B_{\rm micro}\times T\times K\times$ updates (one device).
     \item Compare train loss with held-out loss on a fixed validation protocol; a tiny or synthetic corpus is a workflow check, not evidence of language quality.
     \item Track learning rate and gradient norm to diagnose a spike. For nearly uniform logits, initial cross-entropy is roughly $\log V$.

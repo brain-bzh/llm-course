@@ -106,6 +106,16 @@ No rank keeps all parameters resident. Before a sharded unit computes, its
 parameter shards are all-gathered; after use they can be discarded or resharded.
 Backward needs the parameters again and reduce-scatters the resulting gradients.
 
+### A worked memory budget
+
+With one billion parameters, the illustrative 16-byte layout above and four
+ranks, DDP stores about **16 GB per rank** and ideal full sharding stores about
+**4 GB per rank** of persistent model state (decimal GB). Peak memory is higher:
+add the extra materialized parameter storage beyond the already-counted local
+shard, activations, communication buffers and allocator overhead. Prefetching
+may make multiple units resident at once. The actual bytes per parameter depend
+on the optimizer, dtype and implementation.
+
 ## The two collectives FSDP needs
 
 In a two-rank example, let $P_0$ and $P_1$ be parameter shards for one
@@ -138,6 +148,10 @@ For one Transformer block wrapped as an FSDP unit:
   ![The parameter residency of one FSDP unit rises from one local shard to a full materialized block during forward, falls after resharding, rises again for backward, then returns to one shard after gradient reduce-scatter.](../assets/figures/fsdp-unit-lifecycle.svg){ loading=lazy }
   <figcaption>Full parameters exist only around the unit's compute. The wrapping and resharding policy controls the height and duration of that transient peak.</figcaption>
 </figure>
+
+The [explorer](../demos/fsdp-discovery.html) uses the keep-through-backward
+policy; the lifecycle above illustrates reshard-after-forward. Both are
+configurations of the same underlying idea.
 
 This reveals the central trade-off:
 
@@ -220,6 +234,24 @@ Combine techniques according to the source of pressure:
 
 If an OOM remains after sharding, inspect the memory snapshot instead of
 blindly increasing the sharding degree.
+
+## CPU offload complements sharding
+
+Sharding distributes state across ranks; CPU offload places selected state in
+host memory. They can be combined when GPU memory is still the constraint.
+For example, [ZeRO-Offload](https://www.deepspeed.ai/tutorials/zero-offload/)
+can move optimizer state and the optimizer computation to the CPU. FSDP
+supports different offload policies: its FSDP1 parameter-offload option also
+offloads gradients and runs the optimizer step on CPU. See the
+[PyTorch FSDP documentation](https://docs.pytorch.org/docs/stable/fsdp.html)
+for the exact API and limitations. Host–device transfers and CPU computation
+can increase step time; measure peak GPU memory and throughput together.
+
+The companion's `nanolm/fsdp_utils.py` demonstrates **FSDP1**, including a
+Transformer-block wrapping policy. The current lab is an analytical exercise,
+not an FSDP execution or timing measurement. For the newer `fully_shard` API,
+see the [PyTorch FSDP2 tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html),
+which constructs the optimizer after sharding the model.
 
 ## Mixed precision and reduction precision
 

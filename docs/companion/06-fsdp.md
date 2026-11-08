@@ -6,7 +6,7 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
     To work through the hands-on implementation for this module:
 
     - **Lab script:** [`scripts/06_fsdp_experiment.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/scripts/06_fsdp_experiment.py)
-    - **Reference module:** [`nanolm/profile_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/profile_utils.py) · [`nanolm/optim.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/optim.py)
+    - **Reference module:** [`nanolm/fsdp_utils.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/nanolm/fsdp_utils.py) (FSDP1 wrapping example)
     - **Unit tests:** [`tests/test_module_08_parallelism.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/tests/test_module_08_parallelism.py) (analytical state-accounting checks)
 
 ---
@@ -14,7 +14,7 @@ This lab accompanies [Module 6: FSDP and ZeRO](../modules/06-fsdp.md).
 ## Objectives
 
 1. **State sharding decomposition**: Understand where memory savings originate across ZeRO-1 (optimizer states), ZeRO-2 (gradients), and ZeRO-3 / FSDP (model weights).
-2. **Auto-wrap policy**: Configure wrapping rules for Transformer blocks and observe collective communication (all-gather and reduce-scatter) timing.
+2. **Wrapping and communication**: Inspect the Transformer-block wrapping policy and reason about when all-gather and reduce-scatter occur. The analytical exercise does not measure collective timing.
 3. **Peak memory reasoning**: Separate persistent-state estimates from gathered parameters, activations, and allocator reserve. The current script does not execute FSDP or measure peak VRAM.
 
 ---

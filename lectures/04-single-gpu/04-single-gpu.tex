@@ -178,6 +178,26 @@
   \end{alertblock}
 \end{frame}
 
+\begin{frame}{CPU offload: capacity depends on the link}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{GPU memory}
+        Active weights and activations\\GPU forward and backward
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{block}{CPU memory}
+        Offloaded state\\possibly a CPU optimizer step
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{5pt}
+  Tensors cross the host--device link when needed. Transfer time depends on bytes, link bandwidth, and synchronization.
+  \begin{alertblock}{Inspect the trace}
+    Transfers that overlap useful compute may be partly hidden; exposed copies or CPU work can lengthen the step. Measure peak memory and tokens/s together.
+  \end{alertblock}
+\end{frame}
+
 \begin{frame}{Map GPT operations to hardware questions}
   \small
   \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
@@ -378,6 +398,45 @@
   \end{columns}
   \vfill
   Evaluate end-to-end tokens per second. A larger batch does not guarantee a faster run if recomputation dominates.
+\end{frame}
+
+\begin{frame}{Example: save attention inputs, recompute the matrix}
+  \centering
+  \begin{tikzpicture}[every node/.style={font=\small,align=center},
+    box/.style={draw=themebluedraw,fill=themebluebg,minimum height=.8cm},
+    arr/.style={-{Stealth[length=4pt]},thick,accentdark}]
+    \node[box,minimum width=2.1cm] (qkv) at (0,1.4) {$Q,K,V$};
+    \node[box,draw=warningdraw,fill=warningbg,minimum width=3cm] (scores) at (4,1.4) {attention matrix\\$L\times L$ per head};
+    \node[box,minimum width=2.4cm] (out) at (8,1.4) {output};
+    \draw[arr] (qkv)--(scores); \draw[arr] (scores)--(out);
+    \node[box,draw=successdraw,fill=successbg,minimum width=3cm] (cpu) at (0,-.5) {save inputs on CPU};
+    \draw[<->,thick,accentdark] (qkv)--(cpu) node[midway,right,font=\scriptsize]{offload / reload};
+    \node[align=left,font=\scriptsize] at (5.2,-.5) {Discard the matrix after forward;\\reload inputs and recompute it in backward.};
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \begin{block}{Two separate choices}
+    Checkpointing avoids saving the large intermediate; offload moves saved inputs to CPU. Transfers and recomputation cost time.
+  \end{block}
+  \footnotesize FlashAttention avoids materializing the full matrix and does not require CPU offload.
+\end{frame}
+
+\begin{frame}{Attention: when is the matrix larger than its inputs?}
+  \small One sequence, one head: length $L$, head dimension $d_k$, $b$ bytes per element.
+  \vspace{5pt}
+  \begin{center}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Retained tensor & elements & bytes \\
+    \midrule
+    $Q,K,V$ ($L\times d_k$ each) & $3Ld_k$ & $3Ld_kb$ \\
+    Attention matrix ($L\times L$) & $L^2$ & $L^2b$ \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \begin{block}{Equal dtypes: crossover at $L=3d_k$}
+    For $d_k=64$, the matrix is larger once $L>192$. At $L=1024$ in BF16: $Q,K,V$ occupy $0.375$ MiB; one matrix occupies $2$ MiB per head.
+  \end{block}
+  \footnotesize This compares selected tensors, not total training peak. Batch size and head count multiply both; actual implementations save other state and may use different dtypes.
 \end{frame}
 
 \begin{frame}{Performance metrics answer different questions}

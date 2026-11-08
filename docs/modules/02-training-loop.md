@@ -270,6 +270,26 @@ model architecture, and implementation. Accumulation can reduce activation
 memory by using smaller micro-batches, but it does not remove the persistent
 parameter, gradient, or optimizer-state storage.
 
+**A first activation estimate.** One saved hidden-state tensor of shape
+$B\times L\times d$ uses $BLdb$ bytes, where $b$ is bytes per element. For
+$B=4$, $L=512$, $d=768$ and BF16 ($b=2$), that is **3 MiB**. Doubling the
+micro-batch or sequence length doubles this tensor. This is one tensor, not the
+training peak: the number and lifetime of saved tensors depend on the model and
+implementation. How would this estimate change for your own batch and model?
+
+### When state does not fit: CPU offload
+
+One capacity lever is to keep selected training state in CPU memory rather than
+GPU memory. For example, an implementation may keep optimizer state on the CPU
+and perform the optimizer update there. Tensors must move between CPU and GPU as
+needed, and transfers or CPU work can slow training. This is an illustration of
+memory placement, not a feature required by the baseline lab. Module 4 examines
+the host–device link; Module 6 revisits offload alongside sharding.
+
+Activation checkpointing can instead save selected inputs and recompute other
+activations during backward. [Module 4](04-single-gpu.md) develops that trade-off
+and an attention example, including optional CPU offload.
+
 ### From a fixed-batch test to a baseline
 
 A fixed-batch overfit checks that targets, backward and the optimizer are

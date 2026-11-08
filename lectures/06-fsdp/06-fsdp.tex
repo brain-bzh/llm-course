@@ -51,7 +51,7 @@
     \href{https://brain-bzh.github.io/llm-course/demos/fsdp-discovery.html}{\textbf{Open the sharded-training explorer} $\nearrow$}
   \end{block}
   \begin{enumerate}
-    \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{7pt}
     \item Follow the DDP update: what does each rank repeat?
     \item Split the optimizer state: which parameters does each rank update? How does the other rank get them?
     \item Shard the model too: what must be gathered to compute? Where do reduced gradient shards go?
@@ -124,9 +124,10 @@
     total model state & about 16 & on every GPU \\
     \bottomrule
   \end{tabular}
+  \par\smallskip\footnotesize Example configuration; other precision and optimizer choices use different storage.
   \vfill
   \begin{alertblock}{The scaling limit}
-    More GPUs improve compute throughput but do not reduce DDP's replicated state.
+    More GPUs can improve throughput but do not reduce DDP's replicated state.
   \end{alertblock}
 \end{frame}
 
@@ -139,7 +140,7 @@
     DDP & replicated & replicated & replicated \\
     ZeRO-1 & sharded & replicated & replicated \\
     ZeRO-2 & sharded & sharded & replicated \\
-    ZeRO-3 / FSDP & sharded & sharded & sharded \\
+    ZeRO-3 / full-shard FSDP & sharded & sharded & sharded \\
     \bottomrule
   \end{tabular}
   \vfill
@@ -147,6 +148,34 @@
     With full sharding and world size $W$, persistent model-state memory approaches $1/W$ of the unsharded total, before activations, buffers, and temporary materialization.
   \end{block}
   \smallsource{Hugging Face Ultra-Scale Playbook and ZeRO}
+\end{frame}
+
+\begin{frame}{What changes at each ZeRO stage?}
+  \small
+  \begin{tabular}{@{}p{.15\linewidth}p{.78\linewidth}@{}}
+    \toprule
+    Stage & Training-step consequence \\
+    \midrule
+    ZeRO-1 & Each rank updates its owned parameters; updated shards are shared so replicas can compute the next forward. \\
+    ZeRO-2 & Reduce-scatter leaves each rank its reduced gradient shard for that update. \\
+    ZeRO-3 & Parameters are sharded too: all-gather the active unit before local computation. \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Still data parallel}
+    Each rank processes its own batch; sharding divides model-state ownership, not the batch's sequence of layers.
+  \end{block}
+\end{frame}
+
+\begin{frame}{A memory budget: persistent is not peak}
+  \begin{block}{Example: 1B parameters, four ranks, 16 bytes / parameter}
+    DDP: $16$ GB per rank \quad $\longrightarrow$ \quad ideal full sharding: $16/4=4$ GB per rank
+  \end{block}
+  \small Decimal GB; the subtotal assumes the preceding precision and optimizer layout.
+  \vfill
+  \begin{alertblock}{What else occupies the peak?}
+    Temporary full units and prefetch, activations, collective buffers, and allocator overhead. The local shard is already counted: add only the extra materialized storage.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Two collectives make sharding usable}
@@ -167,6 +196,25 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{Keep or reshard after forward?}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{Keep full parameters}
+        Gather $\to$ forward $\to$ backward\\[5pt]
+        More residency; avoids a backward gather.
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{alertblock}{Reshard after forward}
+        Gather $\to$ forward $\to$ reshard $\to$ gather $\to$ backward\\[5pt]
+        Less residency between uses; another gather.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small The explorer uses the first policy; the preceding lifecycle shows the second. Exact scheduling depends on configuration.
+\end{frame}
+
 \section{Execution and wrapping}
 
 \begin{frame}{One FSDP unit is a materialization boundary}
@@ -184,6 +232,33 @@
   \end{columns}
   \vfill
   Wrapping each Transformer block is a common starting point because it aligns materialization with a natural compute unit.
+\end{frame}
+
+\begin{frame}{Sharding buys memory with communication}
+  \begin{center}
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.8,transform shape,every node/.style={font=\scriptsize,align=center},
+    compute/.style={draw=themebluedraw,fill=themebluebg,minimum height=.62cm},
+    comm/.style={draw=warningdraw,fill=warningbg,minimum height=.62cm},
+    update/.style={draw=successdraw,fill=successbg,minimum height=.62cm}]
+    \node[anchor=east,font=\small\bfseries] at (0,1.6) {DDP};
+    \node[compute,minimum width=1.5cm] at (1,1.6) {forward};
+    \node[compute,minimum width=1.5cm] at (2.8,1.6) {backward};
+    \node[comm,minimum width=2cm] at (5,1.6) {gradient\\all-reduce};
+    \node[update,minimum width=1.6cm] at (7.2,1.6) {full update};
+    \node[anchor=east,font=\small\bfseries] at (0,.5) {Full shard};
+    \node[comm,minimum width=1.2cm] at (.85,.5) {gather};
+    \node[compute,minimum width=1.25cm] at (2.45,.5) {forward};
+    \node[comm,minimum width=1.2cm] at (4.05,.5) {gather*};
+    \node[compute,minimum width=1.3cm] at (5.8,.5) {backward};
+    \node[comm,minimum width=1.65cm] at (7.95,.5) {gradient\\reduce-scatter};
+    \node[update,minimum width=1.5cm] at (10.1,.5) {shard update};
+    \draw[-{Stealth[length=4pt]},neutraldark] (.2,-.15)--(11.2,-.15) node[right]{time};
+  \end{tikzpicture}
+  \end{center}
+  \small *If parameters were resharded after forward. This schematic separates operations; real collectives can overlap compute and run per unit or bucket.
+  \begin{block}{The question for the profiler}
+    How much of the additional parameter communication is exposed on the critical path?
+  \end{block}
 \end{frame}
 
 \begin{frame}{Communication volume and exposure are different}
@@ -211,7 +286,7 @@
     \end{tikzpicture}
   \end{center}
   \begin{alertblock}{Constraint}
-    Prefetching improves overlap but raises transient memory because current and next full units may coexist.
+    Prefetching can improve overlap but raises transient memory because current and next full units may coexist.
   \end{alertblock}
 \end{frame}
 
@@ -228,6 +303,18 @@
   \end{columns}
   \vfill
   Combine FSDP with activation checkpointing when activations, not model state, dominate the peak.
+\end{frame}
+
+\begin{frame}{CPU offload and sharding can work together}
+  \begin{block}{A second memory lever}
+    Sharding distributes model state across ranks. Offloading places selected state in CPU memory; the two can be combined.
+  \end{block}
+  \begin{itemize}
+    \item Example: offload optimizer state and run the optimizer on CPU.
+    \item Other policies offload parameters and gradients too; the exact behavior is implementation-specific.
+    \item GPU--CPU traffic, CPU work and synchronization can reduce throughput. Measure the whole step.
+  \end{itemize}
+  \small Offload is a capacity tool, not a free speedup. See the website for API details.
 \end{frame}
 
 \checkpoint{wrapping policy}
@@ -250,6 +337,17 @@
       \end{block}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{From the idea to a PyTorch training loop}
+  \begin{enumerate}
+    \item Initialize distributed ranks and select each device.
+    \item Construct the model; wrap Transformer blocks and the root as FSDP units.
+    \item Construct the optimizer on the sharded/wrapped model parameters.
+    \item Run forward, backward, optimizer step; measure memory and throughput.
+  \end{enumerate}
+  \vfill
+  \small The companion's \texttt{fsdp\_utils.py} illustrates the FSDP1 wrapper and block policy. The lab is analytical; it does not execute this loop. PyTorch's newer FSDP2 uses \texttt{fully\_shard}.
 \end{frame}
 
 \begin{frame}{Choose FSDP when memory is the binding constraint}

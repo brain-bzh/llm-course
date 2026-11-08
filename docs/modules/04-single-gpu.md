@@ -162,6 +162,33 @@ to stream one byte from HBM.
 This imbalance explains why recomputing a value can be faster than storing and
 reloading it, and why kernel fusion can help even when it does not reduce FLOPs.
 
+### CPU offload and the host–device link
+
+Offload exchanges GPU-memory capacity for host memory and transfers. For
+example, optimizer state and its update may live on the CPU, while the GPU
+performs forward and backward. Copy time depends on the amount moved, link
+bandwidth, and synchronization; it is separate from HBM traffic. Asynchronous
+copies and pinned host memory can enable overlap when dependencies and hardware
+permit, but neither guarantees it. In a profiler, look for copies and CPU work
+on the critical path, and report peak GPU memory alongside end-to-end tokens/s.
+See [Module 6](06-fsdp.md) for offload combined with sharding.
+
+**Attention and saved activations.** A checkpointed attention operation can save
+$Q,K,V$ rather than retaining the $N\times N$ intermediate for backward, and
+recompute the intermediate when gradients are needed. Optionally offload the
+saved inputs to CPU and reload them before recomputation. The extra computation
+and host–device transfers may be exposed in the step time; actual saved tensors
+and peak memory depend on the implementation. FlashAttention instead tiles
+attention and uses recomputation to avoid materializing the full matrix in GPU
+memory; CPU offload is not required for that benefit.
+
+For one sequence and head, with equal element sizes, $Q,K,V$ occupy $3Ld_kb$
+bytes while the matrix occupies $L^2b$ bytes. The matrix is larger for
+$L>3d_k$: with $d_k=64$, this starts above 192 tokens. At $L=1024$ with BF16
+($b=2$), the inputs total 0.375 MiB versus 2 MiB for one matrix per head.
+These are selected tensors, not a peak-memory estimate; dtypes and saved tensors
+can differ in a real kernel.
+
 ## Roofline reasoning
 
 For an operation:
