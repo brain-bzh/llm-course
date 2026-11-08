@@ -39,7 +39,7 @@ backend. GPUs are used only for measurement extensions in Modules 4, 5 and 9.
 | --- | --- | --- |
 | Linux (x86-64 or aarch64) | Supported | Same environment as the teaching GPUs |
 | macOS (Apple silicon or Intel) | Supported | |
-| Windows | **WSL2 with Ubuntu** | Native Windows is best effort; set `USE_LIBUV=0` before `torchrun` |
+| Windows | **WSL2 with Ubuntu**, or the school's Linux machines | Native Windows runs the single-process labs, but `torchrun` does not work there |
 
 Check your machine before the first distributed session (Session 14):
 
@@ -139,7 +139,7 @@ the habits the course is designed to build:
 | --- | --- | --- |
 | `torchrun` hangs before any output | Launcher resolved your hostname to an unreachable address (VPN, Wi-Fi, IPv6) | Keep `--local-addr=127.0.0.1` in the command; disconnect the VPN and retry |
 | Hangs after `init_process_group` | Gloo picked the wrong network interface | Linux: `export GLOO_SOCKET_IFNAME=lo`; macOS: `export GLOO_SOCKET_IFNAME=lo0` (the scripts do this unless you set a value) |
-| `use_libuv was requested but PyTorch was built without libuv support` | Native Windows launcher | `set USE_LIBUV=0` (cmd) or `$env:USE_LIBUV = "0"` (PowerShell), or use WSL2 |
+| `use_libuv was requested but PyTorch was built without libuv support` | `torchrun` on native Windows (`USE_LIBUV=0` does not help the launcher) | Use WSL2 or the school's Linux machines |
 | `Address already in use` | A previous run is still alive | Wait a few seconds or stop old `python` processes; `--standalone` picks a free port |
 | One rank raises, the other hangs | A collective was reached by only one rank | Read the first traceback; every rank must call the same collectives in the same order |
 | Results differ slightly between runs | Floating-point reduction order | Compare with a tolerance, as the scripts do; exact equality is not expected across ranks or devices |
