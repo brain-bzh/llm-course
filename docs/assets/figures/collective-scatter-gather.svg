@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 270" role="img" aria-labelledby="title desc">
+  <title id="title">Scatter and Gather Communication Primitives</title>
+  <desc id="desc">Scatter splits a full tensor on root into equal shards and distributes one to each rank. Gather collects shards from all ranks and concatenates them onto root.</desc>
+  
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto">
+      <path d="M0 1L8.5 4L0 7z" fill="#68798a"/>
+    </marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .bg { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; rx: 14; }
+      .panel-title { fill: #10233f; font-size: 13.5px; font-weight: 750; }
+      .rank-lbl { fill: #526071; font-size: 12px; font-weight: 650; }
+      .cell-text { fill: #10233f; font-size: 12px; font-weight: 750; text-anchor: middle; }
+      .cell-text-sm { fill: #10233f; font-size: 11px; font-weight: 750; text-anchor: middle; }
+      .cell-border { stroke: #ffffff; stroke-width: 1.5; }
+      .empty-slot { fill: #eef2f6; stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 3 3; rx: 4; }
+      .empty-text { fill: #94a3b8; font-size: 11px; font-weight: 500; text-anchor: middle; }
+      .c0 { fill: #54c6cd; }
+      .c1 { fill: #f59e0b; }
+      .c2 { fill: #c084fc; }
+      .c3 { fill: #fb7185; }
+      .c0-light { fill: #bdecee; }
+      .c1-light { fill: #fde68a; }
+      .c2-light { fill: #e9d5ff; }
+      .c3-light { fill: #fecdd3; }
+      .flow { fill: none; stroke: #68798a; stroke-width: 2.5; marker-end: url(#arrow); }
+      .api-lbl { fill: #007f86; font-size: 13px; font-weight: 700; text-anchor: middle; font-family: 'JetBrains Mono', monospace; }
+      .meta-lbl { fill: #64748b; font-size: 11px; font-weight: 600; text-anchor: middle; }
+      .meta-cost { fill: #ea580c; font-size: 11px; font-weight: 700; text-anchor: middle; }
+      @media (prefers-color-scheme: dark) {
+        .bg { fill: #131d2a; stroke: #2c4052; }
+        .panel-title { fill: #f3f7fa; }
+        .rank-lbl { fill: #94a3b8; }
+        .cell-border { stroke: #131d2a; }
+        .empty-slot { fill: #1e293b; stroke: #334155; }
+        .empty-text { fill: #64748b; }
+        .cell-text, .cell-text-sm { fill: #10233f; }
+        .flow { stroke: #94a3b8; }
+        .api-lbl { fill: #54d2d8; }
+        .meta-lbl { fill: #94a3b8; }
+        .meta-cost { fill: #fb923c; }
+      }
+    </style>
+  </defs>
+  <!-- Top Panel: Scatter -->
+  <rect class="bg" x="15" y="15" width="830" height="112"/>
+  <text class="panel-title" x="35" y="40">Scatter (root = 0): Splits tensor [N] into R equal shards [N/R]</text>
+  
+  <text class="rank-lbl" x="35" y="74">Root (Rank 0):</text>
+  <g transform="translate(130, 58)">
+    <rect class="c0 cell-border" x="0" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="24" y="15">A</text>
+    <rect class="c1 cell-border" x="48" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="72" y="15">B</text>
+    <rect class="c2 cell-border" x="96" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="120" y="15">C</text>
+    <rect class="c3 cell-border" x="144" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="168" y="15">D</text>
+  </g>
+
+  <path class="flow" d="M340 69 H420"/>
+  <text class="api-lbl" x="380" y="58">scatter</text>
+
+  <text class="rank-lbl" x="440" y="74">All Ranks:</text>
+  <g transform="translate(510, 58)">
+    <text class="rank-lbl" x="0" y="15">R0:</text><rect class="c0 cell-border" x="25" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="45" y="15">A</text>
+    <text class="rank-lbl" x="80" y="15">R1:</text><rect class="c1 cell-border" x="105" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="125" y="15">B</text>
+    <text class="rank-lbl" x="160" y="15">R2:</text><rect class="c2 cell-border" x="185" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="205" y="15">C</text>
+    <text class="rank-lbl" x="240" y="15">R3:</text><rect class="c3 cell-border" x="265" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="285" y="15">D</text>
+  </g>
+
+  <!-- Bottom Panel: Gather -->
+  <rect class="bg" x="15" y="142" width="830" height="112"/>
+  <text class="panel-title" x="35" y="167">Gather (root = 0): Collects shard [N/R] from each rank into full tensor [N]</text>
+
+  <text class="rank-lbl" x="35" y="201">All Ranks:</text>
+  <g transform="translate(110, 185)">
+    <text class="rank-lbl" x="0" y="15">R0:</text><rect class="c0 cell-border" x="25" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="45" y="15">A</text>
+    <text class="rank-lbl" x="80" y="15">R1:</text><rect class="c1 cell-border" x="105" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="125" y="15">B</text>
+    <text class="rank-lbl" x="160" y="15">R2:</text><rect class="c2 cell-border" x="185" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="205" y="15">C</text>
+    <text class="rank-lbl" x="240" y="15">R3:</text><rect class="c3 cell-border" x="265" y="0" width="40" height="22" rx="4"/><text class="cell-text" x="285" y="15">D</text>
+  </g>
+
+  <path class="flow" d="M435 196 H515"/>
+  <text class="api-lbl" x="475" y="185">gather</text>
+
+  <text class="rank-lbl" x="535" y="201">Root (Rank 0):</text>
+  <g transform="translate(630, 185)">
+    <rect class="c0 cell-border" x="0" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="24" y="15">A</text>
+    <rect class="c1 cell-border" x="48" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="72" y="15">B</text>
+    <rect class="c2 cell-border" x="96" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="120" y="15">C</text>
+    <rect class="c3 cell-border" x="144" y="0" width="48" height="22" rx="4"/><text class="cell-text" x="168" y="15">D</text>
+  </g>
+</svg>

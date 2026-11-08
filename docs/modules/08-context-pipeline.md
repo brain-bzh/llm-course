@@ -303,6 +303,8 @@ shared attention parameters remain replicated across the four EP ranks.
   — AFAB, 1F1B, interleaving, and bubble analysis;
 - [The Ultra-Scale Playbook — Finding the Best Training Configuration](https://huggingface.co/spaces/nanotron/ultrascale-playbook#finding-the-best-training-configuration)
   — multidimensional selection workflow;
+- [The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)
+  — expert parallelism, All-to-All communication, routing mechanisms, and Megatron-LM configurations;
 - [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437)
   — DualPipe overlapping schedule and multi-node EP/TP architecture;
 - [Megatron-LM: Training Multi-Billion Parameter Language Models](https://arxiv.org/abs/1909.08053)

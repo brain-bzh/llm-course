@@ -25,20 +25,39 @@ By the end of the module, students should be able to:
 - test parameter synchronization and sample coverage;
 - separate throughput scaling from optimization equivalence.
 
+## Distributed foundations: the minimum vocabulary
+
+A job runs across **nodes** (servers), each with one or more GPUs. In standard
+DDP, one worker process controls each GPU. Its **global rank** identifies the
+worker across the job; its **local rank** selects the device on its node. A
+**process group** is the set of workers participating in a communication
+operation; the default world size counts its workers.
+
+Workers exchange data directly or through **collectives**, where a group
+participates in the same communication operation. A SUM all-reduce gives each
+rank the elementwise sum of the participating inputs. DDP uses the averaged
+gradient; for equal rank weighting, this corresponds to a sum followed by
+division by the data-parallel world size.
+
+Communication consumes time: small messages pay startup overhead, while large
+messages also depend on bandwidth and topology. Some communication can overlap
+independent compute; the exposed remainder delays the step. The
+[distributed-primitives primer](../primers/distributed-primitives.md) is the
+reference for collective semantics and deeper implementation details.
+
 ## From accumulation to data parallelism
 
 In Module 2, one GPU processed two micro-batches **sequentially** at the same
 weights. It accumulated their gradients and applied one update using their mean.
 DDP can perform the same two gradient computations **in parallel** on two GPUs:
 
-```text
-One GPU:   batch 1 → forward/backward → g₁
-           batch 2 → forward/backward → g₂   → average → update once
-
-Two GPUs:  GPU 0: batch 1 → forward/backward → g₁ ┐
-           GPU 1: batch 2 → forward/backward → g₂ ┘ → all-reduce mean
-                                                    → update both replicas
-```
+<figure markdown="span">
+  <div class="diagram-scroll" tabindex="0" role="region" aria-label="Gradient accumulation and data parallelism diagram; scroll horizontally if needed" markdown="span">
+  ![One GPU computes gradients for two batches in sequence and updates once. Two GPUs compute the gradients in parallel, all-reduce their mean, and update both replicas.](../assets/figures/ddp-accumulation.svg){ loading=lazy }
+  </div>
+  <span class="diagram-scroll-hint">Scroll horizontally to see the full diagram.</span>
+  <figcaption>Both paths start from the same weights. The two-GPU path exchanges gradients before updating each replica.</figcaption>
+</figure>
 
 If the micro-batches contain equal numbers of valid tokens and use the same
 starting parameters, both paths use $(g_1+g_2)/2$. DDP must additionally
@@ -139,8 +158,11 @@ implementation can be understood as:
    reduced tensor.
 
 <figure markdown="span">
+  <div class="diagram-scroll" tabindex="0" role="region" aria-label="Ring all-reduce diagram; scroll horizontally if needed" markdown="span">
   ![Four ranks perform ring all-reduce in two phases. Reduce-scatter leaves one reduced gradient chunk per rank; all-gather circulates those chunks until every rank has the complete reduced gradient.](../assets/figures/ddp-ring-allreduce.svg){ loading=lazy }
-  <figcaption>Reduce-scatter distributes ownership; all-gather restores the complete reduced buffer on every rank.</figcaption>
+  </div>
+  <span class="diagram-scroll-hint">Scroll horizontally to see the full diagram.</span>
+  <figcaption>The colors represent fully reduced chunks. Each panel shows the result of one phase; arrows indicate the ring direction, not individual steps.</figcaption>
 </figure>
 
 For a gradient payload of \(G\) bytes and \(D\) ranks, each rank transfers
@@ -153,7 +175,7 @@ approximately
 bytes, ignoring latency and protocol details. The payload per rank approaches
 \(2G\) as \(D\) grows; adding ranks does not make gradient communication vanish.
 
-### Latency and bandwidth select the collective algorithm
+### Optional depth: latency, bandwidth and collective algorithms
 
 A first communication model separates fixed startup from bytes moved:
 
@@ -167,8 +189,11 @@ more parallel channels, but every chunk must remain large enough to amortize
 its launch cost.
 
 <figure markdown="span">
+  <div class="diagram-scroll" tabindex="0" role="region" aria-label="Collective crossover chart; scroll horizontally if needed" markdown="span">
   ![Communication time versus message size for tree and ring all-reduce. The tree has lower startup latency for small messages, while the ring has a shallower bandwidth slope and wins for large payloads.](../assets/figures/collective-crossover.svg){ loading=lazy }
-  <figcaption>Small collectives are latency-sensitive. Large gradient buffers reward bandwidth-efficient algorithms.</figcaption>
+  </div>
+  <span class="diagram-scroll-hint">Scroll horizontally to see the full diagram.</span>
+  <figcaption>Illustrative crossover: startup and bandwidth trade-offs vary with hardware, topology and implementation.</figcaption>
 </figure>
 
 This explains why a tree-style all-reduce can win for small tensors or large

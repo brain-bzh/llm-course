@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 530" role="img" aria-labelledby="title desc">
+  <title id="title">Sequential gradient accumulation and two-GPU data parallelism</title>
+  <desc id="desc">With the same starting weights, one GPU computes gradients for two micro-batches sequentially, averages them, and updates once. Two GPUs compute the same gradients in parallel, all-reduce their mean, and each updates its replica once.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#647789"/></marker>
+    <style>
+      text {font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .panel{fill:#f2f7fa;stroke:#d4e1e8;stroke-width:2}.box{fill:#fff;stroke:#acc0cd;stroke-width:2}.gpu{fill:#10233f;stroke:#10233f;stroke-width:2}.merge{fill:#e1f3f1;stroke:#148681;stroke-width:2}
+      .line{fill:none;stroke:#647789;stroke-width:3;marker-end:url(#arrow)}
+      .title{fill:#006f76;font-size:24px;font-weight:750}.label{fill:#263e53;font-size:20px;font-weight:650;text-anchor:middle}.sub{fill:#536b7d;font-size:17px;text-anchor:middle}.inverse{fill:white;font-size:20px;font-weight:700;text-anchor:middle}.math{fill:#006f76;font-size:21px;font-weight:750;text-anchor:middle}.time{fill:#536b7d;font-size:17px;text-anchor:end}
+      @media(prefers-color-scheme:dark){.panel{fill:#192737;stroke:#354b5e}.box{fill:#263a4b;stroke:#6a8597}.gpu{fill:#10233f;stroke:#62cdd0}.merge{fill:#133e43;stroke:#61d0ca}.title,.math{fill:#6ad6d8}.label{fill:#eef6fb}.sub,.time{fill:#c5d5df}.line{stroke:#a3b5c5}}
+    </style>
+  </defs>
+  <rect class="panel" x="8" y="8" width="984" height="214" rx="10"/>
+  <rect class="panel" x="8" y="238" width="984" height="284" rx="10"/>
+  <text class="title" x="30" y="45">One GPU · sequential accumulation</text>
+  <text class="time" x="970" y="45">time →</text>
+  <rect class="gpu" x="28" y="89" width="108" height="56" rx="6"/><text class="inverse" x="82" y="124">GPU 0</text>
+  <rect class="box" x="170" y="78" width="155" height="78" rx="6"/><text class="label" x="247" y="108">Batch 1</text><text class="sub" x="247" y="137">forward / backward</text>
+  <rect class="box" x="365" y="78" width="155" height="78" rx="6"/><text class="label" x="442" y="108">Batch 2</text><text class="sub" x="442" y="137">forward / backward</text>
+  <rect class="merge" x="565" y="78" width="155" height="78" rx="6"/><text class="label" x="642" y="108">Mean gradient</text><text class="math" x="642" y="137">(g₁ + g₂) / 2</text>
+  <rect class="box" x="760" y="78" width="200" height="78" rx="6"/><text class="label" x="860" y="108">Update once</text><text class="sub" x="860" y="137">weights θ → θ′</text>
+  <path class="line" d="M136 117H165"/><path class="line" d="M325 117H360"/><path class="line" d="M520 117H560"/><path class="line" d="M720 117H755"/>
+  <text class="sub" x="247" y="190">produces g₁</text><text class="sub" x="442" y="190">produces g₂</text>
+  <text class="title" x="30" y="275">Two GPUs · data parallelism</text>
+  <text class="time" x="970" y="275">time →</text>
+  <rect class="gpu" x="28" y="310" width="108" height="56" rx="6"/><text class="inverse" x="82" y="345">GPU 0</text>
+  <rect class="gpu" x="28" y="414" width="108" height="56" rx="6"/><text class="inverse" x="82" y="449">GPU 1</text>
+  <rect class="box" x="170" y="299" width="155" height="78" rx="6"/><text class="label" x="247" y="329">Batch 1</text><text class="sub" x="247" y="358">forward / backward</text>
+  <rect class="box" x="170" y="403" width="155" height="78" rx="6"/><text class="label" x="247" y="433">Batch 2</text><text class="sub" x="247" y="462">forward / backward</text>
+  <rect class="merge" x="470" y="351" width="180" height="78" rx="6"/><text class="label" x="560" y="381">All-reduce mean</text><text class="math" x="560" y="410">(g₁ + g₂) / 2</text>
+  <rect class="box" x="760" y="351" width="200" height="78" rx="6"/><text class="label" x="860" y="381">Update both</text><text class="sub" x="860" y="410">replicas θ → θ′</text>
+  <path class="line" d="M136 338H165"/><path class="line" d="M136 442H165"/>
+  <path class="line" d="M325 338H390V372H465"/><path class="line" d="M325 442H390V408H465"/>
+  <path class="line" d="M650 390H755"/>
+  <text class="sub" x="357" y="325">g₁</text><text class="sub" x="357" y="465">g₂</text>
+</svg>

@@ -11,16 +11,54 @@
   \tableofcontents
   \vfill
   \begin{block}{Guiding question}
-    Which persistent states can be sharded, when must they be materialized, and what does that cost on the critical path?
+    What work and state does DDP repeat, and how could devices cooperate to reduce that redundancy?
   \end{block}
 \end{frame}
 \learninggoals
-{Account for DDP's replicated model-state memory.}
-{Explain ZeRO stages as progressive sharding.}
-{Trace one FSDP unit through forward and backward.}
-{Choose wrapping, precision, and checkpoint strategies from evidence.}
+{Identify repeated optimizer work and state in DDP.}
+{Develop a way to share responsibility for the update across devices.}
+{Trace the resulting state through forward and backward.}
+{Reason about memory, communication, and implementation trade-offs.}
 
-\section{From replication to sharding}
+\section{Where is the redundancy?}
+
+\begin{frame}{After synchronizing, what does each optimizer do?}
+  \centering
+  \begin{tikzpicture}[every node/.style={font=\small,align=center},
+      grad/.style={draw=themebluedraw,fill=themebluebg,minimum width=3.9cm,minimum height=.68cm},
+      sync/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=5.1cm,minimum height=.68cm},
+      opt/.style={draw=warningdraw,fill=warningbg,minimum width=4.7cm,minimum height=1.02cm},
+    arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdarkdraw}]
+    \node[grad] (g0) at (-3.2,2.8) {rank 0: local gradient $g_0$};
+    \node[grad] (g1) at (3.2,2.8) {rank 1: local gradient $g_1$};
+    \node[sync] (mean) at (0,1.8) {all-reduce mean $\bar g=(g_0+g_1)/2$};
+    \node[opt] (o0) at (-3.2,.4) {rank 0 optimizer\\$\bar g$ + full $\theta,m,v$ $\to$ full update};
+    \node[opt] (o1) at (3.2,.4) {rank 1 optimizer\\$\bar g$ + full $\theta,m,v$ $\to$ full update};
+    \draw[arr] (g0.south)--(mean.north west);
+    \draw[arr] (g1.south)--(mean.north east);
+    \draw[arr] (mean.south west)--(o0.north);
+    \draw[arr] (mean.south east)--(o1.north);
+    \node[font=\scriptsize,text=neutraldark] at (0,-.45) {Same synchronized gradient + same starting weights and optimizer state.};
+  \end{tikzpicture}
+  \vfill
+  \begin{alertblock}{But wait! Is there some redundancy here?}
+    Both ranks store the full optimizer state and repeat the same update. Can they share this work? What must each rank have for the next forward pass?
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Explore: can the ranks share the update?}
+  \begin{block}{Interactive comparison}
+    \href{https://brain-bzh.github.io/llm-course/demos/fsdp-discovery.html}{\textbf{Open the sharded-training explorer} $\nearrow$}
+  \end{block}
+  \begin{enumerate}
+    \setlength{\itemsep}{7pt}
+    \item Follow the DDP update: what does each rank repeat?
+    \item Split the optimizer state: which parameters does each rank update? How does the other rank get them?
+    \item Shard the model too: what must be gathered to compute? Where do reduced gradient shards go?
+  \end{enumerate}
+  \vfill
+  \small Step through the same training phases in each strategy. The explorer is a two-rank teaching model; actual FSDP resharding and overlap depend on its configuration.
+\end{frame}
 
 \begin{frame}{Parallelism map: FSDP shards model state}
   \centering
@@ -41,6 +79,34 @@
     \textbf{What changes from DDP?}     Model state is sharded. Each device gathers the active unit's full parameters to compute its batch.
   \end{minipage}\par\vspace{4pt}
   {\scriptsize Full-shard example. Gradient shards persist after reduction; details depend on FSDP configuration.}
+\end{frame}
+
+\begin{frame}{Sharding changes when full parameters exist}
+  \centering
+  \begin{tikzpicture}[x=.82cm,y=.85cm,scale=.90,transform shape,every node/.style={font=\scriptsize}]
+    \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(11.8,0) node[below left]{time};
+    \draw[dashed,neutrallight] (0,3.8)--(11.5,3.8);
+    \draw[dashed,neutrallight] (0,1.45)--(11.5,1.45);
+    \node[left,font=\scriptsize\bfseries,text=warningdraw] at (0,3.8) {full unit};
+    \node[left,font=\scriptsize\bfseries,text=accentdark] at (0,1.45) {$1/W$ shard};
+    \fill[themebluebg,draw=themebluedraw,very thick]
+    (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (1.35,-.8) {all-gather\\parameters};
+    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (3.20,-.8) {forward};
+    \node[draw=warningdraw,fill=warningbg,rounded corners,font=\tiny] at (4.85,-.8) {reshard};
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (6.35,-.8) {all-gather\\again};
+    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (8.10,-.8) {backward};
+    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny] at (10.25,-.8) {reduce-scatter\\gradients};
+  \end{tikzpicture}
+  \par\vspace{2pt}
+  \footnotesize Full parameters are transient around compute; the local shard is persistent.\par
+\end{frame}
+
+\begin{frame}{Now account for what we saw}
+  \begin{block}{From the visualization to a memory budget}
+    Which state stayed replicated? What was persistent, and what was materialized only for computation?
+  \end{block}
+  \small The next slides summarize the layouts and their assumptions.
 \end{frame}
 
 \begin{frame}{DDP replicates persistent state on every rank}
@@ -83,25 +149,22 @@
   \smallsource{Hugging Face Ultra-Scale Playbook and ZeRO}
 \end{frame}
 
-\begin{frame}{Sharding changes when full parameters exist}
-  \centering
-  \begin{tikzpicture}[x=.82cm,y=.85cm,scale=.90,transform shape,every node/.style={font=\scriptsize}]
-    \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(11.8,0) node[below left]{time};
-    \draw[dashed,neutrallight] (0,3.8)--(11.5,3.8);
-    \draw[dashed,neutrallight] (0,1.45)--(11.5,1.45);
-    \node[left,font=\scriptsize\bfseries,text=warningdraw] at (0,3.8) {full unit};
-    \node[left,font=\scriptsize\bfseries,text=accentdark] at (0,1.45) {$1/W$ shard};
-    \fill[themebluebg,draw=themebluedraw,very thick]
-    (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (1.35,-.8) {all-gather\\parameters};
-    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (3.20,-.8) {forward};
-    \node[draw=warningdraw,fill=warningbg,rounded corners,font=\tiny] at (4.85,-.8) {reshard};
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (6.35,-.8) {all-gather\\again};
-    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (8.10,-.8) {backward};
-    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny] at (10.25,-.8) {reduce-scatter\\gradients};
-  \end{tikzpicture}
-  \par\vspace{2pt}
-  \footnotesize Full parameters are transient around compute; the local shard is persistent.\par
+\begin{frame}{Two collectives make sharding usable}
+  \centering\small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    & Rank 0 & Rank 1 \\
+    \midrule
+    Start: parameter shards & $P_0$ & $P_1$ \\
+    \textbf{All-gather} parameters & $[P_0,P_1]$ & $[P_0,P_1]$ \\
+    Local forward / backward & gradient $[g_{00},g_{01}]$ & gradient $[g_{10},g_{11}]$ \\
+    \textbf{Reduce-scatter} gradients & $g_{00}+g_{10}$ & $g_{01}+g_{11}$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{The division of work}
+    Each rank gathers the full unit to compute its own data; after reduction it retains the gradient for its owned shard. Averaging requires the appropriate world-size normalization.
+  \end{block}
 \end{frame}
 
 \section{Execution and wrapping}
@@ -167,84 +230,10 @@
   Combine FSDP with activation checkpointing when activations, not model state, dominate the peak.
 \end{frame}
 
-\begin{frame}{Mixed precision has three separate decisions}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}>{\raggedright\arraybackslash}p{.38\linewidth}@{}}
-    \toprule
-    Quantity & Common choice & Main trade-off \\
-    \midrule
-    parameter compute dtype & BF16 & speed and temporary memory \\
-    gradient reduction dtype & BF16 or FP32 & bandwidth versus numerical range \\
-    optimizer state dtype & FP32 & stable moments at persistent cost \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{block}{Experimental rule}
-    When comparing DDP and FSDP, align precision policy. Otherwise, memory and numerical differences have multiple causes.
-  \end{block}
-\end{frame}
-
 \checkpoint{wrapping policy}
 {A run fits in memory but launches hundreds of tiny all-gathers and scales poorly. What wrapping change would you test, and which memory and timing quantities could regress?}
 
-\section{Checkpointing and fair comparison}
-
-\begin{frame}{A distributed checkpoint is a data layout}
-  \begin{columns}[t]
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Full}
-        easy to consume\\expensive to gather\\rank 0 memory pressure
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Sharded}
-        scalable writes\\world-size coupling unless resharded
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Distributed format}
-        parallel I/O\\metadata and recovery complexity
-      \end{block}
-    \end{column}
-  \end{columns}
-  \begin{alertblock}{Completion protocol}
-    Publish a checkpoint only after every shard and its metadata are durable. A directory that exists is not proof of a complete save.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Checkpoint cadence and expected overhead}
-  \begin{columns}[c]
-    \begin{column}{0.68\linewidth}
-      \centering
-      \begin{tikzpicture}[x=.75cm,y=.75cm,every node/.style={font=\scriptsize}]
-        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(8.8,0);
-        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.4) node[above,rotate=90,anchor=south east]{expected overhead};
-        \draw[very thick,warningdraw] (.35,4.0) .. controls (1.8,2.2) and (4.8,.9) .. (8.3,.55);
-        \draw[very thick,themebluedraw] (.35,.55)--(8.3,3.85);
-        \draw[very thick,accentdark] (.35,4.05) .. controls (2.3,1.35) and (4.15,.85) .. (4.75,1.12) .. controls (6.3,1.75) and (7.2,2.8) .. (8.3,4.0);
-        \fill[accentdark] (4.2,1.02) circle (3pt);
-        \draw[dashed,neutraldark] (4.2,0)--(4.2,1.02);
-        \node[text=warningdraw] at (2.1,3.35) {save overhead $S/\tau$};
-        \node[text=accentdark] at (6.8,3.15) {lost work $\tau/(2M)$};
-        \node[below,align=center] at (4.2,0) {best measured\\interval};
-        \node[below,text=neutraldark] at (7.35,-.48) {checkpoint interval $\tau$};
-      \end{tikzpicture}
-    \end{column}
-    \begin{column}{0.30\linewidth}
-      \[
-        \text{rate}\approx
-        \frac{S}{\tau}+\frac{\tau}{2M}+\frac{L}{M}
-      \]
-      \small
-      $M$: mean time between interruptions\\[4pt]
-      $S$: exposed save time\\[4pt]
-      $L$: recovery load time
-    \end{column}
-  \end{columns}
-  \vspace{3pt}
-  \footnotesize Measure durable save completion and restart time; file creation alone does not define $S$ or $L$.
-  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 4 (2026)}
-\end{frame}
+\section{Choosing and comparing approaches}
 
 \begin{frame}{A DDP--FSDP comparison needs a fixed contract}
   Match model, global token batch, optimizer, schedule, precision, data order, checkpoint cadence, and evaluation.
@@ -281,4 +270,77 @@
 {FSDP materializes one wrapped unit through all-gather and returns sharded gradients.}
 {Wrapping controls peak memory, collective size, frequency, and overlap.}
 {Checkpoint format and a matched DDP baseline are part of the system claim.}
+\appendix
+\section{Optional: precision and checkpointing}
+\begin{frame}{Mixed precision has three separate decisions}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}>{\raggedright\arraybackslash}p{.38\linewidth}@{}}
+    \toprule
+    Quantity & Common choice & Main trade-off \\
+    \midrule
+    parameter compute dtype & BF16 & speed and temporary memory \\
+    gradient reduction dtype & BF16 or FP32 & bandwidth versus numerical range \\
+    optimizer state dtype & FP32 & stable moments at persistent cost \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{Experimental rule}
+    When comparing DDP and FSDP, align precision policy. Otherwise, memory and numerical differences have multiple causes.
+  \end{block}
+\end{frame}
+\begin{frame}{A distributed checkpoint is a data layout}
+  \begin{columns}[t]
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Full}
+        easy to consume\\expensive to gather\\rank 0 memory pressure
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Sharded}
+        scalable writes\\world-size coupling unless resharded
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Distributed format}
+        parallel I/O\\metadata and recovery complexity
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Completion protocol}
+    Publish a checkpoint only after every shard and its metadata are durable. A directory that exists is not proof of a complete save.
+  \end{alertblock}
+\end{frame}
+\begin{frame}{Checkpoint cadence and expected overhead}
+  \begin{columns}[c]
+    \begin{column}{0.68\linewidth}
+      \centering
+      \begin{tikzpicture}[x=.75cm,y=.75cm,every node/.style={font=\scriptsize}]
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(8.8,0);
+        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.4) node[above,rotate=90,anchor=south east]{expected overhead};
+        \draw[very thick,warningdraw] (.35,4.0) .. controls (1.8,2.2) and (4.8,.9) .. (8.3,.55);
+        \draw[very thick,themebluedraw] (.35,.55)--(8.3,3.85);
+        \draw[very thick,accentdark] (.35,4.05) .. controls (2.3,1.35) and (4.15,.85) .. (4.75,1.12) .. controls (6.3,1.75) and (7.2,2.8) .. (8.3,4.0);
+        \fill[accentdark] (4.2,1.02) circle (3pt);
+        \draw[dashed,neutraldark] (4.2,0)--(4.2,1.02);
+        \node[text=warningdraw] at (2.1,3.35) {save overhead $S/\tau$};
+        \node[text=accentdark] at (6.8,3.15) {lost work $\tau/(2M)$};
+        \node[below,align=center] at (4.2,0) {best measured\\interval};
+        \node[below,text=neutraldark] at (7.35,-.48) {checkpoint interval $\tau$};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.30\linewidth}
+      \[
+        \text{rate}\approx
+        \frac{S}{\tau}+\frac{\tau}{2M}+\frac{L}{M}
+      \]
+      \small
+      $M$: mean time between interruptions\\[4pt]
+      $S$: exposed save time\\[4pt]
+      $L$: recovery load time
+    \end{column}
+  \end{columns}
+  \vspace{3pt}
+  \footnotesize Measure durable save completion and restart time; file creation alone does not define $S$ or $L$.
+  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 4 (2026)}
+\end{frame}
 \end{document}

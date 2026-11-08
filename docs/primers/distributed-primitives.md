@@ -22,17 +22,7 @@ worker processes:
 - **Local Rank:** Identifier of the process within its physical node (e.g. $[0, 7]$ on an 8-GPU node).
 - **Process Group:** An explicit subset of ranks that communicate together via a backend (e.g. NCCL).
 
-```
-Node 0                                Node 1
-┌─────────────────────────────────┐   ┌─────────────────────────────────┐
-│ GPU 0        GPU 1        GPU 2 │   │ GPU 3        GPU 4        GPU 5 │
-│ Rank 0       Rank 1       Rank 2│   │ Rank 3       Rank 4       Rank 5│
-│ LocalRank 0  LocalRank 1  Loc..2│   │ LocalRank 0  LocalRank 1  Loc..2│
-└─────────────────────────────────┘   └─────────────────────────────────┘
-        ▲                                     ▲
-        └───────────────── Network ───────────┘
-               (InfiniBand / RoCE / Ethernet)
-```
+![Distributed cluster topology with physical nodes, GPUs, global and local ranks, intra-node NVLink mesh, and inter-node network fabric.](../assets/figures/distributed-cluster-topology.svg){ loading=lazy }
 
 In PyTorch, initialization under `torchrun` queries standard environment variables:
 
@@ -67,9 +57,7 @@ Distributed deep learning relies on three categories of communication:
 
 Transfers a tensor directly from a single sender rank to a single receiver rank.
 
-```
-Rank 0:  [ Tensor A ] ──────────( send / recv )──────────> Rank 1: [ Tensor A ]
-```
+![Point-to-point tensor communication transferring a payload from a sender rank to a receiver rank.](../assets/figures/collective-p2p.svg){ loading=lazy }
 
 - **Semantics:** Rank $i$ sends; Rank $j$ receives.
 - **PyTorch API:**
@@ -86,18 +74,12 @@ Rank 0:  [ Tensor A ] ──────────( send / recv )────�
 
 Copies a tensor located on a designated root rank to all other ranks in the process group.
 
-```
-Initial State:                    After Broadcast (root=0):
-Rank 0 (root): [ Data A ]         Rank 0: [ Data A ]
-Rank 1:        [        ]   ==>   Rank 1: [ Data A ]
-Rank 2:        [        ]         Rank 2: [ Data A ]
-Rank 3:        [        ]         Rank 3: [ Data A ]
-```
+![Broadcast collective copying a tensor from root rank 0 to all worker ranks.](../assets/figures/collective-broadcast.svg){ loading=lazy }
 
 - **Tensor Shapes:** Input on root: $[N]$. Output on all ranks: $[N]$.
 - **PyTorch API:** `dist.broadcast(tensor, src=0)`
 - **Used in:**
-  - Synchronizing initial model parameters and optimizer configuration at rank 0 to all workers at training launch.
+  - Synchronizing model parameters from rank 0 at initialization. Optimizer configuration and state must be initialized or restored consistently; DDP does not broadcast optimizer state.
 
 ---
 
@@ -106,16 +88,7 @@ Rank 3:        [        ]         Rank 3: [ Data A ]
 - **Scatter:** Splits a tensor on root into $R$ equal slices and sends slice $i$ to rank $i$.
 - **Gather:** Collects slice $i$ from rank $i$ and concatenates them onto the root rank.
 
-```
-Scatter (root=0):                 Gather (root=0):
-Rank 0 (root): [A | B | C | D]    Rank 0: [ A ] ──┐
-Rank 1:        [             ]    Rank 1: [ B ] ──┼──> Rank 0: [A | B | C | D]
-Rank 2:        [             ]    Rank 2: [ C ] ──┤
-Rank 3:        [             ]    Rank 3: [ D ] ──┘
-      │
-      ▼
-Rank 0: [ A ], Rank 1: [ B ], Rank 2: [ C ], Rank 3: [ D ]
-```
+![Scatter splits a root tensor into rank shards; gather collects shards from all ranks to reconstruct the full tensor.](../assets/figures/collective-scatter-gather.svg){ loading=lazy }
 
 - **Tensor Shapes:** Root: $[N] \longleftrightarrow$ All ranks: $[N/R]$.
 - **PyTorch API:** `dist.scatter(tensor, scatter_list, src=0)`, `dist.gather(tensor, gather_list, dst=0)`.
@@ -128,13 +101,7 @@ Rank 0: [ A ], Rank 1: [ B ], Rank 2: [ C ], Rank 3: [ D ]
 Every rank begins with a local shard of size $[N/R]$. All ranks communicate so that
 every rank ends up with the complete concatenated tensor $[N]$.
 
-```
-Initial State:                    After All-Gather:
-Rank 0: [ A ]                     Rank 0: [ A | B | C | D ]
-Rank 1: [ B ]               ==>   Rank 1: [ A | B | C | D ]
-Rank 2: [ C ]                     Rank 2: [ A | B | C | D ]
-Rank 3: [ D ]                     Rank 3: [ A | B | C | D ]
-```
+![All-gather collective collecting local shards from every rank and concatenating the full tensor on all ranks.](../assets/figures/collective-allgather.svg){ loading=lazy }
 
 - **Tensor Shapes:** Input on each rank: $[N/R]$. Output on each rank: $[N]$.
 - **PyTorch API:**
@@ -152,13 +119,7 @@ Every rank begins with a full-sized tensor $[N]$. An elementwise reduction (e.g.
 is computed across all ranks, and the reduced result is partitioned so that rank $i$
 receives only the $i$-th reduced shard $[N/R]$.
 
-```
-Initial State:                    After Reduce-Scatter (op=SUM):
-Rank 0: [ A0 | B0 | C0 | D0 ]     Rank 0: [ ΣA = A0+A1+A2+A3 ]
-Rank 1: [ A1 | B1 | C1 | D1 ] ==> Rank 1: [ ΣB = B0+B1+B2+B3 ]
-Rank 2: [ A2 | B2 | C2 | D2 ]     Rank 2: [ ΣC = C0+C1+C2+C3 ]
-Rank 3: [ A3 | B3 | C3 | D3 ]     Rank 3: [ ΣD = D0+D1+D2+D3 ]
-```
+![Reduce-scatter computes an elementwise sum across full tensors and partitions the reduced shards among ranks.](../assets/figures/collective-reducescatter.svg){ loading=lazy }
 
 - **Tensor Shapes:** Input on each rank: $[N]$. Output on each rank: $[N/R]$.
 - **PyTorch API:**
@@ -175,13 +136,7 @@ Rank 3: [ A3 | B3 | C3 | D3 ]     Rank 3: [ ΣD = D0+D1+D2+D3 ]
 Every rank begins with a full-sized tensor $[N]$. An elementwise reduction (typically SUM)
 is computed across all ranks, and the complete reduced tensor $[N]$ is stored on every rank.
 
-```
-Initial State:                    After All-Reduce (op=SUM):
-Rank 0: [ A0 | B0 | C0 | D0 ]     Rank 0: [ ΣA | ΣB | ΣC | ΣD ]
-Rank 1: [ A1 | B1 | C1 | D1 ] ==> Rank 1: [ ΣA | ΣB | ΣC | ΣD ]
-Rank 2: [ A2 | B2 | C2 | D2 ]     Rank 2: [ ΣA | ΣB | ΣC | ΣD ]
-Rank 3: [ A3 | B3 | C3 | D3 ]     Rank 3: [ ΣA | ΣB | ΣC | ΣD ]
-```
+![All-reduce collective summing partial tensors across ranks and replicating the full reduced tensor everywhere.](../assets/figures/collective-allreduce.svg){ loading=lazy }
 
 - **Equivalence:**
   $$\text{All-Reduce} \equiv \text{Reduce-Scatter} \xrightarrow{\quad} \text{All-Gather}.$$
@@ -199,13 +154,7 @@ Every rank begins with $R$ distinct slices (one destined for each rank). Rank $i
 $j$-th slice to rank $j$, and receives from rank $j$ the slice destined for rank $i$.
 This is a **distributed matrix transpose**.
 
-```
-Initial State:                    After All-to-All:
-Rank 0: [ A0 | B0 | C0 | D0 ]     Rank 0: [ A0 | A1 | A2 | A3 ]
-Rank 1: [ A1 | B1 | C1 | D1 ] ==> Rank 1: [ B0 | B1 | B2 | B3 ]
-Rank 2: [ A2 | B2 | C2 | D2 ]     Rank 2: [ C0 | C1 | C2 | C3 ]
-Rank 3: [ A3 | B3 | C3 | D3 ]     Rank 3: [ D0 | D1 | D2 | D3 ]
-```
+![All-to-all collective transposing row-partitioned rank slices into column-partitioned output buffers.](../assets/figures/collective-alltoall.svg){ loading=lazy }
 
 - **Tensor Shapes:** Input: $[R \times M]$. Output: $[R \times M]$ (with chunks transposed).
 - **PyTorch API:** `dist.all_to_all_single(output, input, output_split_sizes=None, input_split_sizes=None)`
@@ -225,13 +174,29 @@ communication collective requires evaluating its **mathematical adjoint**.
 | :--- | :--- | :--- | :--- |
 | **All-Gather** | Sharded $\to$ Replicated | **Reduce-Scatter** | Replicated upstream outputs accumulate gradients on all ranks; backward must sum and scatter gradients back to shard owners. |
 | **Reduce-Scatter** | Partials $\to$ Sharded sum | **All-Gather** | Each rank has local gradient of its shard; backward gathers them to restore full gradient. |
-| **All-Reduce** | Partials $\to$ Replicated sum | **Identity (No-Op)** | Upstream gradients are already identical and local to each rank. No network transfer needed! |
+| **SUM All-Reduce** | Partials $\to$ replicated sum | **SUM All-Reduce** | Sum the output gradients from all ranks for each input rank. This is the adjoint for independent rank-local outputs and a global loss. |
 | **All-to-All** | Routing (Rank $i \to j$) | **All-to-All** | Transposing the backward gradients routes them back to originating tokens (Rank $j \to i$). |
 | **P2P Send $\to$ Recv** | Forward stage transfer | **P2P Recv $\leftarrow$ Send** | Gradients travel in the exact opposite direction. |
 
+For example, if $y_r = \sum_i x_i$ on every rank and the total loss is
+$L=\sum_r L_r(y_r)$, then $\partial L/\partial x_i =
+\sum_r \partial L_r/\partial y_r$. A mean reduction introduces the
+corresponding $1/R$ factor. The backward rule depends on the operation **and**
+on the distributed loss and layout conventions.
+
+Some tensor-parallel implementations use a custom forward all-reduce with an
+identity backward for a **single logical replicated activation and loss**.
+Under that convention, each rank already has the needed logical output gradient;
+reducing identical copies again would overcount it. This is a specialized layout
+boundary, not the mathematical adjoint of SUM all-reduce on independent outputs.
+For an implementation example, see [Megatron-LM's tensor-parallel mappings](https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/mappings.py).
+
 ### Implementing TP Adjoints with `torch.autograd.Function`
 
-The Megatron-LM Tensor Parallelism module implements these adjoints explicitly:
+The following teaching sketch illustrates specialized tensor-parallel layout
+boundaries, not general autograd definitions for arbitrary collectives. In
+particular, its all-reduce/identity mapping assumes the logical replicated-loss
+convention explained above:
 
 ```python
 import torch
@@ -349,11 +314,7 @@ Modern GPU clusters exhibit a steep hierarchy of communication bandwidth:
 
 ### Mapping Parallelism Dimensions to Interconnects
 
-```
-High Bandwidth & Low Latency (NVLink) ────────────> Lower Bandwidth (InfiniBand)
-             TP / CP                                       PP / DP / FSDP
-[ Frequent layer-internal collectives ]           [ Infrequent step-boundary collectives ]
-```
+![Mapping parallelism dimensions to interconnect bandwidth tiers from intra-node NVLink to inter-node networks.](../assets/figures/parallelism-interconnect-hierarchy.svg){ loading=lazy }
 
 1. **Tensor Parallelism (TP):** Executes 2 All-Reduces **per Transformer layer**. Must stay inside a single node across NVLink. Placing TP across an Ethernet or InfiniBand network will stall compute.
 2. **Context Parallelism (CP):** Circulates KV blocks in every attention head. Prefers NVLink or high-speed intra-rack fabrics.

@@ -15,10 +15,114 @@
   \end{block}
 \end{frame}
 \learninggoals
-{Derive the averaged gradient computed by data parallelism.}
-{Reason about ring all-reduce cost and overlap.}
+{Explain ranks, process groups, collective communication and its costs.}
+{Derive DDP gradient averaging and connect it to accumulation.}
 {Keep accumulation, sampling, logging, and checkpointing rank-aware.}
 {Measure both numerical equivalence and scaling efficiency.}
+
+\section{Distributed foundations}
+
+\begin{frame}{Why go beyond one GPU?}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{Throughput}
+        Divide work across devices to process a fixed workload sooner, or increase the workload per update.
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{block}{Capacity}
+        Distribute model state or computation when the model and its training state do not fit on one device.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{The new cost}
+    GPUs must exchange information. Network time, synchronization and changing the global batch can limit or change the result.
+  \end{alertblock}
+  \small DDP first: replicate the model and split the data. FSDP next: shard model state.
+\end{frame}
+
+\begin{frame}{A distributed job: nodes, ranks and process groups}
+  \centering
+  \begin{tikzpicture}[
+    every node/.style={font=\small,align=center},
+    host/.style={draw=themebluedraw,fill=themebluebg,minimum width=5cm,minimum height=2.2cm},
+    device/.style={draw=themenavy,fill=white,minimum width=2cm,minimum height=.75cm},
+    link/.style={line width=1pt,draw=accentdarkdraw}]
+    \node[host] (n0) at (-3,0) {};
+    \node[host] (n1) at (3,0) {};
+    \node[font=\small\bfseries] at (-3,.75) {node 0};
+    \node[font=\small\bfseries] at (3,.75) {node 1};
+    \node[device] at (-4.15,-.2) {GPU 0\\rank 0};
+    \node[device] at (-1.85,-.2) {GPU 1\\rank 1};
+    \node[device] at (1.85,-.2) {GPU 0\\rank 2};
+    \node[device] at (4.15,-.2) {GPU 1\\rank 3};
+    \draw[link,<->] (n0.east)--(n1.west);
+    \node[font=\scriptsize,text=accentdark] at (0,.4) {network};
+  \end{tikzpicture}
+  \vfill
+  \small One process per GPU in standard DDP. \textbf{Global rank} identifies a process; \textbf{local rank} identifies its GPU on the node. A \textbf{process group} defines who communicates. Here the world size is 4.
+\end{frame}
+
+\begin{frame}{All-reduce: sum corresponding entries on every rank}
+  \definecolor{rankteal}{HTML}{BDECEE}
+  \definecolor{rankamber}{HTML}{FDE68A}
+  \definecolor{rankviolet}{HTML}{E9D5FF}
+  \definecolor{rankrose}{HTML}{FECDD3}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.70,transform shape,every node/.style={font=\scriptsize,align=center}]
+    % The same color throughout a column identifies the contributing rank.
+    \node[anchor=east,font=\small\bfseries,text=themeink] at (-5.2,2.55) {Local input};
+    \node[anchor=east,font=\small\bfseries,text=themeink] at (-5.2,-.42) {Reduced output};
+    \foreach \x/\r/\c in {-3.9/0/rankteal,-1.3/1/rankamber,1.3/2/rankviolet,3.9/3/rankrose} {
+      \node[font=\small\bfseries,text=themeink] at (\x,3.3) {rank \r};
+      \fill[\c] (\x-.9,2.2) rectangle (\x+.9,2.95);
+      \draw[themeink!45,thin] (\x-.9,2.2) rectangle (\x+.9,2.95);
+      \draw[themeink!30,thin] (\x,2.2)--(\x,2.95);
+      \node[font=\small,text=themeink] at (\x-.45,2.58) {$a_{\r}$};
+      \node[font=\small,text=themeink] at (\x+.45,2.58) {$b_{\r}$};
+      % Each output element contains contributions from all four input ranks.
+      \foreach \k/\colour in {0/rankteal,1/rankamber,2/rankviolet,3/rankrose} {
+        \pgfmathsetmacro{\leftx}{\x-.9+\k*.225}
+        \pgfmathsetmacro{\rightx}{\x-.9+(\k+1)*.225}
+        \fill[\colour] (\leftx,-.8) rectangle (\rightx,-.05);
+        \pgfmathsetmacro{\leftx}{\x+\k*.225}
+        \pgfmathsetmacro{\rightx}{\x+(\k+1)*.225}
+        \fill[\colour] (\leftx,-.8) rectangle (\rightx,-.05);
+      }
+      \draw[themeink!45,thin] (\x-.9,-.8) rectangle (\x+.9,-.05);
+      \draw[themeink!30,thin] (\x,-.8)--(\x,-.05);
+      \node[font=\small\bfseries,text=themeink] at (\x-.45,-.43) {$\Sigma a$};
+      \node[font=\small\bfseries,text=themeink] at (\x+.45,-.43) {$\Sigma b$};
+    }
+    \node[draw=accentdarkdraw,fill=accentdarkbg,minimum width=5.2cm,minimum height=.55cm,font=\small\bfseries,text=accentdark] (reduce) at (0,.78) {all-reduce: elementwise sum};
+    \draw[-{Stealth[length=5pt,width=4pt]},thick,draw=accentdarkdraw] (0,2.05)--(reduce.north);
+    \draw[-{Stealth[length=5pt,width=4pt]},thick,draw=accentdarkdraw] (reduce.south)--(0,.02);
+    \node[font=\scriptsize,text=neutraldark] at (0,-1.18) {$\Sigma a=\sum_{r=0}^{3}a_r$ \quad and \quad $\Sigma b=\sum_{r=0}^{3}b_r$};
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \small\textbf{DDP:} divide the sum by the world size to obtain the mean gradient.\par
+  \smallsource{NVIDIA NCCL User Guide, Collective Operations}
+\end{frame}
+
+\begin{frame}{Communication has a cost}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{Startup and bandwidth}
+        Many small messages pay repeated startup costs. Large messages also depend on effective link bandwidth and topology.
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{block}{Overlap}
+        Communication can run while independent GPU work continues. Only the unhidden portion adds directly to the critical path.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{Ask of every distributed design}
+    What is sent, between which ranks, how often, and what computation can overlap it?
+  \end{alertblock}
+\end{frame}
 
 \section{The data-parallel contract}
 
@@ -119,93 +223,7 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{A ring all-reduce distributes the traffic}
-  \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize},rank/.style={circle,draw=accentdark,fill=accentdark,text=white,minimum size=.82cm,font=\scriptsize\bfseries}]
-    \begin{scope}[xshift=0cm]
-      \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {1. reduce-scatter};
-      \node[rank] (a0) at (2.4,3.0) {0}; \node[rank] (a1) at (4.0,1.8) {1};
-      \node[rank] (a2) at (2.4,.6) {2}; \node[rank] (a3) at (.8,1.8) {3};
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a0)--(a1);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a1)--(a2);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a2)--(a3);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (a3)--(a0);
-      \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (2.4,1.8) {circulate + sum\\matching chunks};
-      \node at (2.4,-.05) {one reduced chunk per rank};
-    \end{scope}
-    \begin{scope}[xshift=6.3cm]
-      \node[font=\small\bfseries,text=accentdark] at (2.4,3.9) {2. all-gather};
-      \node[rank] (b0) at (2.4,3.0) {0}; \node[rank] (b1) at (4.0,1.8) {1};
-      \node[rank] (b2) at (2.4,.6) {2}; \node[rank] (b3) at (.8,1.8) {3};
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b0)--(b1);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b1)--(b2);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b2)--(b3);
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,successdraw] (b3)--(b0);
-      \node[draw=successdraw,fill=successbg,rounded corners,align=center] at (2.4,1.8) {circulate reduced\\chunks};
-      \node at (2.4,-.05) {full reduced buffer on every rank};
-    \end{scope}
-  \end{tikzpicture}
-  \vspace{-2pt}
-  \begin{block}{Per-rank payload for gradient buffer $S$}
-    \centering $2\frac{W-1}{W}S$ bytes, ignoring latency and protocol overhead.
-  \end{block}
-  \smallsource{Hugging Face Ultra-Scale Playbook}
-\end{frame}
-
-\begin{frame}{Collective latency and bandwidth crossover}
-  \begin{columns}[c]
-    \begin{column}{0.70\linewidth}
-      \centering
-      \begin{tikzpicture}[x=.72cm,y=.72cm,every node/.style={font=\scriptsize}]
-        \fill[warningbg] (0,0) rectangle (4.1,4.0);
-        \fill[themebluebg] (4.1,0) rectangle (9.0,4.0);
-        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(9.35,0) node[below left]{message size $m$};
-        \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(0,4.45) node[above,rotate=90,anchor=south east]{communication time};
-        \draw[very thick,warningdraw] (.2,.55)--(8.4,3.85);
-        \draw[very thick,themebluedraw] (.2,1.45)--(8.8,3.2);
-        \draw[dashed,neutraldark] (4.1,0)--(4.1,4.0);
-        \node[text=warningdraw,anchor=west] at (5.9,3.45) {tree};
-        \node[text=accentdark,anchor=west] at (6.7,2.55) {ring};
-        \node[align=center] at (2.0,.55) {latency-bound\\tree can win};
-        \node[align=center] at (6.45,.55) {bandwidth-bound\\ring can win};
-      \end{tikzpicture}
-    \end{column}
-    \begin{column}{0.28\linewidth}
-      \small
-      \[
-        T_{\rm comm}(m)\approx\alpha+\beta m
-      \]
-      \begin{block}{$\alpha$}
-        fixed launch latency
-      \end{block}
-      \begin{block}{$\beta$}
-        time per byte, roughly $1/BW$
-      \end{block}
-    \end{column}
-  \end{columns}
-  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 2 (2026)}
-\end{frame}
-
 \section{Overlap and rank-aware state}
-
-\begin{frame}{Buckets overlap communication with backward}
-  Backward produces gradients from later layers first. DDP groups parameters into buckets and launches a collective as each bucket becomes ready.
-  \vspace{6pt}
-  \begin{center}
-    \begin{tikzpicture}[x=.82cm,y=.65cm,every node/.style={font=\scriptsize}]
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(10.4,0) node[right]{time};
-      \fill[themebluecard] (0,.4) rectangle (8,1.0);
-      \node at (4,.7) {backward compute};
-      \fill[warningbg] (2.0,1.25) rectangle (4.0,1.85);
-      \fill[warningbg] (4.1,1.25) rectangle (6.1,1.85);
-      \fill[warningbg] (6.2,1.25) rectangle (8.8,1.85);
-      \node at (5.4,1.55) {bucket all-reduces};
-    \end{tikzpicture}
-  \end{center}
-  \begin{alertblock}{Tail exposure}
-    Communication that remains after backward completes is visible step-time overhead.
-  \end{alertblock}
-\end{frame}
 
 \begin{frame}{Accumulation should synchronize once per update}
   \begin{columns}[c]
@@ -226,6 +244,47 @@
       \end{block}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Buckets can overlap communication with backward}
+  \small DDP launches an all-reduce when a bucket's gradients are ready; other layers can continue backward.
+  \begin{center}
+  \begin{tikzpicture}[x=.82cm,y=.67cm,every node/.style={font=\scriptsize},
+    compute/.style={draw=themebluedraw,fill=themebluecard},
+    comm/.style={draw=accentdarkdraw,fill=accentdarkbg},
+    ready/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=neutraldark}]
+    % Same illustrative backward and communication work in each scenario.
+    \node[anchor=west,font=\small\bfseries] at (-1.7,4.9) {Wait until backward finishes};
+    \node[anchor=east] at (-.15,4.15) {compute};
+    \node[anchor=east] at (-.15,3.35) {comm.};
+    \draw[compute] (0,3.85) rectangle (6,4.45);
+    \node at (3,4.15) {backward};
+    \draw[comm] (6,3.05) rectangle (9,3.65);
+    \node at (7.5,3.35) {reduce gradients};
+    \draw[dashed,neutraldark] (6,2.9)--(6,4.65);
+    \node[anchor=west,text=leafreddraw] at (9.1,3.35) {update};
+    \node[font=\scriptsize,text=neutraldark,anchor=south] at (6,4.52) {backward done};
+    \node[anchor=west,font=\small\bfseries] at (-1.7,2.45) {Start each bucket when ready};
+    \node[anchor=east] at (-.15,1.7) {compute};
+    \node[anchor=east] at (-.15,.9) {comm.};
+    \draw[compute] (0,1.4) rectangle (2,2);
+    \draw[compute] (2,1.4) rectangle (4,2);
+    \draw[compute] (4,1.4) rectangle (6,2);
+    \node at (1,1.7) {backward};
+    \node at (3,1.7) {backward};
+    \node at (5,1.7) {backward};
+    \draw[comm] (2,.6) rectangle (3,1.2); \node at (2.5,.9) {B1};
+    \draw[comm] (4,.6) rectangle (5,1.2); \node at (4.5,.9) {B2};
+    \draw[comm] (6,.6) rectangle (7,1.2); \node at (6.5,.9) {B3};
+    \draw[ready] (2,1.38)--(2,1.22); \draw[ready] (4,1.38)--(4,1.22); \draw[ready] (6,1.38)--(6,1.22);
+    \draw[dashed,neutraldark] (6,.4)--(6,2.2);
+    \draw[decorate,decoration={brace,amplitude=3pt,mirror},draw=leafreddraw,thick] (6,.45)--(7,.45);
+    \node[text=leafreddraw,anchor=west] at (7.1,.9) {update};
+    \node[text=leafreddraw] at (6.5,.1) {tail};
+    \draw[-{Stealth},thick] (0,-.35)--(9,-.35) node[right]{time};
+  \end{tikzpicture}
+  \end{center}
+  \footnotesize B1--B3 are gradient buckets. Only the final reduction remains after backward; the update waits for it. Timings are illustrative.
 \end{frame}
 
 \begin{frame}{Distributed sampling is part of correctness}
@@ -312,7 +371,7 @@
 
 \takeaways
 {DDP is equivalent to a global mean update only when data and normalization invariants hold.}
-{Ring all-reduce spreads bandwidth cost, while buckets hide part of it behind backward.}
+{Collective communication has startup and bandwidth costs; buckets can overlap it with backward.}
 {Sampling, metrics, side effects, and resume logic must all understand rank.}
 {Correctness comparisons come before speedup and efficiency measurements.}
 \end{document}

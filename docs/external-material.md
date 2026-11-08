@@ -86,9 +86,16 @@ _Sessions 11–12._
 
 _Sessions 13–23._
 
+- **[NVIDIA NCCL collective operations](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html)**
+  — Diagrams and semantics for all-reduce, all-gather, reduce-scatter and other collective operations.
+
 - **[The Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook)**
   — A visual, interactive guide from single-GPU memory accounting through data,
   tensor, pipeline and context parallelism, backed by scaling experiments.
+- **[The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)**
+  — An interactive practical handbook covering expert parallelism (EP),
+  All-to-All communication bottlenecks, routing algorithms, load balancing, and
+  Megatron-LM runbooks, based on ~800,000 GPU-hours of MoE training.
 - **[Picotron](https://github.com/huggingface/picotron)** — The Playbook's
   minimal educational implementation of data, tensor, pipeline and context
   parallelism, organized into short, readable modules. Follow it with
@@ -211,6 +218,9 @@ _Session 27 (optional Module 11 material)._
   — Direct patch projection and unified tokenization without frozen vision encoders.
 - **[Switch Transformers](https://arxiv.org/abs/2101.03961)**
   — Sparse mixture-of-experts routing and its computation/communication trade-offs.
+- **[The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)**
+  — Deep dive into sparse Mixture-of-Experts architectures, routing mechanisms,
+  auxiliary load-balancing losses, and expert parallelism.
 
 ## Acknowledgements
 

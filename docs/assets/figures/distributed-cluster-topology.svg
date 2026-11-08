@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 300" role="img" aria-labelledby="title desc">
+  <title id="title">Distributed Cluster Topology: Nodes, GPUs, and Network</title>
+  <desc id="desc">Two physical compute nodes, each containing four GPUs. Intra-node GPUs communicate over high-bandwidth NVLink; inter-node communication crosses an InfiniBand or RoCE network fabric.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .node-bg { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; rx: 14; }
+    .gpu-card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 8; }
+    .gpu-chip { fill: #10233f; rx: 4; }
+    .top-title { fill: #10233f; font-size: 14px; font-weight: 750; }
+    .node-title { fill: #10233f; font-size: 13px; font-weight: 700; }
+    .gpu-title { fill: #ffffff; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .rank-text { fill: #007f86; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .local-text { fill: #64748b; font-size: 10px; font-weight: 500; text-anchor: middle; }
+    .nvlink-bus { fill: none; stroke: #007f86; stroke-width: 2.5; stroke-dasharray: 4 3; }
+    .nvlink-label { fill: #007f86; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .net-bus { fill: none; stroke: #ea580c; stroke-width: 2.5; }
+    .net-box { fill: #fff7ed; stroke: #ea580c; stroke-width: 1.5; rx: 8; }
+    .net-title { fill: #ea580c; font-size: 12px; font-weight: 750; text-anchor: middle; }
+    .net-sub { fill: #9a3412; font-size: 10.5px; font-weight: 500; text-anchor: middle; }
+    .world-tag { fill: #e2f4f4; stroke: #007f86; stroke-width: 1.2; rx: 6; }
+    .world-text { fill: #007f86; font-size: 11.5px; font-weight: 700; text-anchor: middle; }
+    @media (prefers-color-scheme: dark) {
+      .node-bg { fill: #131d2a; stroke: #2c4052; }
+      .gpu-card { fill: #182534; stroke: #334b63; }
+      .gpu-chip { fill: #2c4052; }
+      .top-title, .node-title { fill: #f3f7fa; }
+      .gpu-title { fill: #f3f7fa; }
+      .rank-text { fill: #54d2d8; }
+      .local-text { fill: #94a3b8; }
+      .nvlink-bus { stroke: #54d2d8; }
+      .nvlink-label { fill: #54d2d8; }
+      .net-box { fill: #382015; stroke: #f97316; }
+      .net-bus { stroke: #f97316; }
+      .net-title { fill: #fb923c; }
+      .net-sub { fill: #fdba74; }
+      .world-tag { fill: #173b40; stroke: #54d2d8; }
+      .world-text { fill: #54d2d8; }
+    }
+  </style>
+
+  <!-- Header line -->
+  <text class="top-title" x="25" y="26">Process Topology Hierarchy</text>
+  <rect class="world-tag" x="655" y="10" width="180" height="24"/>
+  <text class="world-text" x="745" y="26">Global World Size R = 8</text>
+
+  <!-- Node 0 -->
+  <rect class="node-bg" x="25" y="42" width="390" height="170"/>
+  <text class="node-title" x="42" y="66">Node 0 · Host server 1</text>
+
+  <!-- NVLink Bus line inside Node 0 -->
+  <path class="nvlink-bus" d="M78 172 H362"/>
+  <text class="nvlink-label" x="220" y="190">NVLink 4/5 Mesh (450–900 GB/s · &lt; 1 µs)</text>
+
+  <!-- Node 0 GPUs -->
+  <!-- GPU 0 -->
+  <g transform="translate(42, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 0</text>
+    <text class="rank-text" x="37" y="48">Rank 0</text>
+    <text class="local-text" x="37" y="66">Local 0</text>
+  </g>
+  <!-- GPU 1 -->
+  <g transform="translate(126, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 1</text>
+    <text class="rank-text" x="37" y="48">Rank 1</text>
+    <text class="local-text" x="37" y="66">Local 1</text>
+  </g>
+  <!-- GPU 2 -->
+  <g transform="translate(210, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 2</text>
+    <text class="rank-text" x="37" y="48">Rank 2</text>
+    <text class="local-text" x="37" y="66">Local 2</text>
+  </g>
+  <!-- GPU 3 -->
+  <g transform="translate(294, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 3</text>
+    <text class="rank-text" x="37" y="48">Rank 3</text>
+    <text class="local-text" x="37" y="66">Local 3</text>
+  </g>
+
+  <!-- Node 1 -->
+  <rect class="node-bg" x="445" y="42" width="390" height="170"/>
+  <text class="node-title" x="462" y="66">Node 1 · Host server 2</text>
+
+  <!-- NVLink Bus line inside Node 1 -->
+  <path class="nvlink-bus" d="M498 172 H782"/>
+  <text class="nvlink-label" x="640" y="190">NVLink 4/5 Mesh (450–900 GB/s · &lt; 1 µs)</text>
+
+  <!-- Node 1 GPUs -->
+  <!-- GPU 4 -->
+  <g transform="translate(462, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 4</text>
+    <text class="rank-text" x="37" y="48">Rank 4</text>
+    <text class="local-text" x="37" y="66">Local 0</text>
+  </g>
+  <!-- GPU 5 -->
+  <g transform="translate(546, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 5</text>
+    <text class="rank-text" x="37" y="48">Rank 5</text>
+    <text class="local-text" x="37" y="66">Local 1</text>
+  </g>
+  <!-- GPU 6 -->
+  <g transform="translate(630, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 6</text>
+    <text class="rank-text" x="37" y="48">Rank 6</text>
+    <text class="local-text" x="37" y="66">Local 2</text>
+  </g>
+  <!-- GPU 7 -->
+  <g transform="translate(714, 80)">
+    <rect class="gpu-card" x="0" y="0" width="74" height="78"/>
+    <rect class="gpu-chip" x="6" y="6" width="62" height="24"/>
+    <text class="gpu-title" x="37" y="22">GPU 7</text>
+    <text class="rank-text" x="37" y="48">Rank 7</text>
+    <text class="local-text" x="37" y="66">Local 3</text>
+  </g>
+
+  <!-- Network Interconnect (Inter-node) -->
+  <path class="net-bus" d="M220 212 V234 H430"/>
+  <path class="net-bus" d="M640 212 V234 H430"/>
+  <g transform="translate(240, 238)">
+    <rect class="net-box" x="0" y="0" width="380" height="50"/>
+    <text class="net-title" x="190" y="22">Inter-Node Network Fabric (NIC / Switch)</text>
+    <text class="net-sub" x="190" y="39">InfiniBand NDR / RoCE / Ethernet (25–100 GB/s · 5–15 µs)</text>
+  </g>
+</svg>

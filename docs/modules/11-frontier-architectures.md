@@ -358,6 +358,8 @@ explorations above are optional and do not add a required report.
 
 - [Leviathan et al. (2023) — Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192)
   — foundational draft-and-verify algorithm and rejection sampling proof;
+- [The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)
+  — interactive handbook on routing mechanisms, auxiliary load-balancing, and expert parallelism;
 - [DeepSeek-V3 Technical Report (2024)](https://arxiv.org/abs/2412.19437)
   — Multi-Head Latent Attention (MLA), DeepSeekMoE, Aux-loss-free balancing, and MTP;
 - [Gu & Dao (2023) — Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)

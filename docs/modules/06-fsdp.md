@@ -22,6 +22,30 @@ By the end of the module, students should be able to:
 - choose between full, sharded and distributed checkpoint formats;
 - compare FSDP and DDP without changing the training semantics.
 
+## Discovering the redundancy
+
+After DDP averages the local gradients, every replica has the same gradient.
+If the weights, optimizer state and update configuration also match, each rank
+runs the same optimizer update and stores the same moments. The forward and
+backward passes still process different data; it is the synchronized update
+and its replicated state that are redundant.
+
+**Before reading on:** how could two ranks divide the optimizer work and state?
+What must be available on each rank before its next forward pass? Consider both
+memory saved and any communication needed to put the updated parameters where
+they are used.
+
+## Explore the trade-off
+
+[Open the sharded-training explorer](../demos/fsdp-discovery.html){ .md-button .md-button--primary target="_blank" }
+
+Step through the same two-rank update in three layouts: DDP, optimizer-state
+sharding and a full-shard FSDP-style example. At each phase compare the model
+parameters, local or reduced gradients, optimizer state and communication. In
+the optimizer-sharded case, look for how both replicas recover the updated
+parameters; in the full-shard case, identify when a full unit is materialized.
+The example uses one possible resharding policy rather than every FSDP variant.
+
 ## The redundancy in DDP
 
 DDP gives every rank a complete copy of:
@@ -81,6 +105,21 @@ gradient if it updates only a parameter shard.
 No rank keeps all parameters resident. Before a sharded unit computes, its
 parameter shards are all-gathered; after use they can be discarded or resharded.
 Backward needs the parameters again and reduce-scatters the resulting gradients.
+
+## The two collectives FSDP needs
+
+In a two-rank example, let $P_0$ and $P_1$ be parameter shards for one
+Transformer block. **All-gather** takes one shard from each rank and gives both
+ranks $[P_0,P_1]$ for their local forward or backward computation. Their data
+are different, so each rank produces its own full-block gradient contribution.
+**Reduce-scatter** sums corresponding contributions and distributes the
+reduced shards: rank 0 retains the gradient for $P_0$, and rank 1 retains the
+gradient for $P_1$. Apply the appropriate normalization when the intended
+update uses a mean rather than a sum.
+
+These are collective semantics, not necessarily the complete memory timeline:
+resharding policy decides whether the next computation needs another gather.
+For input/output layouts, see the [distributed-primitives primer](../primers/distributed-primitives.md).
 
 ## One fully sharded unit, step by step
 

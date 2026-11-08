@@ -587,6 +587,37 @@
   font-size: 0.78rem;
 }
 
+/* Keep detailed diagrams legible on narrow screens. */
+.md-typeset .diagram-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.md-typeset .diagram-scroll:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 3px;
+}
+
+.md-typeset .diagram-scroll-hint {
+  display: none;
+}
+
+@media screen and (max-width: 640px) {
+  .md-typeset .diagram-scroll img {
+    min-width: 620px;
+    max-width: none;
+  }
+
+  .md-typeset .diagram-scroll-hint {
+    display: block;
+    margin-top: .5em;
+    color: var(--md-default-fg-color--light);
+    font-size: .7rem;
+    text-align: left;
+  }
+}
+
 /* ---- Footer ---- */
 
 .md-footer-meta {

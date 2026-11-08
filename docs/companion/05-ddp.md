@@ -15,7 +15,7 @@ This lab accompanies [Module 5: Distributed data parallelism](../modules/05-ddp.
 
 1. **Multi-process coordination**: Initialize distributed process groups with `torch.distributed` and configure distributed samplers across ranks.
 2. **Gradient accumulation with `no_sync()`**: Verify all-reduce suppression during micro-batches to avoid premature communication.
-3. **Equivalence check**: Prove that DDP with $R$ ranks across $S$ steps exactly mirrors a single-process run with identical global batch size.
+3. **Equivalence check**: Compare DDP gradients and updates with a single-process reference under matched batches, initialization and loss normalization, using a stated numerical tolerance.
 
 ---
 
@@ -30,7 +30,7 @@ uv run pytest tests/test_distributed_experiments.py -q
 
 ## Session 14 protocol
 
-**Prepare:** derive the effective batch and explain why `no_sync` must enclose
+**Prepare:** review ranks and all-reduce in [Module 5](../modules/05-ddp.md#distributed-foundations-the-minimum-vocabulary); derive the effective batch and explain why `no_sync` must enclose
 both forward and backward. The provided exercise uses equal-length, unmasked
 batches; variable valid-token counts require token-weighted normalization.
 
