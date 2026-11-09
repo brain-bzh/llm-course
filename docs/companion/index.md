@@ -66,7 +66,7 @@ cp starter/05_ddp_manual.py nanolm/ddp_manual.py
 uv run pytest tests/test_module_05_ddp.py -q   # NotImplementedError until you finish
 ```
 
-Session 1 asks you to record the starting revision in `.course-reference-revision`.
+The Module 1 setup (Session 2) records the starting revision in `.course-reference-revision`.
 If you need the reference version of a file to continue (for example because a
 previous lab is unfinished), commit your work first, then restore it:
 

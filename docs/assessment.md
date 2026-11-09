@@ -48,6 +48,7 @@ on it directly:
 - a validated data ingestion and tokenization pipeline;
 - one measured training-performance improvement;
 - a correct hand-written DDP experiment, a sharded optimizer that matches the reference update, and an FSDP2 run with measured per-rank state;
+- tensor-parallel layers that match the dense layer on two ranks, and a defended multidimensional layout;
 - a KV-cache equivalence test;
 - interpretation of a serving benchmark with a declared workload (instructor demonstration; no separate serving report).
 

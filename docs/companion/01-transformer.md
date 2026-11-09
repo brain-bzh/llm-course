@@ -24,7 +24,7 @@ From the root of your companion clone:
 
 ```bash
 git rev-parse HEAD > .course-reference-revision
-git switch -c session-01-transformer
+git switch -c session-02-transformer
 cp starter/01_transformer.py nanolm/model.py
 uv run pytest tests/test_module_01_model.py -q
 ```

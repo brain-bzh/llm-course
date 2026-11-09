@@ -1,7 +1,7 @@
 # Module 2 Lab — Make a small NanoLM learn
 
 This lab accompanies [Module 2: Training-loop anatomy and baseline GPT](../modules/02-training-loop.md).
-Session 1 established that your architecture can reproduce GPT-2 inference.
+Module 1 established that your architecture can reproduce GPT-2 inference.
 Module 2 starts from random weights and establishes that your optimizer and
 training loop can make a small version learn.
 
@@ -16,7 +16,7 @@ run from a fresh clone. Work on a branch and replace them with the Module 2
 starters:
 
 ```bash
-git switch -c session-02-training
+git switch -c session-07-training
 cp starter/02_training/optim.py nanolm/optim.py
 cp starter/02_training/train.py nanolm/train.py
 uv run pytest tests/test_module_02_optim.py -q
@@ -133,13 +133,13 @@ provides `extra_state` and `restore_rng` arguments, but your implementation must
 save and restore the Python, NumPy and PyTorch RNG states as well. Compare the provided
 reference `nanolm/train.py` before implementing these extensions. If yours is
 not ready, commit your session 7 work, then restore the reference training module
-from the session 1 branch for this baseline:
+from the revision you recorded in Module 1:
 
 ```bash
-git show session-01-transformer:nanolm/train.py > nanolm/train.py
+git show "$(cat .course-reference-revision):nanolm/train.py" > nanolm/train.py
 ```
 
-This assumes the lab branches were created as directed. Keep your committed
+Keep your committed
 implementation for review, and record when the reference is used.
 The baseline uses a fixed UTF-8 byte vocabulary plus EOT (257 tokens), keeping
 this experiment independent of tokenizer training and network downloads.
