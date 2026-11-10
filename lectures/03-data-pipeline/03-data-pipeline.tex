@@ -156,22 +156,19 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Pre-tokenization constrains where BPE can merge}
-  \begin{columns}[c]
-    \begin{column}{0.48\linewidth}
-      \begin{alertblock}{Naive byte stream}
-        Frequent punctuation and whitespace can merge across unrelated words or document structure.
-      \end{alertblock}
-    \end{column}
-    \begin{column}{0.48\linewidth}
-      \begin{block}{Regex chunks}
-        Letters, numbers, punctuation, contractions, and whitespace form separate regions. BPE merges stay inside each region.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering
-  \texttt{" the"} and \texttt{"the"} may become different tokens. GPT-2 uses pre-tokenization; the lab's simple BPE implementation does not.
+\begin{frame}{The ``SolidGoldMagikarp'' story}
+  \small
+  \begin{enumerate}
+      \setlength{\itemsep}{4pt}
+    \item \textbf{Tokenizer data:} a Reddit username appeared repeatedly in counting threads. BPE learned \texttt{SolidGoldMagikarp} (with a leading space) as one token.
+    \item \textbf{Pretraining data:} filtering can remove repetitive content from the data used to train the model, while the tokenizer keeps its vocabulary.
+    \item \textbf{The mismatch:} a token frequent enough to be learned by BPE may be rare or absent during model training, leaving the model with a poorly learned representation.
+  \end{enumerate}
+  \begin{alertblock}{Pipeline lesson}
+    Cleaning model data alone does not clean the tokenizer vocabulary. Compare the datasets and check token exposure.
+  \end{alertblock}
+  \footnotesize The exact cause is unconfirmed: the model's pretraining data is not public.
+  \smallsource{\href{https://www.alignmentforum.org/posts/aPeJE8bSo6rAFoLqg}{Rumbelow and Watkins (2023)}; \href{https://aclanthology.org/2024.emnlp-main.649/}{Land and Bartolo (2024)}}
 \end{frame}
 
 \begin{frame}{Vocabulary size has two opposing effects}
@@ -214,7 +211,8 @@
 \end{frame}
 
 \checkpoint{tokenizer choice}
-{A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters. Which training and serving measurements would decide whether this is a good trade?}
+{A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters.
+Which metrics on both training and inference would decide whether this is a good trade?}
 
 \section{Packing documents into examples}
 
@@ -282,29 +280,9 @@
 
 \section{Storage and correctness}
 
-\begin{frame}{Binary shards remove tokenization from the hot path}
-  \begin{columns}[c]
-    \begin{column}{0.55\linewidth}
-      \begin{itemize}
-          \setlength{\itemsep}{8pt}
-        \item Pre-tokenize once and store integer IDs contiguously.
-        \item Use \texttt{uint16} only when every ID fits below $65{,}536$.
-        \item Open shards with memory mapping and let the OS page cache serve workers.
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.41\linewidth}
-      \begin{block}{Storage estimate}
-        $10^9$ tokens at 2 bytes each occupy 2.0 GB before metadata.
-      \end{block}
-      \begin{alertblock}{Schema contract}
-        Record dtype, tokenizer hash, token count, and document-boundary convention beside each shard.
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-\end{frame}
-
 \begin{frame}{One contiguous slice creates inputs and targets}
-  Sample $T+1$ tokens beginning at offset $i$:
+  Tokens are loaded from a large flat 1D map $s$.
+  To form an input--target pair of context length $T$, sample $T+1$ contiguous elements starting at offset $i$:
   \[
     x = s[i:i+T]
     \qquad
@@ -318,6 +296,7 @@
       $y$ & $s_{i+1}$ & $s_{i+2}$ & $s_{i+3}$ & $\cdots$ & $s_{i+T}$ \\
     \end{tabular}
   \end{center}
+  \vfill
   \begin{block}{Fast correctness check}
     For every batch, $y[:,:-1]$ must equal $x[:,1:]$ exactly.
   \end{block}

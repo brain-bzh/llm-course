@@ -26,17 +26,17 @@
 
 \section{Optimizer 101}
 
-\begin{frame}{From predictions to an update}
+\begin{frame}{What does optimization do?}
+  \begin{block}{Goal}
+    Find values of $\theta$ that make an objective $\mathcal L(\theta)$ smaller.
+  \end{block}
   \begin{enumerate}
       \setlength{\itemsep}{7pt}
-    \item The \textbf{forward pass} transforms tokens through activations into logits.
-    \item The \textbf{loss} compares predictions with next-token targets.
-    \item \textbf{Backward} uses saved activations and the chain rule to compute $g_t=\nabla_\theta\mathcal L_t$.
-    \item The \textbf{optimizer} reads gradients and updates parameters (and, for some optimizers, its own state).
+    \item Start from a choice of parameters $\theta$.
+    \item Compute the \textbf{gradient}: how the objective changes with each parameter.
+    \item Use an \textbf{optimizer} to update the parameters.
+    \item Repeat using the gradient at the new parameters.
   \end{enumerate}
-  \begin{block}{Different lifetimes}
-    Saved activations serve backward; gradients are cleared between updates. Weights and optimizer state persist across updates.
-  \end{block}
 \end{frame}
 
 \begin{frame}{A loss landscape: follow the downhill direction}
@@ -74,7 +74,7 @@
     \begin{column}{.42\linewidth}
       \small
       \begin{block}{Gradient}
-        $g_t=\nabla_\theta\mathcal L(\theta_t)$ points locally uphill.
+        $g_t=\nabla_\theta\mathcal L_t(\theta_t)$ points locally uphill.
       \end{block}
       \begin{alertblock}{Descent step}
         Move against the gradient:
@@ -94,7 +94,7 @@
 
 \begin{frame}{Gradient descent and SGD}
   \[
-    \theta_{t+1}=\theta_t-\eta_t\nabla_\theta\mathcal L_t(\theta_t)
+    \theta_{t+1}=\theta_t-\eta_t g_t
   \]
   \begin{itemize}
       \setlength{\itemsep}{8pt}
@@ -117,29 +117,44 @@
   \]
   \begin{itemize}
     \item Adam stores two running moments per parameter; each step updates them from $g_t$.
-    \item Activations and loss produce gradients through backward; they are not optimizer state.
+    \item The optimizer uses the current gradient and its stored moments to choose an update.
     \item AdamW also applies decoupled weight decay. Save optimizer state to resume its trajectory.
   \end{itemize}
 \end{frame}
 
 \section{Base loop}
 
-\begin{frame}{Five lines hide four kinds of state}
+\begin{frame}{Where does the gradient come from?}
+  \begin{block}{For a language model}
+    Parameters $\theta$ are the model weights; the objective $\mathcal L_t$ is the loss on a batch of next-token predictions.
+  \end{block}
+  \begin{enumerate}
+      \setlength{\itemsep}{7pt}
+    \item \textbf{Forward:} the PyTorch model produces predictions and a loss.
+    \item \textbf{Backward:} autograd applies the chain rule to compute $g_t=\nabla_\theta\mathcal L_t(\theta_t)$.
+    \item \textbf{Update:} the optimizer reads $g_t$ and changes the weights.
+  \end{enumerate}
+  \begin{alertblock}{Connecting the parts}
+    The optimizer's input is the gradient; the model and autograd compute it.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{One update in four lines}
   \begin{columns}[c]
     \begin{column}{0.53\linewidth}
       \begin{enumerate}
           \setlength{\itemsep}{7pt}
         \item clear parameter gradient buffers
-        \item build a forward computation graph
-        \item accumulate derivatives into \texttt{.grad}
-        \item update parameters and optimizer moments
+        \item compute predictions and loss; record the graph
+        \item compute $g_t$ and accumulate it into \texttt{.grad}
+        \item use \texttt{.grad} to update parameters and optimizer state
       \end{enumerate}
     \end{column}
     \begin{column}{0.43\linewidth}
       \begin{block}{Minimal loop}
-        \ttfamily\small
-        zero\_grad()\\
-        logits, loss = model(x,y)\\
+        \ttfamily\scriptsize
+        optimizer.zero\_grad()\\
+        logits, loss = model(x, y)\\
         loss.backward()\\
         optimizer.step()
       \end{block}
@@ -339,21 +354,6 @@
     Double the micro-batch or sequence length: this tensor doubles. How many tensors are saved, and for how long? The answer depends on the model and implementation.
   \end{alertblock}
   \footnotesize This is one activation, not a peak estimate. Module 4 examines attention's larger intermediates and ways to reduce activation memory.
-\end{frame}
-
-\begin{frame}{When GPU memory is not enough: CPU offload}
-  \begin{center}
-    \begin{tikzpicture}[every node/.style={font=\small,align=center},
-      box/.style={draw=themebluedraw,fill=themebluebg,minimum width=3.5cm,minimum height=1.2cm}]
-      \node[box] (gpu) at (0,0) {GPU memory\\active training tensors};
-      \node[box,draw=warningdraw,fill=warningbg] (cpu) at (6.5,0) {CPU memory\\offloaded state};
-      \draw[<->,very thick,accentdark] (gpu)--node[above,font=\scriptsize]{transfer}(cpu);
-    \end{tikzpicture}
-  \end{center}
-  \begin{block}{Trade capacity for time}
-    For example, keep optimizer state in host memory and perform its update on the CPU. Transfers and CPU work may slow the step.
-  \end{block}
-  \small We revisit the link in GPU profiling and combine offload with sharding in FSDP. The baseline lab keeps its ordinary training loop.
 \end{frame}
 
 \begin{frame}{From a fixed-batch test to a baseline}
