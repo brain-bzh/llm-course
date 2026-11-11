@@ -38,13 +38,17 @@ uv run pytest tests/test_module_07_tp.py -q   # 2 tests fail with NotImplemented
 
 | Time | Activity | Evidence |
 | --- | --- | --- |
-| 0–25 min | Part A: save, inspect and reload full vs sharded checkpoints | `PASS:` from the reload; a format choice for four scenarios |
-| 25–35 min | Part B, step 1: the two autograd functions | Single-rank test passes |
-| 35–50 min | Part B, step 2: column and row layers; two-rank run | `PASS:` with outputs, input gradient and weight shards |
-| 50–65 min | Part B, step 3: break the backward contract on purpose | Explanation of which gradient breaks and why the forward still passes |
-| 65–75 min | Shape ledger and degree discussion | Completed ledger for a GPT-2 block at TP=2 |
+| 0–10 min | Part A: save and reload full vs sharded checkpoints; questions 1–2 | `PASS:` from the reload |
+| 10–25 min | Part B, step 1: the two autograd functions | Single-rank test passes |
+| 25–45 min | Part B, step 2: column and row layers; two-rank run | `PASS:` with outputs, input gradient and weight shards |
+| 45–60 min | Part B, step 3: break the backward contract on purpose | Explanation of which gradient breaks and why the forward still passes |
+| 60–75 min | Shape ledger and degree discussion | Completed ledger for a GPT-2 block at TP=2 |
+| After class | Part A, questions 3–4 | A format choice and a validation for four scenarios |
 
-## Part A — Checkpoint formats (25 minutes)
+Part A closes Module 6 and needs only two commands. Most of the session goes to
+tensor parallelism, the hardest idea in the course so far.
+
+## Part A — Checkpoint formats (10 minutes)
 
 A training job usually saves one of two things:
 
@@ -78,7 +82,7 @@ identical logits from both reloads: True
 PASS: a 2-rank sharded checkpoint reloads into 1 process and equals the gathered full checkpoint.
 ```
 
-Answer:
+Answer questions 1 and 2 in class, and 3 and 4 after class:
 
 1. Why are the sharded files together much larger than `full.pt`? (Look at what
    was saved in each format.)
@@ -92,7 +96,7 @@ Answer:
    publishing weights for single-GPU inference; resuming on a different world size;
    archiving optimizer state for exact recovery.
 
-## Part B — Tensor-parallel layers (50 minutes)
+## Part B — Tensor-parallel layers (65 minutes)
 
 ### The mathematics (read before class)
 
@@ -173,7 +177,7 @@ The breakthrough insight of Megatron-LM (Shoeybi et al., 2019) is that **Column 
 
 The entire 2-layer MLP executes with **only one communication collective** in the forward pass.
 
-### Step 1 — The communication contract (10 minutes)
+### Step 1 — The communication contract (15 minutes)
 
 Each rank evaluates the **same** replicated loss, so autograd needs exactly one
 collective at each boundary. The forward and backward collectives are each
@@ -189,7 +193,7 @@ works **in place**, so clone first. Skip the collective when `world_size == 1`.
 Why does `_ReduceFromTP.backward` *not* all-reduce? Every rank already holds
 the same $\partial L/\partial Y$. Summing it again would multiply it by the TP degree.
 
-### Step 2 — The layers (15 minutes)
+### Step 2 — The layers (20 minutes)
 
 - `ColumnParallelLinear.forward`: `F.linear(_CopyToTP.apply(x, world), weight, bias)`.
   Each rank owns `out_features / world` output rows of the weight and bias.
@@ -227,7 +231,7 @@ block, the LayerNorm and the embeddings, so **every earlier layer** trains on
 a corrupted gradient while the loss can still go down. Restore the all-reduce
 and write the lesson in your log.
 
-### Step 4 — Shape ledger (10 minutes)
+### Step 4 — Shape ledger (15 minutes)
 
 Complete the ledger for one GPT-2-small block ($d=768$, 12 heads) at TP=2,
 $B\times T$ tokens, as in [Module 7, Part A](../modules/07-tensor-parallelism.md#part-a-layout-ledger):

@@ -54,24 +54,29 @@ logits, loss, caches = model(next_token, kv_caches=caches, use_cache=True)  # de
 ```
 
 where `caches` is a list with one `(K, V)` pair per layer, each of shape
-$B \times H \times T_{\text{seen}} \times d_{\text{head}}$. Make three changes:
+$B \times H \times T_{\text{seen}} \times d_{\text{head}}$.
 
-1. **Attention.** Add a method `forward_with_cache(x, kv_cache=None, use_cache=False)`
-   to `CausalSelfAttention` that returns `(y, new_cache)`. After projecting and
-   reshaping the new `k` and `v`, concatenate the past ones along the
-   sequence dimension (`dim=2`). Keep `forward(x)` working by calling it and
-   discarding the cache.
+The plumbing is provided: [`starter/09_kv_cache_methods.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/09_kv_cache_methods.py)
+contains the methods to paste into **your** `nanolm/model.py`:
+`forward` and `forward_with_cache` for `CausalSelfAttention`,
+`forward_with_cache` for `TransformerBlock`, and a new `MiniGPT.forward` that
+threads one cache per layer. Paste each into the class of the same name, keep
+your `__init__` methods, and rename attributes where yours differ. Then fill
+the four TODOs, which are the whole idea of a KV cache:
+
+1. **Reuse the past.** Concatenate the cached keys and values in front of the
+   new ones, along the sequence dimension (`dim=2`).
 2. **Mask with an offset.** The $T$ new queries sit at absolute positions
-   `past_len … past_len + T - 1`, where `past_len = total_T - T`. Slice the
-   causal mask as `mask[:, :, past_len:past_len + T, :total_T]`. With one new
-   token this row is all ones, so it is easy to forget. It matters when several
-   tokens arrive at once (chunked prefill). If you added the SDPA branch in
-   Module 4, take it only when there is no past cache: `is_causal=True` assumes
-   queries and keys start at the same position.
-3. **Positions and blocks.** In `MiniGPT.forward`, learned positions must start
-   at `past_len` (read it from `kv_caches[0][0].size(2)`), not at zero. Give
-   `TransformerBlock` a `forward_with_cache` that threads the cache through the
-   attention branch, and collect each layer's new cache when `use_cache=True`.
+   `past_len … past_len + T - 1`, where `past_len = total_T - T`. Slice the rows
+   of the causal mask from `past_len`. With one new token the row is all ones,
+   so a wrong offset passes a one-token test. It matters when several tokens
+   arrive at once (chunked prefill).
+3. **Guard the SDPA branch.** `is_causal=True` assumes queries and keys start
+   at the same position. Take that branch only when it is true.
+4. **Offset the positions.** Learned positions must start at `past_len`, not at zero.
+
+Only TODO 1 raises an error. The other three run but give wrong numbers, which
+is what such bugs do in practice; the tests below catch each of them.
 
 ```bash
 uv run pytest tests/test_module_09_kv_cache.py -k "every_position or chunks" -q
@@ -82,8 +87,9 @@ recomputation **at every position**, with manual attention and with SDPA. The
 second feeds a prompt in two chunks and fails if the mask offset is missing.
 
 !!! note "If your model is not ready"
-    Commit your work, then restore the reference model, which already has this
-    cache path, and continue with Step 2:
+    If pasting into your model takes more than 10 minutes, commit your work,
+    then restore the reference model, which already has this cache path, and
+    continue with Step 2:
     `git show "$(cat .course-reference-revision):nanolm/model.py" > nanolm/model.py`.
     Record that you used it. The reference's `forward_with_cache` is also a good
     model answer to compare with after class.

@@ -67,15 +67,15 @@ starter and implement; it stays yours for the rest of the course.
 | Session | Your file | What it adds to the system | Proven against | Guide |
 | :---: | --- | --- | --- | --- |
 | 2–4 | `nanolm/model.py` | Explicit GPT: embeddings, causal multi-head attention, Pre-LN blocks, tied head | Official GPT-2 logits | [Module 1](companion/01-transformer.md) |
-| 7 | `nanolm/optim.py`, `nanolm/train.py` | AdamW groups, schedule, ordered update, checkpoint | One-batch overfit; identical logits after reload | [Module 2](companion/02-training-loop.md) |
-| 8 | (uses your loop) | Baseline run on held-out documents; interrupt and resume | Uninterrupted run | [Module 2, part B](companion/02-training-loop.md#part-b-baseline-experiment-session-8) |
+| 7 | `nanolm/optim.py`, `nanolm/train.py` | AdamW groups, schedule, ordered update | One-batch overfit | [Module 2](companion/02-training-loop.md) |
+| 8 | checkpoints in `nanolm/train.py` | Full training state on disk; baseline on held-out documents; interrupt and resume | Identical logits after reload; uninterrupted run | [Module 2, part B](companion/02-training-loop.md#part-b-checkpoints-and-the-baseline-experiment-session-8) |
 | 10 | `nanolm/data.py` | Dedupe-then-split, packing with end-of-text, shifted memmap batches | Boundary and offset invariants | [Module 3](companion/03-data-pipeline.md) |
 | 12 | `nanolm/profile_utils.py`, SDPA path in `model.py` | FLOP and memory accounting; fused attention | Your explicit attention; your own predictions | [Module 4](companion/04-single-gpu.md) |
 | 14 | `nanolm/ddp_manual.py` | Data parallelism by hand: shard, broadcast, all-reduce | One process on the global batch | [Module 5](companion/05-ddp.md) |
 | 19 | `nanolm/zero.py` | Sharded AdamW: reduce-scatter, local update, all-gather; FSDP2 | `torch.optim.AdamW`; predicted per-rank bytes | [Module 6](companion/06-fsdp.md) |
 | 21 | `nanolm/tensor_parallel.py` | Column/row-parallel layers and their autograd collectives; sharded checkpoints | Dense MLP; resharded reload | [Module 7](companion/07-tensor-parallelism.md) |
 | 23 | `scripts/08_parallelism_layout.py` | A multidimensional rank layout (DP, TP, PP, CP, EP) | Device count, groups, state and bubble estimates | [Module 8](companion/08-context-pipeline.md) |
-| 26 | KV path in `model.py`, `nanolm/generate.py` | KV-cached attention and generation | Uncached logits and greedy tokens | [Module 9](companion/09-kv-cache.md) |
+| 26 | KV path in `model.py` (pasted scaffold), `nanolm/generate.py` | KV-cached attention and generation | Uncached logits and greedy tokens | [Module 9](companion/09-kv-cache.md) |
 | 28 | (demonstration) | Serving: continuous batching, paged KV, preemption | Simulated engine; live engine if available | [Module 10](companion/10-serving.md) |
 
 Your model file is the thread through the course. It is written explicitly in
@@ -92,19 +92,20 @@ A milestone is reached when you have its **minimum evidence**. Each guide's
 | Milestone | Sessions | Minimum evidence |
 | --- | :---: | --- |
 | Model correctness | 2–4 | Module 1 tests pass; GPT-2 logits reproduced within tolerance; causality explained by a test that changes the future |
-| Loop correctness | 7 | Module 2 tests pass; fixed batch reaches loss `< 0.1`; reloaded model gives identical logits |
-| Baseline | 8 | Declared corpus and split, configuration and token budget; held-out loss; saved checkpoint; interrupted run matches the uninterrupted one |
+| Loop correctness | 7 | Session 7 tests pass; fixed batch reaches loss `< 0.1`; update order explained |
+| Checkpoint and baseline | 8 | Session 8 tests pass (reloaded model gives identical logits); declared corpus and split, configuration and token budget; held-out loss; saved checkpoint; interrupted run matches the uninterrupted one |
 | Data path | 10 | Module 3 tests pass; split report (kept and dropped documents); token IDs printed around a boundary; one deliberate bug diagnosed |
-| Predict, then measure | 12 | Accounting tests pass; SDPA matches explicit attention; one warmed-up, repeated ablation with hardware and exclusions; memory prediction vs measurement |
-| Data parallelism | 14 | Module 5 tests pass; `05_manual_ddp.py` prints `PASS:` on two ranks; three deliberate failures explained; scaling table at fixed tokens per update |
+| Predict, then measure | 12 | Accounting tests pass; SDPA matches explicit attention; one warmed-up, repeated ablation with hardware and exclusions; memory prediction vs measurement (report finished after class) |
+| Data parallelism | 14 | Module 5 tests pass; `05_manual_ddp.py` prints `PASS:` on two ranks; three deliberate failures explained; scaling table at fixed tokens per update (after class) |
 | Sharding | 19 | Module 6 tests pass; `06_zero_manual.py` passes on 2 and 3 ranks with measured state equal to the prediction; annotated FSDP2 lifecycle |
 | Tensor parallelism | 21 | Checkpoint formats script prints `PASS:`; Module 7 tests pass; two-rank TP prints `PASS:`; broken backward collective explained; shape ledger |
-| Layout | 23 | Two valid layouts at the same device count and tokens per update; state, bubble and payload estimates with assumptions; one layout defended |
+| Layout | 23 | Two valid layouts at the same device count and tokens per update; state and bubble estimates with exclusions; one layout defended |
 | Cached decoding | 26 | Module 9 tests pass; prefill and decode timed separately at two prompt lengths; predicted cache bytes match |
 | Serving | 28 | Explain TTFT, inter-token latency, throughput and memory for the declared workload; no separate report |
 
 Throughout, **"tests pass" means with your own implementation**, not the
-reference. If you restored a reference file to keep going, the milestone is
+reference, and without `--extensions`: tests of optional extensions are
+skipped by default. If you restored a reference file to keep going, the milestone is
 reached for the system but not for you: write that down.
 
 ## Lab log

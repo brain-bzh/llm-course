@@ -27,14 +27,12 @@ The tests should initially fail with `NotImplementedError`.
 ## Session 7 protocol — 75 minutes
 
 - **0–10 min:** build and inspect the shifted batch.
-- **10–25 min:** configure AdamW and inspect its parameter groups; sketch the schedule.
-- **25–50 min:** implement forward, loss normalization, backward, clipping and the update; run the overfit experiment.
-- **50–70 min:** implement a checkpoint round-trip and run the tests.
-- **70–75 min:** distinguish memorizing one batch from learning on held-out documents.
+- **10–30 min:** configure AdamW and inspect its parameter groups; implement the schedule.
+- **30–60 min:** implement forward, loss normalization, backward, clipping and the update; run the overfit experiment.
+- **60–75 min:** explain the update order; list what a checkpoint must contain to resume training exactly (you implement it in Session 8).
 
-Prioritize a working FP32 update and falling fixed-batch loss. If time is short,
-finish the schedule and checkpoint test with the provided reference after class,
-and record which parts you implemented yourself.
+Prioritize a working FP32 update and falling fixed-batch loss. Checkpoints are
+the first task of Session 8, just before the recovery experiment that needs them.
 
 ## Step 1 — Build the next-token batch
 
@@ -96,7 +94,7 @@ with `set_to_none=True`.
 
 ## Step 4 — Overfit one batch
 
-Run all four Module 2 tests, followed by the visible experiment:
+Run the three Session 7 tests, followed by the visible experiment:
 
 ```bash
 uv run pytest tests/test_module_02_optim.py -q
@@ -109,31 +107,42 @@ within 80 updates. This is deliberately not evidence of generalization: it is a
 focused check that targets, backward propagation, parameter updates, and the
 causal model are connected correctly.
 
-## Step 5 — Prove checkpoint recovery
+The script prints `PASS:` for the overfit, then reports that the checkpoint
+round-trip is not implemented yet. That is expected until Session 8.
 
-Implement `save_checkpoint` and `load_checkpoint`. A useful checkpoint contains:
+## Part B — Checkpoints and the baseline experiment (session 8)
+
+The fixed-batch exercise is the session 7 milestone. Session 8 makes training
+recoverable, then runs a separate baseline on disjoint training and validation
+documents. The baseline calls your `train_step`, `optimizer_step`,
+`save_checkpoint` and `load_checkpoint`.
+
+### Step 5 — Implement checkpoints
+
+Implement `save_checkpoint` and `load_checkpoint` in `nanolm/train.py`. A
+checkpoint that can resume training contains:
 
 - model parameters;
 - AdamW moments and other optimizer state;
 - the model configuration;
-- the completed optimizer step;
-- the last recorded loss;
-- for exact continuation in Part B, RNG states and the data/configuration identity.
+- the completed optimizer step and the last recorded loss;
+- `extra_state`: the run identity and loss records the baseline passes in;
+- the Python, NumPy and PyTorch RNG states, restored only when `restore_rng=True`.
 
-The final test and `scripts/02_overfit.py` load the checkpoint into a fresh model
-and require bit-identical logits on the fixed input. Reloading only the model
-weights is not sufficient for resuming training.
+The starter's TODOs name the dictionary keys the tests and the baseline read.
 
-## Part B — Baseline experiment (session 8)
+```bash
+uv run pytest tests/test_module_02_baseline.py -k round_trip -q
+uv run python scripts/02_overfit.py      # now also prints the checkpoint PASS
+```
 
-The fixed-batch exercise is the session 7 milestone. Before the data pipeline module, run a separate baseline on disjoint training and validation documents.
-The baseline calls your `train_step` and `optimizer_step`. Its recovery path also
-requires checkpoint behavior beyond the session 7 round-trip: the starter
-provides `extra_state` and `restore_rng` arguments, but your implementation must
-save and restore the Python, NumPy and PyTorch RNG states as well. Compare the provided
-reference `nanolm/train.py` before implementing these extensions. If yours is
-not ready, commit your session 7 work, then restore the reference training module
-from the revision you recorded in Module 1:
+The round-trip loads the checkpoint into a fresh model and requires
+bit-identical logits. Reloading only the model weights reproduces inference,
+not training: the next update also depends on the AdamW moments, the step that
+sets the learning rate, and the random state.
+
+If your checkpoint is not ready after 20 minutes, commit your work, then restore
+the reference training module from the revision you recorded in Module 1:
 
 ```bash
 git show "$(cat .course-reference-revision):nanolm/train.py" > nanolm/train.py
@@ -210,12 +219,14 @@ or software releases is not promised.
 
 ### Session 8 protocol
 
-- **0–15 min:** inspect disjoint document hashes, configuration, token budget, and initial loss.
-- **15–35 min:** run the smoke test and interrupt/resume comparison.
-- **35–55 min:** launch the agreed baseline, inspect available loss/gradient records, and distinguish train from held-out evidence.
-- **55–75 min:** explain one suspected failure and propose a controlled follow-up. Longer training continues between sessions.
+- **0–20 min:** Step 5: implement checkpoints; round-trip test and overfit script.
+- **20–30 min:** inspect disjoint document hashes, configuration, token budget, and initial loss.
+- **30–45 min:** run the smoke test and the interrupt/resume comparison.
+- **45–65 min:** launch the agreed baseline, inspect available loss/gradient records, and distinguish train from held-out evidence.
+- **65–75 min:** explain one suspected failure and propose a controlled follow-up. Longer training continues between sessions.
 
-**Minimum evidence:** declared corpus/split, configuration and token budget,
+**Minimum evidence:** `tests/test_module_02_baseline.py` passes with your
+checkpoint functions; declared corpus/split, configuration and token budget,
 held-out loss records, saved checkpoint, and recovery test. Fixed-prompt samples
 can supplement the loss analysis; fluency is not a passing threshold.
 
@@ -227,9 +238,9 @@ pretraining result.
 
 You are finished when:
 
-- all four tests in `tests/test_module_02_optim.py` pass;
+- the three tests in `tests/test_module_02_optim.py` pass;
 - `scripts/02_overfit.py` reaches loss `< 0.1`;
-- a fresh model loaded from the saved checkpoint produces identical logits;
+- you can list what a checkpoint must contain to resume training exactly;
 - you can explain why loss normalization happens before `backward()`, and why
   clipping happens before `optimizer.step()`.
 

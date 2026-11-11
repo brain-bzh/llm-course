@@ -40,8 +40,11 @@ uv run pytest tests/test_module_04_profile.py -q   # 3 fail with NotImplementedE
 | --- | --- | --- |
 | 0–15 min | Step 1: FLOPs per token, MFU and static memory | Tests pass; predictions for the benchmark model |
 | 15–30 min | Step 2: SDPA branch in your attention; equivalence check | `04_check_execution.py` passes |
-| 30–55 min | Step 3: one controlled ablation with repeated, warmed-up timings; one profiler trace | JSON report with samples, median, memory |
-| 55–75 min | Step 4: read the trace as a causal story; write the report | Bottleneck hypothesis tested; one stated limitation |
+| 30–55 min | Step 3: one controlled ablation with repeated, warmed-up timings | JSON report with samples, median, memory |
+| 55–75 min | Step 4: put the prediction next to the measurement; draft the report | Items 1–3 of the report; items 4–5 finished after class |
+
+Reading a profiler trace is an extension (end of Step 4): do it if you finish
+early or have a GPU allocation.
 
 ### Step 1 — Count before you measure (15 minutes)
 
@@ -132,18 +135,24 @@ The profiler trace is collected **outside** the timed samples: profiling adds ov
 
 ### Step 4 — Explain the result (20 minutes)
 
-Open a trace in [Perfetto](https://ui.perfetto.dev) or `chrome://tracing` and
-follow one step. Then write a short report:
+Write a short report. Items 1–3 fit in class; finish 4 and 5 after class:
 
 1. hardware, PyTorch version, mode, batch × sequence, warmup/steps/repeats;
 2. timing samples, median tokens/s and, on GPU, peak memory and MFU;
 3. your Step 1 prediction next to the measurement: does static memory explain
    the peak? If not, what is the rest (activations, workspace, allocator cache)?
-4. one bottleneck hypothesis, and what in the trace supports or refutes it;
+4. one bottleneck hypothesis, and the evidence that supports or refutes it;
 5. one limitation: what this benchmark does not measure.
 
 A slower or inconclusive result is a valid result. On a tiny model, kernel
 launch overhead can dominate, and a fused kernel may not help.
+
+**Extension — read the trace.** Add `--trace-dir runs/profile-traces` to your
+benchmark command, then open the trace in
+[Perfetto](https://ui.perfetto.dev) or `chrome://tracing` and follow one
+training step: forward, backward, optimizer. Which operations take the most
+time, and is there idle time between kernels? Use what you find as the evidence
+for item 4.
 
 ## Definition of done
 

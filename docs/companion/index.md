@@ -66,6 +66,9 @@ cp starter/05_ddp_manual.py nanolm/ddp_manual.py
 uv run pytest tests/test_module_05_ddp.py -q   # NotImplementedError until you finish
 ```
 
+Tests of optional extensions are skipped by default. Add `--extensions` to the
+pytest command when you attempt one.
+
 The Module 1 setup (Session 2) records the starting revision in `.course-reference-revision`.
 If you need the reference version of a file to continue (for example because a
 previous lab is unfinished), commit your work first, then restore it:
@@ -104,8 +107,8 @@ behind, reach the minimum evidence first; extensions are optional.
 | Session | Module | You implement | You verify against | Guide |
 | :---: | :---: | --- | --- | --- |
 | 2–4 | 1 | Causal multi-head attention, Pre-LN block, GPT | Official GPT-2 logits | [Build a decoder-only Transformer](01-transformer.md) |
-| 7 | 2 | AdamW grouping, schedule, update order, checkpoint | One-batch overfit; bit-identical reload | [Make a small NanoLM learn](02-training-loop.md) |
-| 8 | 2 | Baseline run and recovery test | Uninterrupted run | [Baseline experiment](02-training-loop.md#part-b-baseline-experiment-session-8) |
+| 7 | 2 | AdamW grouping, schedule, update order | One-batch overfit | [Make a small NanoLM learn](02-training-loop.md) |
+| 8 | 2 | Checkpoints with RNG state; baseline run and recovery test | Bit-identical reload; uninterrupted run | [Checkpoints and baseline](02-training-loop.md#part-b-checkpoints-and-the-baseline-experiment-session-8) |
 | 10 | 3 | Dedupe-before-split, packing with EOT, shifted batches | Boundary and offset tests | [Pretraining data pipeline](03-data-pipeline.md) |
 | 12 | 4 | FLOP/memory accounting, SDPA branch | Profiler trace and controlled timing | [Single-GPU performance](04-single-gpu.md) |
 | 14 | 5 | Data parallelism by hand: broadcast and gradient all-reduce | One process on the global batch | [Distributed data parallelism](05-ddp.md) |

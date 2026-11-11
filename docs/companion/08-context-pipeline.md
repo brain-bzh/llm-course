@@ -58,27 +58,44 @@ This verifies the DDP averaging primitive and a small TP forward/backward on
 real CPU tensors. The checks run in sequence on the same two processes; they do
 not execute the full logical mesh or measure GPU/network performance.
 
-## Session 23 protocol
+## Before class (15 minutes)
 
-- **Prepare:** read the rank-group definitions and complete one pipeline-bubble calculation.
-- **0–10 min:** edit the model and layout dimensions in `scripts/08_parallelism_layout.py`; predict the logical device count and global tokens/update.
-- **10–25 min:** run the script; inspect rank coordinates and DP/TP/PP/CP groups. Explain which dimensions split model state, activations, or input batches.
-- **25–40 min:** compare EP and FSDP as alternative subdivisions of DP at the same device count; inspect the meta-device parameter/TP-shard shapes and idealized persistent-state estimates.
-- **40–55 min:** use the pipeline simulator to compare AFAB and 1F1B at fixed stages and micro-batches. Report idle/total and activation residency separately.
-- **55–70 min:** defend the chosen layout and one alternative, including network placement, an explicit limitation, and the measurements needed to choose between them.
-- **70–75 min:** if the environment is ready, temporarily switch to pure TP=2 and run the Gloo DDP/TP checks; otherwise record them as unverified and use the reference results from Sessions 14 and 21.
+1. Read the rank-group definitions in
+   [Module 8](../modules/08-context-pipeline.md) and complete one
+   pipeline-bubble calculation by hand: $P=4$ stages, $m=8$ micro-batches.
+2. Run the quickstart commands above once, so that the environment is ready.
 
-**Definition of done:** submit a rank-layout diagram or printed map; show two
-valid configurations with the same device count and global tokens/update;
-include the persistent-state estimate, pipeline result, and one communication
-payload estimate with assumptions and exclusions; trace one training step
-through the configured groups; and defend one layout with a falsifiable
-placement hypothesis. Explain what the optional Gloo checks prove and what they
-do not. The calculator does not predict peak VRAM or network time.
+```bash
+git switch -c session-23-layout
+```
+
+## Session 23 protocol — 75 minutes
+
+| Time | Activity | Evidence |
+| --- | --- | --- |
+| 0–10 min | Edit `MODEL` and `LAYOUT`; predict the logical device count and global tokens/update | Written prediction |
+| 10–25 min | Run the script; inspect rank coordinates and the DP/TP/PP/CP groups | One sentence per axis: does it split model state, activations or the batch? |
+| 25–40 min | A second layout at the same device count: EP or FSDP subdivides DP | Two valid layouts with their persistent-state estimates |
+| 40–55 min | [Pipeline simulator](../demos/pipeline-parallelism.html){ target="_blank" }: AFAB vs 1F1B at fixed stages and micro-batches | Idle fraction and activation residency, reported separately |
+| 55–75 min | Defend one layout | Which group sits on the fastest links, one limitation, and the measurement that would refute the choice |
+
+Everything in this session is an estimate. The calculator gives persistent
+state and idealized payloads; it does not predict peak memory or step time.
+
+## Definition of done
+
+- two valid layouts with the same device count and global tokens/update, as printed maps;
+- for each, the persistent-state estimate and the pipeline idle fraction, with what they exclude;
+- one layout defended: which group goes on the fastest links, and which measurement would refute the choice.
 
 **Fallback:** use the module's worked rank layout and hand-calculate its device
-count and pipeline fraction. Combined EP/FSDP layouts are an optional extension
-requiring separate expert synchronization and shard-group definitions.
+count and pipeline idle fraction.
+
+**Extensions:** trace one training step through the configured groups and
+estimate one communication payload with its assumptions; run the Gloo checks
+at pure TP=2 (see Quickstart) and say what they prove and what they do not.
+Combined EP/FSDP layouts require separate expert synchronization and
+shard-group definitions.
 
 !!! success "What to take away"
     - **A layout is a factorization of the device count.** Write $G = P \times T_P \times C \times D$

@@ -144,6 +144,7 @@ of the **whole** gradient, but each rank only holds a slice. Implement `_clip_`:
 sum the squares of your slice, all-reduce the sum, take the square root, and
 scale. Then run with `--clip 0.5` and compare the printed norm with the
 reference. Any per-parameter statistic (norms, NaN checks) needs the same treatment.
+Its test is skipped by default; run `uv run pytest tests/test_module_06_zero.py -q --extensions`.
 
 ### Part 3 — Run real FSDP2 (20 minutes)
 

@@ -68,8 +68,8 @@ the morning.
 | ---: | --- | --- | --- |
 | 5 | Theory | Optimizer 101: loss, activations, gradients, SGD, learning rate and Adam state; forward/backward and the base loop | Trace from one batch to one update |
 | 6 | Theory | Accumulation, clipping and learning-rate scheduling; FLOP/memory estimates; baseline design, token budgets, held-out evaluation and recovery | Update-order diagram and baseline protocol |
-| 7 | Practice | Implement shifted targets, optimizer grouping, backward/update ordering and clipping; overfit one fixed NanoLM batch and check a checkpoint round-trip | Tiny NanoLM and verified round-trip |
-| 8 | Practice | Use instructor-prepared disjoint JSONL documents to run the provided byte-token baseline; inspect losses and token budget and test CPU checkpoint recovery | Baseline report and checkpoint, or documented smoke-test fallback |
+| 7 | Practice | Implement shifted targets, optimizer grouping, the learning-rate schedule, backward/update ordering and clipping; overfit one fixed NanoLM batch | Tiny NanoLM that memorizes one batch |
+| 8 | Practice | Implement checkpoints with optimizer and RNG state; use instructor-prepared disjoint JSONL documents to run the provided byte-token baseline; inspect losses and token budget and test CPU checkpoint recovery | Verified round-trip, baseline report and checkpoint, or documented smoke-test fallback |
 
 !!! note "Data dependency"
     The baseline script prepares its own byte-token shards from the supplied
@@ -90,7 +90,7 @@ the morning.
 | 9 | Theory | Document sourcing and filtering; byte-level BPE, pre-tokenization, vocabulary trade-offs, packing, boundaries and binary shards | Pipeline design and tokenizer trade-offs |
 | 10 | Practice | Check hand-traced BPE merges; implement deduplicate-then-split, packing with end-of-text boundaries, and shifted memmap batches; diagnose one deliberate data bug | Tested data path, split report and binary shards |
 | 11 | Theory | CPU vs GPU execution of the course GPT, memory and roofline reasoning, kernel fusion, `torch.compile`, profiler traces and benchmarking | Bottleneck hypothesis and profiler plan |
-| 12 | Practice | Implement FLOP, MFU and static-memory accounting; add and verify an SDPA path; run one warmed-up, synchronized ablation (precision, SDPA or compilation) with a profiler trace | Prediction-versus-measurement report for one controlled change |
+| 12 | Practice | Implement FLOP, MFU and static-memory accounting; add and verify an SDPA path; run one warmed-up, synchronized ablation (precision, SDPA or compilation); profiler trace as an extension | Prediction-versus-measurement report for one controlled change |
 
 **Between sessions:** continue the baseline as resources permit, then profile the
 trainer across batch sizes before distributed scaling.
@@ -111,7 +111,7 @@ pitches and discuss reproduction claims.
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
 | 13 | Theory | Distributed motivation, nodes/ranks/process groups, collective and communication costs; then DDP replicas, gradient averaging, global batch, buckets and overlap. Ring algorithms are optional depth. | Distributed vocabulary and DDP update specification |
-| 14 | Practice | Implement data parallelism by hand (batch sharding, parameter broadcast, gradient all-reduce) on two CPU ranks; match a single-process global-batch run; break it on purpose; compare with `DistributedDataParallel` and `no_sync`; design a scaling benchmark | Exact update equivalence, failure explanations and scaling plan |
+| 14 | Practice | Implement data parallelism by hand (batch sharding, parameter broadcast, gradient all-reduce) on two CPU ranks; match a single-process global-batch run; break it on purpose; run `DistributedDataParallel` with `no_sync`; design a scaling benchmark after class | Exact update equivalence, failure explanations and scaling plan |
 | 15 | Lightning presentations | A few-minute pitch per paper: problem, central claim, proposed mechanism, and key evidence; capture one candidate reproduction question per group | Shared set of candidate claims and questions |
 | 16 | Whole-class discussion | Compare the claims together: what is worth understanding or testing, what evidence would settle it, and which questions are feasible to reproduce; teams agree on a direction | Reproduction question and initial protocol per team |
 
@@ -145,9 +145,9 @@ exercise and later checkpoint discussion.
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
 | 20 | Theory | Tensor and sequence parallelism: column/row matrix partitioning, intermediate collective elimination, GQA attention head divisibility, and sequence parallelism (SP) activation reduction | TP derivation & layout ledger |
-| 21 | Practice | Save full and sharded checkpoints from two FSDP2 ranks and reload both in one process; implement column/row-parallel layers and their autograd collectives; verify two-rank forward/backward equivalence with Gloo | Resharded checkpoint check, format decisions and verified TP gradients |
+| 21 | Practice | Save full and sharded checkpoints from two FSDP2 ranks and reload both in one process (short); implement column/row-parallel layers and their autograd collectives; verify two-rank forward/backward equivalence with Gloo | Resharded checkpoint check, format decisions and verified TP gradients |
 | 22 | Theory | Context, pipeline & expert parallelism: Sequence Parallelism vs Context Parallelism, Ring Attention with online softmax, 1F1B vs AFAB bubble ratios ([interactive simulator](demos/pipeline-parallelism.html){ target="_blank" }), Expert Parallelism (EP) All-to-All communication, and placement based on exposed communication and topology ([parallelism composer](demos/parallelism-composer.html){ target="_blank" }) | Parallelism strategy rules & cost models |
-| 23 | Practice | Multidimensional cluster sizing: count independent rank axes in scaling cases ($G = P \times T_P \times C \times D$); map parallel dimensions to physical cluster network topologies; defend a feasible configuration with explicit assumptions | Multidimensional scaling design report |
+| 23 | Practice | Multidimensional cluster sizing: compose two layouts with the same device count ($G = P \times T_P \times C \times D$); compare persistent state and pipeline bubbles; place the groups on the network and defend one configuration | Two layouts and one defended choice |
 | 24 | Project Studio | **Reproduction Studio 2 — Scaling Experiments & Failure Diagnosis**: Dedicated team hackathon; launch scaling or ablation experiments on target claims, debug CUDA/distributed errors, and triage unexpected loss curves or throughput anomalies | Preliminary experimental results & ablation checkpoints |
 
 !!! note "Implementation boundary"
@@ -169,7 +169,7 @@ exercise and later checkpoint discussion.
 | Session | Mode | Focus | Output |
 | ---: | --- | --- | --- |
 | 25 | Theory | Full-prefix recomputation, prefill vs decode, KV-cache shapes, memory and bandwidth accounting for MHA, MQA and GQA | Decode cost model |
-| 26 | Practice | Add a KV-cache path (with position and mask offsets) to the student model and write cached generation; check logits at every position and greedy tokens; benchmark prefill and decode separately | Cached decoder, equivalence tests and prefill/decode report |
+| 26 | Practice | Paste the KV-cache scaffold into the student model and complete it (cache reuse, position and mask offsets) and write cached generation; check logits at every position and greedy tokens; benchmark prefill and decode separately | Cached decoder, equivalence tests and prefill/decode report |
 
 ### Block 8 — Serving, open slot and final demonstration
 

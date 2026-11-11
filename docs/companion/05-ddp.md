@@ -60,11 +60,15 @@ it does not use your file.
 | Time | Activity | Evidence |
 | --- | --- | --- |
 | 0–10 min | Predict tokens/update and the number of collectives per update | Written prediction |
-| 10–25 min | Step 1: implement `shard_batch` | Two single-process tests pass |
-| 25–45 min | Steps 2–3: `broadcast_parameters` and `allreduce_gradients`; run on two ranks | `PASS:` and zero replica drift |
-| 45–55 min | Step 4: break it on purpose | Failure explained in one sentence |
-| 55–65 min | Step 5: compare with `DistributedDataParallel` and `no_sync` | Library run passes with `--accum 1` and `--accum 4` |
-| 65–75 min | Step 6: design a strong-scaling measurement | Table of (devices, micro-batch, accumulation) at fixed tokens/update |
+| 10–20 min | Step 1: implement `shard_batch` | Two single-process tests pass |
+| 20–45 min | Steps 2–3: `broadcast_parameters` and `allreduce_gradients`; first two-rank run | `PASS:` and zero replica drift |
+| 45–60 min | Step 4: break it on purpose | Each failure explained in one sentence |
+| 60–75 min | Step 5: run `DistributedDataParallel` with `no_sync`; find the hooks | Library run passes with `--accum 4` |
+| After class | Step 6: design a strong-scaling measurement | Table of (devices, micro-batch, accumulation) at fixed tokens/update |
+
+This is the first session with several processes. Budget time for the first
+`torchrun` launch; the [troubleshooting table](index.md#troubleshooting-distributed-runs)
+covers the usual failures.
 
 ### Step 1 — Give each rank a disjoint slice
 
@@ -151,7 +155,6 @@ computation. `no_sync()` disables those hooks for the accumulation
 micro-steps; the hooks must fire on the last micro-step, during its backward.
 
 ```bash
-uv run torchrun --standalone --local-addr=127.0.0.1 --nproc_per_node=2 scripts/05_train_ddp.py --accum 1
 uv run torchrun --standalone --local-addr=127.0.0.1 --nproc_per_node=2 scripts/05_train_ddp.py --accum 4
 ```
 
@@ -161,9 +164,10 @@ the forward **and** the backward of a micro-step be inside it?
 **Extension:** implement `allreduce_gradients_flat` (one collective on a
 concatenated buffer) and run `--sync flat`. The collective count drops from 19
 to 1 while the bytes stay the same. This is why DDP uses buckets: each
-collective pays a fixed latency.
+collective pays a fixed latency. Its tests are skipped by default; run them with
+`uv run pytest tests/test_module_05_ddp.py -q --extensions`.
 
-### Step 6 — Design a scaling measurement
+### Step 6 — Design a scaling measurement (after class)
 
 Correctness passes; the next question is speed. Fix the model and the
 **global** tokens per update, then fill in a table for 1, 2, 4 and 8 devices:
@@ -180,7 +184,7 @@ checks correctness only: it shares one machine's memory bandwidth and cannot sho
 
 ## Definition of done
 
-- all tests in `tests/test_module_05_ddp.py` pass;
+- `uv run pytest tests/test_module_05_ddp.py -q` passes (the extension tests are skipped);
 - `05_manual_ddp.py` prints `PASS:` on two ranks with `--accum 2` and `--accum 4`;
 - you can explain each of the three failures in Step 4;
 - your scaling table keeps tokens/update fixed and names the timing exclusions.
