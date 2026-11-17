@@ -229,11 +229,11 @@
         \draw[very thick,warningdraw] (4.4,4.2)--(9.2,4.2);
         \draw[dashed,neutraldark] (4.4,0)--(4.4,4.2);
         \node[rotate=43,text=accentdark] at (2.35,2.65) {$I\,BW_{\mathrm{HBM}}$};
-        \node[text=warningdraw] at (7.2,4.48) {$P_{\mathrm{peak}}$};
+        \node[text=warningdraw, above] at (7.2,4.4) {$P_{\mathrm{peak}}$};
         \fill[themebluedraw] (1.15,1.10) circle (3pt);
         \node[anchor=west] at (1.28,.92) {vector add};
         \fill[warningdraw] (7.15,4.2) circle (3pt);
-        \node[above] at (7.15,4.2) {large GEMM};
+        \node[below] at (7.15,4.0) {large GEMM};
         \node[below] at (4.4,0) {ridge $P_{\mathrm{peak}}/BW$};
         \node[below,text=neutraldark] at (8.1,-.55) {arithmetic intensity $I$};
         \node[text=accentdark] at (2.1,.35) {bandwidth-bound};
@@ -403,7 +403,7 @@
 \begin{frame}{Example: save attention inputs, recompute the matrix}
   \centering
   \begin{tikzpicture}[every node/.style={font=\small,align=center},
-    box/.style={draw=themebluedraw,fill=themebluebg,minimum height=.8cm},
+      box/.style={draw=themebluedraw,fill=themebluebg,minimum height=.8cm},
     arr/.style={-{Stealth[length=4pt]},thick,accentdark}]
     \node[box,minimum width=2.1cm] (qkv) at (0,1.4) {$Q,K,V$};
     \node[box,draw=warningdraw,fill=warningbg,minimum width=3cm] (scores) at (4,1.4) {attention matrix\\$L\times L$ per head};
@@ -424,14 +424,14 @@
   \small One sequence, one head: length $L$, head dimension $d_k$, $b$ bytes per element.
   \vspace{5pt}
   \begin{center}
-  \begin{tabular}{@{}lcc@{}}
-    \toprule
-    Retained tensor & elements & bytes \\
-    \midrule
-    $Q,K,V$ ($L\times d_k$ each) & $3Ld_k$ & $3Ld_kb$ \\
-    Attention matrix ($L\times L$) & $L^2$ & $L^2b$ \\
-    \bottomrule
-  \end{tabular}
+    \begin{tabular}{@{}lcc@{}}
+      \toprule
+      Retained tensor & elements & bytes \\
+      \midrule
+      $Q,K,V$ ($L\times d_k$ each) & $3Ld_k$ & $3Ld_kb$ \\
+      Attention matrix ($L\times L$) & $L^2$ & $L^2b$ \\
+      \bottomrule
+    \end{tabular}
   \end{center}
   \begin{block}{Equal dtypes: crossover at $L=3d_k$}
     For $d_k=64$, the matrix is larger once $L>192$. At $L=1024$ in BF16: $Q,K,V$ occupy $0.375$ MiB; one matrix occupies $2$ MiB per head.

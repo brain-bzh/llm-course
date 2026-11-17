@@ -16,7 +16,7 @@
 \end{frame}
 \learninggoals
 {Identify repeated optimizer work and state in DDP.}
-{Develop a way to share responsibility for the update across devices.}
+{Decompose all-reduce into reduce-scatter and all-gather.}
 {Trace the resulting state through forward and backward.}
 {Reason about memory, communication, and implementation trade-offs.}
 
@@ -44,6 +44,25 @@
   \begin{alertblock}{But wait! Is there some redundancy here?}
     Both ranks store the full optimizer state and repeat the same update. Can they share this work? What must each rank have for the next forward pass?
   \end{alertblock}
+\end{frame}
+
+\begin{frame}{All-reduce = reduce-scatter + all-gather}
+  \centering\small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    & Rank 0 & Rank 1 \\
+    \midrule
+    Local gradients & $[g_{00},g_{01}]$ & $[g_{10},g_{11}]$ \\
+    Reduce-scatter (sum) & $s_0=g_{00}+g_{10}$ & $s_1=g_{01}+g_{11}$ \\
+    All-gather gradients & $[s_0,s_1]$ & $[s_0,s_1]$ \\
+    \bottomrule
+  \end{tabular}
+  \vspace{4pt}
+  \par\footnotesize Divide by world size for the mean. A ring all-reduce uses these two phases; timings depend on implementation.
+  \vfill
+  \begin{block}{For a sharded update, move the gather}
+    Each rank updates its own parameter shard using its reduced gradient shard. Gather updated parameters for the next forward pass; full sharding gathers each unit when needed.
+  \end{block}
 \end{frame}
 
 \begin{frame}{Explore: can the ranks share the update?}
@@ -81,6 +100,24 @@
   {\scriptsize Full-shard example. Gradient shards persist after reduction; details depend on FSDP configuration.}
 \end{frame}
 
+\begin{frame}{Two collectives make sharding usable}
+  \centering\small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    & Rank 0 & Rank 1 \\
+    \midrule
+    Start: parameter shards & $P_0$ & $P_1$ \\
+    \textbf{All-gather} parameters & $[P_0,P_1]$ & $[P_0,P_1]$ \\
+    Local forward / backward & gradient $[g_{00},g_{01}]$ & gradient $[g_{10},g_{11}]$ \\
+    \textbf{Reduce-scatter} gradients & $g_{00}+g_{10}$ & $g_{01}+g_{11}$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{The division of work}
+    Each rank gathers the full unit to compute its own data; after reduction it retains the gradient for its owned shard. Averaging requires the appropriate world-size normalization.
+  \end{block}
+\end{frame}
+
 \begin{frame}{Sharding changes when full parameters exist}
   \centering
   \begin{tikzpicture}[x=.82cm,y=.85cm,scale=.90,transform shape,every node/.style={font=\scriptsize}]
@@ -100,13 +137,6 @@
   \end{tikzpicture}
   \par\vspace{2pt}
   \footnotesize Full parameters are transient around compute; the local shard is persistent.\par
-\end{frame}
-
-\begin{frame}{Now account for what we saw}
-  \begin{block}{From the visualization to a memory budget}
-    Which state stayed replicated? What was persistent, and what was materialized only for computation?
-  \end{block}
-  \small The next slides summarize the layouts and their assumptions.
 \end{frame}
 
 \begin{frame}{DDP replicates persistent state on every rank}
@@ -178,24 +208,6 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Two collectives make sharding usable}
-  \centering\small
-  \begin{tabular}{@{}lll@{}}
-    \toprule
-    & Rank 0 & Rank 1 \\
-    \midrule
-    Start: parameter shards & $P_0$ & $P_1$ \\
-    \textbf{All-gather} parameters & $[P_0,P_1]$ & $[P_0,P_1]$ \\
-    Local forward / backward & gradient $[g_{00},g_{01}]$ & gradient $[g_{10},g_{11}]$ \\
-    \textbf{Reduce-scatter} gradients & $g_{00}+g_{10}$ & $g_{01}+g_{11}$ \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{block}{The division of work}
-    Each rank gathers the full unit to compute its own data; after reduction it retains the gradient for its owned shard. Averaging requires the appropriate world-size normalization.
-  \end{block}
-\end{frame}
-
 \begin{frame}{Keep or reshard after forward?}
   \begin{columns}[t]
     \begin{column}{.47\linewidth}
@@ -236,24 +248,24 @@
 
 \begin{frame}{Sharding buys memory with communication}
   \begin{center}
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.8,transform shape,every node/.style={font=\scriptsize,align=center},
-    compute/.style={draw=themebluedraw,fill=themebluebg,minimum height=.62cm},
-    comm/.style={draw=warningdraw,fill=warningbg,minimum height=.62cm},
-    update/.style={draw=successdraw,fill=successbg,minimum height=.62cm}]
-    \node[anchor=east,font=\small\bfseries] at (0,1.6) {DDP};
-    \node[compute,minimum width=1.5cm] at (1,1.6) {forward};
-    \node[compute,minimum width=1.5cm] at (2.8,1.6) {backward};
-    \node[comm,minimum width=2cm] at (5,1.6) {gradient\\all-reduce};
-    \node[update,minimum width=1.6cm] at (7.2,1.6) {full update};
-    \node[anchor=east,font=\small\bfseries] at (0,.5) {Full shard};
-    \node[comm,minimum width=1.2cm] at (.85,.5) {gather};
-    \node[compute,minimum width=1.25cm] at (2.45,.5) {forward};
-    \node[comm,minimum width=1.2cm] at (4.05,.5) {gather*};
-    \node[compute,minimum width=1.3cm] at (5.8,.5) {backward};
-    \node[comm,minimum width=1.65cm] at (7.95,.5) {gradient\\reduce-scatter};
-    \node[update,minimum width=1.5cm] at (10.1,.5) {shard update};
-    \draw[-{Stealth[length=4pt]},neutraldark] (.2,-.15)--(11.2,-.15) node[right]{time};
-  \end{tikzpicture}
+    \begin{tikzpicture}[x=1cm,y=1cm,scale=.8,transform shape,every node/.style={font=\scriptsize,align=center},
+        compute/.style={draw=themebluedraw,fill=themebluebg,minimum height=.62cm},
+        comm/.style={draw=warningdraw,fill=warningbg,minimum height=.62cm},
+      update/.style={draw=successdraw,fill=successbg,minimum height=.62cm}]
+      \node[anchor=east,font=\small\bfseries] at (0,1.6) {DDP};
+      \node[compute,minimum width=1.5cm] at (1,1.6) {forward};
+      \node[compute,minimum width=1.5cm] at (2.8,1.6) {backward};
+      \node[comm,minimum width=2cm] at (5,1.6) {gradient\\all-reduce};
+      \node[update,minimum width=1.6cm] at (7.2,1.6) {full update};
+      \node[anchor=east,font=\small\bfseries] at (0,.5) {Full shard};
+      \node[comm,minimum width=1.2cm] at (.85,.5) {gather};
+      \node[compute,minimum width=1.25cm] at (2.45,.5) {forward};
+      \node[comm,minimum width=1.2cm] at (4.05,.5) {gather*};
+      \node[compute,minimum width=1.3cm] at (5.8,.5) {backward};
+      \node[comm,minimum width=1.65cm] at (7.95,.5) {gradient\\reduce-scatter};
+      \node[update,minimum width=1.5cm] at (10.1,.5) {shard update};
+      \draw[-{Stealth[length=4pt]},neutraldark] (.2,-.15)--(11.2,-.15) node[right]{time};
+    \end{tikzpicture}
   \end{center}
   \small *If parameters were resharded after forward. This schematic separates operations; real collectives can overlap compute and run per unit or bucket.
   \begin{block}{The question for the profiler}
@@ -364,8 +376,8 @@
 {Estimate idealized model-state memory per rank for $P$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
 
 \takeaways
-{ZeRO stages progressively shard optimizer state, gradients, and parameters.}
-{FSDP materializes one wrapped unit through all-gather and returns sharded gradients.}
+{All-reduce decomposes into reduce-scatter followed by all-gather.}
+{ZeRO shards state progressively; FSDP gathers units and reduce-scatters gradients.}
 {Wrapping controls peak memory, collective size, frequency, and overlap.}
 {Checkpoint format and a matched DDP baseline are part of the system claim.}
 \appendix
