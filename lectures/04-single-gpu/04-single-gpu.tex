@@ -22,6 +22,42 @@
 {Explain kernel fusion and what \texttt{torch.compile} does.}
 {Profile an update and measure changes without losing correctness.}
 
+\begin{frame}{What is a bottleneck?}
+  \begin{columns}[c]
+    \begin{column}{.40\linewidth}
+      \centering
+      \begin{tikzpicture}[every node/.style={font=\small,align=center},
+        flow/.style={-{Stealth[length=5pt,width=4pt]},very thick,draw=accentdark}]
+        % A narrow neck limits how quickly the bottle can empty.
+        \path[fill=themebluebg] (-1.1,-1.5) -- (-1.1,.25)
+        .. controls (-1.1,.65) and (-.35,.75) .. (-.35,1.15)
+        -- (-.35,1.8) -- (.35,1.8) -- (.35,1.15)
+        .. controls (.35,.75) and (1.1,.65) .. (1.1,.25)
+        -- (1.1,-1.5) -- cycle;
+        \draw[thick,themebluedraw] (-.35,1.8) -- (-.35,1.15)
+        .. controls (-.35,.75) and (-1.1,.65) .. (-1.1,.25)
+        -- (-1.1,-1.5) -- (1.1,-1.5) -- (1.1,.25)
+        .. controls (1.1,.65) and (.35,.75) .. (.35,1.15) -- (.35,1.8);
+        \draw[flow] (0,-.8) -- (0,.45);
+        \draw[flow] (0,.72) -- (0,2.25);
+        \draw[thick,warningdraw,-{Stealth[length=4pt]}] (1.45,1.25) -- (.42,1.25);
+        \node[anchor=west,text=warningdraw,font=\small\bfseries] at (1.45,1.25) {narrow neck};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{.56\linewidth}
+      \begin{block}{The limiting part}
+        The narrow neck controls how fast liquid leaves the bottle, even when the rest has plenty of room.
+      \end{block}
+      \vspace{4pt}
+      In a training step, the limiting resource or stage similarly constrains overall speed.
+      \vspace{6pt}
+      \begin{alertblock}{To find it}
+        Measure a representative step, profile where time is spent or the GPU waits, then test one hypothesis and measure again.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 \section{From a training step to GPU work}
 
 \begin{frame}{The workload we already built}
@@ -38,9 +74,9 @@
     \end{tikzpicture}
   \end{center}
   \begin{block}{Inside one Transformer block}
-    Linear projections and MLP $\rightarrow$ matrix multiplications; attention $\rightarrow$ matrix products, masking and softmax; LayerNorm, GELU and residuals $\rightarrow$ reductions and elementwise work.
+    Linear projections and MLP $\rightarrow$ \textbf{matrix multiplications}; attention $\rightarrow$ matrix products, masking and softmax; LayerNorm, GELU and residuals $\rightarrow$ reductions and elementwise work.
   \end{block}
-  \small The same model and batch can run on CPU or GPU; compare the work and its execution, not just device names.
+  \small The same model and batch can run on both CPU or GPU. The results should be identical but the difference lies in how the workload is executed.
 \end{frame}
 
 \begin{frame}{CPU and GPU: different ways to execute work}
@@ -57,7 +93,7 @@
   \end{tabular}
   \vfill
   \begin{alertblock}{Measure the actual workload}
-    A GPU can lose on small shapes or transfer-heavy work. Report batch, dtype, threads, device, and what is timed.
+    A GPU can lose on small shapes or transfer-heavy work.
   \end{alertblock}
 \end{frame}
 
@@ -78,25 +114,31 @@
 
 \begin{frame}{A GPU is a throughput machine with many lanes}
   \begin{columns}[c]
-    \begin{column}{0.54\linewidth}
+    \begin{column}{0.43\linewidth}
       \begin{itemize}
-          \setlength{\itemsep}{7pt}
-        \item A kernel launches a grid of threads.
-        \item Threads execute in warps, commonly 32 lanes.
-        \item Warps are scheduled onto streaming multiprocessors (SMs).
-        \item Tensor cores accelerate supported matrix tiles.
+          \setlength{\itemsep}{6pt}
+        \item A kernel launches many threads, grouped into blocks.
+        \item An SM schedules threads in warps of 32.
+        \item Lanes execute work from a warp in parallel.
+        \item Many warps keep the GPU busy.
       \end{itemize}
     \end{column}
-    \begin{column}{0.42\linewidth}
-      \begin{tikzpicture}[node distance=.48cm,every node/.style={font=\scriptsize},box/.style={draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=3.5cm,minimum height=.46cm}]
-        \node[box] (grid) {kernel grid};
-        \node[box,below=of grid] (block) {thread blocks};
-        \node[box,fill=warningbg,draw=warningdraw,below=of block] (warp) {warps};
-        \node[box,fill=successbg,draw=successdraw,below=of warp] (sm) {SM execution units};
-        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (grid)--(block);
-        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (block)--(warp);
-        \draw[-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy] (warp)--(sm);
+    \begin{column}{0.55\linewidth}
+      \centering
+      \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+          lane/.style={draw=themebluedraw,fill=themebluebg,rounded corners=2pt,inner sep=1pt,minimum width=.54cm,minimum height=.65cm},
+        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
+        \node[font=\small\bfseries] at (2.05,2.1) {One warp: 32 threads};
+        \foreach \x/\n in {0/0,1/1,2/2,3/3,4/4,5/5} {
+          \node[lane] (t\x) at (\x*.66,1.45) {\n};
+          \node[lane,fill=successbg,draw=successdraw] (l\x) at (\x*.66,.15) {lane};
+          \draw[arr] (t\x)--(l\x);
+        }
+        \node at (4.05,1.45) {$\cdots$};
+        \node at (4.05,.15) {$\cdots$};
+        \node[font=\small\bfseries] at (1.7,-.5) {Parallel execution on an SM};
       \end{tikzpicture}
+      \par\vspace{3pt}\scriptsize Schematic: six of 32 threads shown.
     \end{column}
   \end{columns}
   \smallsource{JAX Scaling Book, How to Think About GPUs}
@@ -130,7 +172,7 @@
     \toprule
     Unit & Typical work & Transformer examples \\
     \midrule
-    Tensor Cores & Matrix-tile multiply--accumulate & Linear layers; attention products \\[5pt]
+    Tensor Cores & Specialized in matrix multiplication & Linear layers; attention products \\[5pt]
     CUDA cores & General scalar / vector arithmetic & Residual adds; optimizer updates \\[5pt]
     Other execution paths & Reductions and special functions & Norm statistics; softmax; GELU \\
     \bottomrule
@@ -161,15 +203,15 @@
 
 \begin{frame}{The memory hierarchy trades capacity for speed}
   \centering\small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.22\linewidth}>{\raggedright\arraybackslash}p{.16\linewidth}>{\raggedright\arraybackslash}p{.13\linewidth}>{\raggedright\arraybackslash}p{.36\linewidth}@{}}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.36\linewidth}>{\raggedright\arraybackslash}p{.28\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}@{}}
     \toprule
-    Level & Scope & Capacity & Role \\
+    Level & Scope & Capacity \\
     \midrule
-    registers & one thread & tiny & live scalar and fragment state \\
-    shared memory / SRAM & one block or SM & small & explicit reuse and tiling \\
-    L2 cache & whole device & moderate & cross-SM reuse \\
-    HBM / VRAM & whole device & large & weights, activations, optimizer state \\
-    host memory & CPU system & largest & dataset staging and overflow \\
+    registers & one thread & tiny \\
+    shared memory / SRAM & one block or SM & small \\
+    L2 cache & whole device & moderate \\
+    HBM / VRAM & whole device & large \\
+    host memory & CPU system & largest \\
     \bottomrule
   \end{tabular}
   \vfill
@@ -202,7 +244,7 @@
   \small
   \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
     \toprule
-    In our training step & Typical work & Ask in the trace \\
+    In our training step & Typical work & Diagnostic \\
     \midrule
     QKV and MLP & Matrix multiplications & Are shapes large enough? \\[4pt]
     Attention & Products and softmax & Which backend ran? \\[4pt]
@@ -215,6 +257,33 @@
 \end{frame}
 
 \section{Roofline reasoning}
+
+\begin{frame}{Compare implementations: work per byte}
+  Both implementations compute $y=(a+b)\times c$ on FP32 arrays.
+  \vspace{4pt}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Two separate kernels}
+        Write $a+b$ to memory, then read it back to multiply by $c$.
+        \[
+          I=\frac{2\ \text{FLOPs}}{24\ \text{bytes}}\approx 0.08
+        \]
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{One fused kernel}
+        Keep $a+b$ on chip and write only the final result.
+        \[
+          I=\frac{2\ \text{FLOPs}}{16\ \text{bytes}}=0.125
+        \]
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{3pt}
+  \begin{alertblock}{Arithmetic intensity = FLOPs per byte transferred}
+    Higher intensity can help when memory bandwidth limits performance; compare measured runtime as well.
+  \end{alertblock}
+\end{frame}
 
 \begin{frame}{Arithmetic intensity predicts the limiting resource}
   \begin{columns}[c]
@@ -381,23 +450,6 @@
   \begin{block}{Useful distinction}
     Report allocated and reserved memory. Out-of-memory behavior depends on peaks and fragmentation, not only steady-state tensor sizes.
   \end{block}
-\end{frame}
-
-\begin{frame}{Activation checkpointing exchanges compute for memory}
-  \begin{columns}[c]
-    \begin{column}{0.48\linewidth}
-      \begin{alertblock}{Store everything}
-        Faster backward pass\\higher activation memory\\larger feasible recomputation-free batch
-      \end{alertblock}
-    \end{column}
-    \begin{column}{0.48\linewidth}
-      \begin{block}{Checkpoint selected boundaries}
-        Lower activation memory\\recompute forward segments in backward\\may enable larger $B$ or $T$
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  Evaluate end-to-end tokens per second. A larger batch does not guarantee a faster run if recomputation dominates.
 \end{frame}
 
 \begin{frame}{Example: save attention inputs, recompute the matrix}
