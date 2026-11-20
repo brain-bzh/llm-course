@@ -92,6 +92,23 @@
   .words { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; margin-top: 4px; }
   .word { min-height: 20px; border-radius: 2px; background: var(--paper); text-align: center; }
   .word[data-read] { background: var(--mint); color: #005c53; font-weight: 700; }
+  .tile-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+  .tile-view figure { margin: 0; }
+  .tile-view figcaption { margin-bottom: 8px; font-weight: 650; }
+  .tile-grid {
+    display: grid;
+    gap: 2px;
+  }
+  .tile-cell { background: var(--wash); border: 1px solid var(--line); border-radius: 2px; }
+  .tile-cell.is-used { background: var(--teal); border-color: var(--teal); }
+  .tile-stats { margin: 0; }
+  .tile-stats dt { color: var(--muted); font-size: .9rem; }
+  .tile-stats dd { margin: 0 0 10px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -99,7 +116,8 @@
   <header>
     <a href="../primers/gpu-fundamentals/">← GPU fundamentals (optional)</a>
     <h1>GPU execution explorer</h1>
-    <p>Look inside an H100, then explore how its schedulers and memory system handle a warp’s work.</p>
+    <p>Look inside an H100, then explore warp scheduling, memory requests, and data reuse.</p>
+    <a href="#reuse-heading">Jump to projection tile reuse</a>
   </header>
 
   <section aria-labelledby="architecture-heading">
@@ -117,13 +135,14 @@
         </details>
       </details>
     </details>
-    <p class="note">For a load from device memory with L1 caching enabled, each cache miss sends the request to the next level.</p>
+    <p class="note">The on-chip caches use fast SRAM. HBM3 uses denser stacked DRAM, which needs refresh and supplies much more capacity. For a load from device memory with L1 caching enabled, each cache miss sends the request to the next level.</p>
     <p class="memory-path">Warp load → SM’s L1 cache → GPU’s L2 cache → HBM3</p>
     <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/#nvidia_h100_gpu_architecture_in-depth">NVIDIA’s GPU and SM block diagrams</a>
   </section>
 
   <section aria-labelledby="schedule-heading">
     <h2 id="schedule-heading">Schedule four warps</h2>
+    <p>In a CPU SIMD add, one instruction operates on elements in vector registers. In a GPU SIMT add, one instruction operates across the active threads of a warp, each with its own registers and index.</p>
     <p>Each warp issues a load. Its add becomes ready six ticks later. Change how many warps can be resident together. A resident warp has resources on the SM and can issue an instruction when it is ready.</p>
     <div class="controls">
       <label for="resident">Resident warp limit
@@ -173,6 +192,43 @@
     <div id="sectors" class="sectors" role="list" aria-label="Touched memory sectors"></div>
     <p class="note">The count covers distinct 32-byte sectors touched by this instruction. Cache hits and reuse can change how many bytes reach device memory.</p>
   </section>
+
+  <section aria-labelledby="reuse-heading">
+    <h2 id="reuse-heading">Trace reuse in a projection tile</h2>
+    <p>In <code>Y = X @ W</code>, output rows are tokens and output columns are features. For one slice of 16 input features, the kernel stages a tile of activations <code>X</code> and a tile of weights <code>W</code>. Change the output shape and follow one staged value.</p>
+    <div class="controls">
+      <label for="tile-rows">Token rows
+        <select id="tile-rows">
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="16" selected>16</option>
+        </select>
+      </label>
+      <label for="tile-columns">Output features
+        <select id="tile-columns">
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="16" selected>16</option>
+        </select>
+      </label>
+      <label for="tile-value">Value to follow
+        <select id="tile-value">
+          <option value="activation">Activation X[0, 0]</option>
+          <option value="weight">Weight W[0, 0]</option>
+        </select>
+      </label>
+    </div>
+    <p class="result" id="tile-result" role="status"></p>
+    <div class="tile-view">
+      <figure>
+        <figcaption>Output tile Y</figcaption>
+        <div class="tile-grid" id="tile-grid" aria-hidden="true"></div>
+      </figure>
+      <dl class="tile-stats" id="tile-stats"></dl>
+    </div>
+    <p class="note">Each colored output includes a product using the selected input value. The counts describe one staged slice and the arithmetic it supplies.</p>
+    <p class="note">See slides 5–7, 11–12, and 20–21 for vector instructions, memory technology, and data reuse. <a href="https://github.com/brain-bzh/efficient-deep-learning/blob/master/cours7.pdf">IMT Atlantique’s hardware lecture</a></p>
+  </section>
   <noscript>The explorer requires JavaScript. The worked examples are available in the primer.</noscript>
 </main>
 <script>
@@ -182,6 +238,11 @@
   const offset = document.querySelector("#offset");
   const active = document.querySelector("#active");
   const sectorList = document.querySelector("#sectors");
+  const tileRows = document.querySelector("#tile-rows");
+  const tileColumns = document.querySelector("#tile-columns");
+  const tileValue = document.querySelector("#tile-value");
+  const tileGrid = document.querySelector("#tile-grid");
+  const tileStats = document.querySelector("#tile-stats");
 
   const loadLatency = 6;
   const warpCount = 4;
@@ -284,10 +345,37 @@
     }).join("");
   }
 
+  function renderTile() {
+    const rows = Number(tileRows.value);
+    const columns = Number(tileColumns.value);
+    const inputFeatures = 16;
+    const followsActivation = tileValue.value === "activation";
+    const affected = followsActivation ? columns : rows;
+    const destination = followsActivation ? "features of token 0" : "tokens for output feature 0";
+    const selectedValue = followsActivation ? "X[0, 0]" : "W[0, 0]";
+
+    document.querySelector("#tile-result").textContent = `${selectedValue} contributes to ${affected} ${destination}.`;
+    tileGrid.style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
+    tileGrid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+    tileGrid.style.aspectRatio = `${columns} / ${rows}`;
+    tileGrid.style.width = `min(100%, ${columns * 20}px)`;
+    tileGrid.innerHTML = Array.from({ length: rows * columns }, (_, index) => {
+      const used = followsActivation ? index < columns : index % columns === 0;
+      return `<span class="tile-cell${used ? " is-used" : ""}"></span>`;
+    }).join("");
+
+    tileStats.innerHTML = `
+      <dt>Activation tile</dt><dd>${rows} × ${inputFeatures} = ${rows * inputFeatures} values</dd>
+      <dt>Weight tile</dt><dd>${inputFeatures} × ${columns} = ${inputFeatures * columns} values</dd>
+      <dt>Multiply–accumulates</dt><dd>${rows} × ${columns} × ${inputFeatures} = ${(rows * columns * inputFeatures).toLocaleString("en-US")}</dd>`;
+  }
+
   resident.addEventListener("change", renderSchedule);
   for (const control of [stride, offset, active]) control.addEventListener("change", renderLoad);
+  for (const control of [tileRows, tileColumns, tileValue]) control.addEventListener("change", renderTile);
   renderSchedule();
   renderLoad();
+  renderTile();
 </script>
 </body>
 </html>

@@ -4,6 +4,22 @@ For readers curious about what happens between a PyTorch operation and the
 hardware. You can read this alongside [Module 4](../modules/04-single-gpu.md).
 The examples use NVIDIA CUDA terminology and require no GPU.
 
+## How CPUs and GPUs use parallel hardware
+
+Both processors need control logic to fetch and decode instructions, arithmetic
+units to execute them, and storage to supply operands and hold results.
+A CPU typically has fewer, more complex cores that can make fast progress on
+instruction streams with branches and dependencies. It also exploits
+data parallelism. For example, a 256-bit **SIMD** vector add can add eight
+FP32 pairs in one instruction, with operands held in vector registers.
+
+A GPU devotes more hardware to arithmetic lanes and groups independent
+software threads into **warps**. Under NVIDIA's **SIMT** model, a single
+instruction can run across 32 threads, each with its own registers and
+logical index. A warp of threads can be ready to issue while another waits
+for data. This organization helps the GPU sustain high throughput on large,
+regular workloads.
+
 ## From Python to the GPU
 
 A GPU is a processor designed to sustain many operations in parallel. A
@@ -51,6 +67,14 @@ leaving room for other warps.
 | L1 and L2 caches | The hardware can serve repeated accesses from on-chip copies. L1 is local to an SM and L2 is shared across the GPU. |
 | Device memory (HBM or GDDR) | Holds large tensors such as weights, activations, and gradients. |
 
+The hardware behind this hierarchy explains the capacity differences. A
+typical **SRAM** bit uses a six-transistor cell that holds its value while
+powered. SRAM is fast and takes more silicon area per bit, which suits the
+on-chip caches. A typical **DRAM** bit uses a transistor and a capacitor,
+which makes it denser and requires periodic refresh. HBM is stacked DRAM
+with a wide interface designed for high aggregate bandwidth. An L2 hit saves
+a trip through the memory controllers to those stacks.
+
 When a warp loads 32 adjacent FP32 values from a 32-byte-aligned address, those
 128 bytes fit in four 32-byte sectors. If lane `i` instead reads element `8 * i`,
 each lane requests a different sector. Both patterns request 32 values, but
@@ -95,19 +119,31 @@ Allocation granularity and launch settings can further constrain residency.
    Why does a contiguous load now touch a fifth sector?
 3. Compare the first 16 lanes with alternating lanes using aligned, contiguous
    addresses. Why do the two loads touch different numbers of sectors?
+4. In the projection tile, change the number of tokens and output features.
+   Which change increases the reuse of one weight?
 
 ## How this shows up in a Transformer
 
 An elementwise residual addition reads its inputs, performs little arithmetic
 per value, and writes the output. Laying out neighboring elements for
-neighboring lanes helps it use bandwidth efficiently. A projection such as
-`x @ W` can reuse tiles of weights and activations for many multiply–accumulates.
-An optimized kernel may stage tiles in shared memory and use **Tensor Cores**,
-hardware units that accelerate supported matrix multiply–accumulate operations.
+neighboring lanes helps it use bandwidth efficiently.
+
+In a projection `Y = X @ W`, each activation in `X` contributes to several
+output features and each weight in `W` is used across multiple token rows.
+Take one 16 × 16 output tile and one 16-element slice of the reduction
+dimension. The corresponding activation and weight tiles have 256 elements
+each. Together they supply 4,096 multiply–accumulates, with each input
+element used 16 times. An optimized kernel can stage input tiles in shared
+memory for reuse and keep partial output sums in registers while it works
+through the next slices. Supported matrix instructions can run on Tensor Cores.
+
 [Module 4](../modules/04-single-gpu.md) builds on this distinction to explain
 tiling, fusion, and when a kernel is limited by memory bandwidth or compute.
 
 ## Further reading
 
+- [IMT Atlantique — Embedded Software and Hardware for DL (session 7)](https://github.com/brain-bzh/efficient-deep-learning/blob/master/cours7.pdf).
+  The SIMD, SRAM/DRAM, CPU/GPU diagrams, and data-reuse slides (5–7, 11–12,
+  and 20–21) informed the examples above.
 - [NVIDIA CUDA Programming Guide — Writing SIMT Kernels](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html)
 - [NVIDIA CUDA Best Practices Guide — Coalesced Access to Global Memory](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#coalesced-access-to-global-memory)
