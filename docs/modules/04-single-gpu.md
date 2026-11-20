@@ -6,6 +6,9 @@ Build a hardware model of one GPU, then use it to predict and explain the
 performance of the course training step. Optimization begins with a bottleneck
 hypothesis, not a bag of flags.
 
+If GPUs are new to you, the [optional GPU fundamentals primer](../primers/gpu-fundamentals.md)
+walks through kernel launches, warp scheduling, and memory access.
+
 The main reference is the Scaling Book chapter
 [How to Think About GPUs](https://jax-ml.github.io/scaling-book/gpus/). Its
 hardware numbers are examples, not universal constants: always pair a formula

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPU execution explorer · Training and Scaling Language Models</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #172b3b;
+    --navy: #164666;
+    --muted: #52697a;
+    --teal: #006d74;
+    --line: #c9dbe4;
+    --paper: #fff;
+    --wash: #f2f7fa;
+    --blue: #e2effa;
+    --mint: #dff4ef;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: clamp(16px, 4vw, 44px);
+    background: var(--wash);
+    color: var(--ink);
+    font: 16px/1.5 "Source Sans 3", system-ui, sans-serif;
+  }
+  main { max-width: 1020px; margin: auto; }
+  a { color: var(--teal); }
+  h1, h2 { color: var(--navy); line-height: 1.15; }
+  h1 { margin: 16px 0 8px; font-size: clamp(30px, 6vw, 46px); letter-spacing: -.04em; }
+  h2 { margin: 0 0 8px; font-size: 23px; }
+  p { margin: 0 0 12px; }
+  header { margin-bottom: 24px; }
+  section {
+    margin: 16px 0;
+    padding: clamp(14px, 3vw, 24px);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin: 16px 0;
+  }
+  label { display: grid; gap: 4px; font-weight: 650; }
+  select {
+    color: var(--ink);
+    font: inherit;
+    font-weight: 400;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--paper);
+    border: 1px solid #8fa9b7;
+  }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+  .result { color: var(--teal); font-weight: 700; }
+  .note { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
+  .hardware {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--wash);
+  }
+  .hardware .hardware { margin-top: 10px; background: var(--paper); }
+  .hardware summary { color: var(--navy); cursor: pointer; font-weight: 700; }
+  .hardware p { margin: 8px 0 0; }
+  .memory-path { font: 650 .9rem/1.5 system-ui, sans-serif; color: var(--teal); }
+  .table-wrap { overflow-x: auto; padding-bottom: 4px; }
+  table { border-spacing: 2px; font: .84rem/1.2 system-ui, sans-serif; white-space: nowrap; }
+  th, td { text-align: center; padding: 5px 6px; }
+  thead th { font-weight: 500; color: var(--muted); }
+  th:first-child { position: sticky; left: 0; background: var(--paper); text-align: left; }
+  tbody th { padding-inline: 0 10px; }
+  td { min-width: 26px; border-radius: 3px; color: var(--ink); }
+  td[data-state="Load"], td[data-state="Add"] { font-weight: 700; }
+  td[data-state="Load"] { background: var(--blue); color: #164666; }
+  td[data-state="Add"] { background: var(--mint); color: #005c53; }
+  td[data-state="Waiting for load"] { background: var(--wash); }
+  td[data-state^="Ready"], td[data-state="Queued"], td[data-state="Complete"] { color: var(--muted); }
+  .sectors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr)); gap: 8px; }
+  .sector {
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    background: var(--wash);
+    border-radius: 6px;
+    font: .78rem/1.45 ui-monospace, monospace;
+  }
+  .words { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; margin-top: 4px; }
+  .word { min-height: 20px; border-radius: 2px; background: var(--paper); text-align: center; }
+  .word[data-read] { background: var(--mint); color: #005c53; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a href="../primers/gpu-fundamentals/">← GPU fundamentals (optional)</a>
+    <h1>GPU execution explorer</h1>
+    <p>Look inside an H100, then explore how its schedulers and memory system handle a warp’s work.</p>
+  </header>
+
+  <section aria-labelledby="architecture-heading">
+    <h2 id="architecture-heading">Inside an H100 SXM</h2>
+    <p>Expand each level to follow the hardware from the whole GPU down to the scheduler modeled below.</p>
+    <details class="hardware" open>
+      <summary>GPU · 132 streaming multiprocessors</summary>
+      <p>Eight GPU processing clusters contain 66 enabled pairs of SMs. The SMs share 50 MB of L2 cache and reach 80 GB of HBM3 through memory controllers.</p>
+      <details class="hardware">
+        <summary>One SM · four processing partitions</summary>
+        <p>The SM can keep up to 64 warps resident. Registers and shared memory allocated to its thread blocks determine how many actually fit.</p>
+        <details class="hardware">
+          <summary>One partition · one warp scheduler</summary>
+          <p>The scheduler issues instructions from ready warps. This partition has 32 FP32 arithmetic lanes, one Tensor Core, and its own portion of the SM’s register file.</p>
+        </details>
+      </details>
+    </details>
+    <p class="note">For a load from device memory with L1 caching enabled, each cache miss sends the request to the next level.</p>
+    <p class="memory-path">Warp load → SM’s L1 cache → GPU’s L2 cache → HBM3</p>
+    <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/#nvidia_h100_gpu_architecture_in-depth">NVIDIA’s GPU and SM block diagrams</a>
+  </section>
+
+  <section aria-labelledby="schedule-heading">
+    <h2 id="schedule-heading">Schedule four warps</h2>
+    <p>Each warp issues a load. Its add becomes ready six ticks later. Change how many warps can be resident together. A resident warp has resources on the SM and can issue an instruction when it is ready.</p>
+    <div class="controls">
+      <label for="resident">Resident warp limit
+        <select id="resident">
+          <option value="1">1 warp</option>
+          <option value="2" selected>2 warps</option>
+          <option value="4">4 warps</option>
+        </select>
+      </label>
+    </div>
+    <p class="result" id="schedule-result" role="status"></p>
+    <p class="note" id="timeline-key">L = load, W = waiting for data, R = ready to issue, A = add. A dash marks a queued or completed warp.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Warp timeline">
+      <table aria-label="Warp timeline by tick" aria-describedby="timeline-key" id="timeline"></table>
+    </div>
+    <p class="note">This model isolates one scheduler, with a single issue slot per tick. Warps enter individually and release their slot after the add. The H100 admits whole blocks and its load latency varies with the memory path.</p>
+  </section>
+
+  <section aria-labelledby="load-heading">
+    <h2 id="load-heading">Inspect a warp load</h2>
+    <p>Lane <var>i</var> reads one 4-byte FP32 word at index <code>offset + i × stride</code>. Try a stride of eight, or offset a contiguous load by one word.</p>
+    <div class="controls">
+      <label for="stride">Stride (words)
+        <select id="stride">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+          <option value="8">8</option>
+        </select>
+      </label>
+      <label for="offset">Offset from alignment
+        <select id="offset">
+          <option value="0">0 words</option>
+          <option value="1">1 word</option>
+        </select>
+      </label>
+      <label for="active">Active lanes
+        <select id="active">
+          <option value="all">All 32</option>
+          <option value="first">First 16</option>
+          <option value="even">Even lanes only</option>
+        </select>
+      </label>
+    </div>
+    <p class="result" id="load-result" role="status"></p>
+    <p class="note">Each box contains eight words. A number inside a word identifies the lane that reads it.</p>
+    <div id="sectors" class="sectors" role="list" aria-label="Touched memory sectors"></div>
+    <p class="note">The count covers distinct 32-byte sectors touched by this instruction. Cache hits and reuse can change how many bytes reach device memory.</p>
+  </section>
+  <noscript>The explorer requires JavaScript. The worked examples are available in the primer.</noscript>
+</main>
+<script>
+  const resident = document.querySelector("#resident");
+  const timeline = document.querySelector("#timeline");
+  const stride = document.querySelector("#stride");
+  const offset = document.querySelector("#offset");
+  const active = document.querySelector("#active");
+  const sectorList = document.querySelector("#sectors");
+
+  const loadLatency = 6;
+  const warpCount = 4;
+  const symbols = {
+    "Load": "L",
+    "Waiting for load": "W",
+    "Ready to load": "R",
+    "Ready to add": "R",
+    "Add": "A",
+    "Queued": "–",
+    "Complete": "–"
+  };
+
+  function scheduleWarps(limit) {
+    const warps = Array.from({ length: warpCount }, () => ({ state: "Queued", readyAt: 0 }));
+    const ticks = [];
+    let residentCount = 0;
+
+    while (warps.some(warp => warp.state !== "Complete")) {
+      const tick = ticks.length;
+      for (const warp of warps) {
+        if (warp.state === "Queued" && residentCount < limit) {
+          warp.state = "Ready to load";
+          residentCount += 1;
+        }
+        if (warp.state === "Waiting for load" && tick >= warp.readyAt) {
+          warp.state = "Ready to add";
+        }
+      }
+
+      const issued = warps.find(warp => warp.state === "Ready to add")
+        ?? warps.find(warp => warp.state === "Ready to load");
+      const instruction = issued?.state === "Ready to add" ? "Add" : "Load";
+      ticks.push({
+        issued: Boolean(issued),
+        states: warps.map(warp => warp === issued ? instruction : warp.state)
+      });
+
+      if (instruction === "Add") {
+        issued.state = "Complete";
+        residentCount -= 1;
+      } else if (issued) {
+        issued.state = "Waiting for load";
+        issued.readyAt = tick + loadLatency;
+      }
+    }
+    return ticks;
+  }
+
+  function renderSchedule() {
+    const ticks = scheduleWarps(Number(resident.value));
+    const headings = ticks.map((_, tick) => `<th scope="col">${tick + 1}</th>`).join("");
+    const rows = Array.from({ length: warpCount }, (_, warp) => {
+      const cells = ticks.map(tick => {
+        const state = tick.states[warp];
+        return `<td data-state="${state}" aria-label="${state}" title="${state}">${symbols[state]}</td>`;
+      }).join("");
+      return `<tr><th scope="row">Warp ${warp}</th>${cells}</tr>`;
+    }).join("");
+    const issueRow = ticks.map(tick => tick.issued ? "<td>Yes</td>" : "<td>Idle</td>").join("");
+    timeline.innerHTML = `<thead><tr><th scope="col">Tick</th>${headings}</tr></thead>
+      <tbody>${rows}<tr><th scope="row">Issued?</th>${issueRow}</tr></tbody>`;
+    const idle = ticks.filter(tick => !tick.issued).length;
+    document.querySelector("#schedule-result").textContent =
+      `${ticks.length} ticks · ${ticks.length - idle} instructions issued · ${idle} idle ticks`;
+  }
+
+  function renderLoad() {
+    const wordsPerSector = 8;
+    const bytesPerWord = 4;
+    const lanes = Array.from({ length: 32 }, (_, lane) => lane).filter(lane =>
+      active.value === "all" || (active.value === "first" ? lane < 16 : lane % 2 === 0)
+    );
+    const sectors = new Map();
+
+    for (const lane of lanes) {
+      const word = Number(offset.value) + lane * Number(stride.value);
+      const sector = Math.floor(word / wordsPerSector);
+      if (!sectors.has(sector)) sectors.set(sector, new Array(wordsPerSector).fill(null));
+      sectors.get(sector)[word % wordsPerSector] = lane;
+    }
+
+    const sectorBytes = wordsPerSector * bytesPerWord;
+    const used = lanes.length * bytesPerWord;
+    const covered = sectors.size * sectorBytes;
+    const utilization = Math.round(100 * used / covered);
+    document.querySelector("#load-result").textContent =
+      `${sectors.size} sectors · ${used} of ${covered} bytes requested (${utilization}%)`;
+
+    sectorList.innerHTML = [...sectors].map(([sector, words]) => {
+      const address = sector * sectorBytes;
+      const tiles = words.map((lane, index) => {
+        const wordAddress = address + index * bytesPerWord;
+        return lane === null
+          ? `<span class="word" aria-hidden="true"></span>`
+          : `<span class="word" data-read title="Lane ${lane} reads at byte ${wordAddress}">${lane}</span>`;
+      }).join("");
+      return `<div class="sector" role="listitem">Bytes ${address}–${address + sectorBytes - 1}
+        <div class="words">${tiles}</div></div>`;
+    }).join("");
+  }
+
+  resident.addEventListener("change", renderSchedule);
+  for (const control of [stride, offset, active]) control.addEventListener("change", renderLoad);
+  renderSchedule();
+  renderLoad();
+</script>
+</body>
+</html>

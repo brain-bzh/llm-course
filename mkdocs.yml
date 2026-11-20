@@ -66,6 +66,7 @@ nav:
   - External material: external-material.md
   - Primers:
       - PyTorch foundations: primers/torch-primitives.md
+      - GPU fundamentals (optional): primers/gpu-fundamentals.md
       - Distributed primitives: primers/distributed-primitives.md
   - Assessment: assessment.md
 
