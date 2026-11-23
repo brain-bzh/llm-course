@@ -198,29 +198,30 @@ _Sessions 25–26 and 28 (Modules 9 and 10)._
   study continuous batching, chunked prefill, prefix caching and production
   metrics.
 
-## Frontier architectures and efficient generation
+## Frontier architectures
 
-_Session 27 (optional Module 11 material)._
+_Session 27 (Module 11)._
 
-- **[Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192)**
-  — Foundational draft-and-verify paradigm and proof of provably unbiased rejection sampling.
-- **[DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437)**
-  — Multi-Head Latent Attention (MLA) for low-rank KV-cache compression, fine-grained DeepSeekMoE with isolated shared experts, auxiliary-loss-free load balancing, and Multi-Token Prediction (MTP).
-- **[Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)**
-  — Selective state-space models, input-dependent conditioning, and hardware-aware associative scan.
-- **[Transformers are SSMs: Generalized Models and State Space Duality](https://arxiv.org/abs/2405.21060)**
-  — Mamba-2 and theoretical unification of structured masked attention and state-space duality.
-- **[Linear Transformers with Learnable Kernel Functions (Delta Net)](https://arxiv.org/abs/2102.11174)**
-  — Applying the classical delta rule to associative recurrent memory to prevent catastrophic saturation.
-- **[Large Language Diffusion Models](https://arxiv.org/abs/2502.09992)**
-  — Masked diffusion formulation of non-autoregressive language modeling.
-- **[Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)**
-  — Direct patch projection and unified tokenization without frozen vision encoders.
-- **[Switch Transformers](https://arxiv.org/abs/2101.03961)**
-  — Sparse mixture-of-experts routing and its computation/communication trade-offs.
+- **[Mistral Large 4 on Hugging Face](https://huggingface.co/blog/mistral-large4)**
+  and **[Day-0 support for Mistral Large 4 on vLLM](https://vllm.ai/blog/2026-10-29-mistral-large-4)**
+  — MLA with DeepSeek Sparse Attention in every layer, indexer reuse,
+  cross-layer KV sharing, and the cache sizes a serving engine actually uses.
+- **[GLM-5.3-Flash architecture notes](https://sebastianraschka.com/blog/2026/glm-5-3-flash-architecture-notes.html)**
+  — Short summary of the 3:1 KDA / MLA-DSA hybrid with four-stream mHC.
+- **[LLM Architecture Gallery](https://sebastianraschka.com/llm-architecture-gallery/)**
+  — Side-by-side cards for recent open-weight models, with cache sizes per token.
+- **[DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models](https://arxiv.org/abs/2512.02556)**
+  — DeepSeek Sparse Attention and the lightning indexer.
+- **[Kimi Linear](https://arxiv.org/abs/2510.26692)**
+  — Kimi Delta Attention and a hybrid with NoPE MLA layers.
+- **[Gated Delta Networks](https://arxiv.org/abs/2412.06464)**
+  — The gated delta rule behind KDA.
+- **[mHC: Manifold-Constrained Hyper-Connections](https://arxiv.org/abs/2512.24880)**
+  — Multi-stream residuals with doubly stochastic mixing.
+- **[GLM-5: from Vibe Coding to Agentic Engineering](https://arxiv.org/abs/2602.15763)**
+  — The GLM-5 family and its adoption of DSA.
 - **[The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)**
-  — Deep dive into sparse Mixture-of-Experts architectures, routing mechanisms,
-  auxiliary load-balancing losses, and expert parallelism.
+  — Routing, load balancing and expert parallelism.
 
 ## Acknowledgements
 

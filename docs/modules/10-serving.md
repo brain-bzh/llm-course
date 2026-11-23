@@ -33,6 +33,13 @@ By the end of the module, students should be able to:
 
 ## From a decoder to an engine
 
+The KV-cache walkthrough followed one request at a time (batch size 1). A
+serving system receives independent requests at unpredictable times, with
+different prompt and output lengths. Unlike training on an available dataset,
+waiting indefinitely to fill a fixed batch would add user-facing latency, and
+shorter requests can finish while longer ones keep the batch busy. A short,
+bounded batching window can still trade a little latency for better throughput.
+
 A model forward pass accepts tensors and returns logits. A serving engine must
 also handle request arrival, tokenization, scheduling, memory allocation,
 sampling, stopping, streaming and failures.

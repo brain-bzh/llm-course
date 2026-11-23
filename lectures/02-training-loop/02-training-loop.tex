@@ -130,30 +130,6 @@
   \end{itemize}
 \end{frame}
 
-\begin{frame}{AdamW: decoupled weight decay and parameter groups}
-  \[
-    \theta_{t+1}=\theta_t-\eta_t\Bigl(\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}+\lambda\,\theta_t\Bigr)
-  \]
-  \begin{itemize}
-    \item \textbf{Decoupled:} $\lambda\theta_t$ is added to the step, not to $g_t$. It never enters $m_t$ or $v_t$, so it is not rescaled by $1/\sqrt{\hat v_t}$.
-  \end{itemize}
-  \vspace{2pt}
-  \begin{columns}[t]
-    \begin{column}{.48\linewidth}
-      \begin{block}{Decay group: $\lambda=0.1$}
-        \texttt{p.dim() >= 2}: \texttt{Linear} weight matrices, token and position embeddings.
-      \end{block}
-    \end{column}
-    \begin{column}{.48\linewidth}
-      \begin{block}{No-decay group: $\lambda=0$}
-        \texttt{p.dim() < 2}: biases, LayerNorm gains and biases.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vspace{6pt}
-  {\footnotesize Both groups go to one \texttt{AdamW}. Only trainable parameters are grouped; the tied embedding / LM-head matrix is counted once.}
-\end{frame}
-
 \section{Base loop}
 
 \begin{frame}{Where does the gradient come from?}
@@ -327,7 +303,7 @@
           \draw[dashed,neutrallight] (axis cs:0,0.1)--(axis cs:100,0.1);
           \addplot[very thick,accentdarkdraw,domain=0:9,samples=10] {(x+1)/11};
           \addplot[very thick,themebluedraw,domain=10:100,samples=91]
-            {0.1+0.45*(1+cos(deg(pi*(x-10)/90)))};
+          {0.1+0.45*(1+cos(deg(pi*(x-10)/90)))};
           \node[font=\scriptsize,text=accentdark,anchor=west] at (axis cs:12,0.42) {warmup};
           \node[font=\scriptsize,text=themebluedraw,anchor=west] at (axis cs:62,0.72) {cosine decay};
         \end{axis}
@@ -487,14 +463,14 @@
           % values logged by companion scripts/02_train_baseline.py (report.json records)
           \addplot[thick,themebluedraw,mark=*,mark size=1.1pt] coordinates {
             (5,4.932) (10,4.134) (15,5.262) (20,3.000) (25,2.730) (30,2.526)
-            (35,2.383) (40,2.309) (45,2.266) (50,2.233) (55,2.225) (60,2.222)};
+          (35,2.383) (40,2.309) (45,2.266) (50,2.233) (55,2.225) (60,2.222)};
           \addlegendentry{train (one batch)}
           \addplot[thick,signaldark,mark=square*,mark size=1.1pt] coordinates {
             (0,5.569) (5,4.854) (10,4.015) (15,3.400) (20,3.015) (25,2.824) (30,2.744)
-            (35,2.650) (40,2.618) (45,2.588) (50,2.573) (55,2.568) (60,2.566)};
+          (35,2.650) (40,2.618) (45,2.588) (50,2.573) (55,2.568) (60,2.566)};
           \addlegendentry{held-out}
           \draw[dashed,neutraldark] (axis cs:0,5.549)--(axis cs:62,5.549)
-            node[above left,font=\scriptsize,inner sep=1.5pt] {$\log 257\approx 5.55$};
+          node[above left,font=\scriptsize,inner sep=1.5pt] {$\log 257\approx 5.55$};
         \end{axis}
       \end{tikzpicture}
       \par
@@ -530,5 +506,32 @@
 {The base loop clears gradients, runs forward and backward, then updates parameters.}
 {Accumulation, clipping and scheduling operate around the optimizer update boundary.}
 {State assumptions in FLOP and memory estimates; compare baselines using held-out loss, token budgets and recovery checks.}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{AdamW: decoupled weight decay and parameter groups}
+  \[
+    \theta_{t+1}=\theta_t-\eta_t\Bigl(\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}+\lambda\,\theta_t\Bigr)
+  \]
+  \begin{itemize}
+    \item \textbf{Decoupled:} $\lambda\theta_t$ is added to the step, not to $g_t$. It never enters $m_t$ or $v_t$, so it is not rescaled by $1/\sqrt{\hat v_t}$.
+  \end{itemize}
+  \vspace{2pt}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Decay group: $\lambda=0.1$}
+        \texttt{p.dim() >= 2}: \texttt{Linear} weight matrices, token and position embeddings.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{No-decay group: $\lambda=0$}
+        \texttt{p.dim() < 2}: biases, LayerNorm gains and biases.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{6pt}
+  {\footnotesize Both groups go to one \texttt{AdamW}. Only trainable parameters are grouped; the tied embedding / LM-head matrix is counted once.}
+\end{frame}
 
 \end{document}

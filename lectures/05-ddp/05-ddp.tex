@@ -49,21 +49,25 @@
     \node[anchor=west,text=accentdark] at (3.4,2.2) {exchange};
     \draw[-{Stealth[length=4pt]},neutraldark] (.9,1.3)--(4.9,1.3) node[below left,inner sep=2pt] {time};
     \node[text=neutraldark] at (2.6,.45) {DDP: replicate the model,\\split the data};
-    % Capacity: state that overflows one device fits once it is divided.
+    % Capacity (grayed out: covered in Module 6): state that overflows one device fits once it is divided.
     \draw[neutrallight] (5.6,.1)--(5.6,4.6);
-    \node[font=\small\bfseries,text=themenavy] at (8.6,4.45) {Capacity};
-    \draw[mem] (6.3,1.3) rectangle (7.5,3.2);
-    \draw[state] (6.45,1.3) rectangle (7.35,3.2);
-    \draw[draw=alertdraw,fill=alertbg] (6.45,3.2) rectangle (7.35,3.95);
-    \node at (6.9,2.25) {model\\state};
-    \node[anchor=west,text=alertred] at (7.4,3.6) {does not fit};
-    \node at (6.9,1.05) {1 GPU};
-    \draw[mem] (8.75,1.3) rectangle (9.95,3.2);
-    \draw[mem] (10.15,1.3) rectangle (11.35,3.2);
-    \draw[state] (8.9,1.3) rectangle (9.8,2.63); \node at (9.35,1.95) {half};
-    \draw[state] (10.3,1.3) rectangle (11.2,2.63); \node at (10.75,1.95) {half};
-    \node at (9.35,1.05) {GPU 0}; \node at (10.75,1.05) {GPU 1};
-    \node[text=neutraldark] at (8.8,.45) {FSDP: shard model state};
+    \begin{scope}[opacity=0.45,text=halfgray,
+        state/.style={draw=neutrallight,fill=black!10},
+        mem/.style={draw=neutrallight,line width=.8pt}]
+      \node[font=\small\bfseries] at (8.6,4.45) {Capacity};
+      \draw[mem] (6.3,1.3) rectangle (7.5,3.2);
+      \draw[state] (6.45,1.3) rectangle (7.35,3.2);
+      \draw[draw=neutrallight,fill=black!5,dashed] (6.45,3.2) rectangle (7.35,3.95);
+      \node at (6.9,2.25) {model\\state};
+      \node[anchor=west] at (7.4,3.6) {does not fit};
+      \node at (6.9,1.05) {1 GPU};
+      \draw[mem] (8.75,1.3) rectangle (9.95,3.2);
+      \draw[mem] (10.15,1.3) rectangle (11.35,3.2);
+      \draw[state] (8.9,1.3) rectangle (9.8,2.63); \node at (9.35,1.95) {half};
+      \draw[state] (10.3,1.3) rectangle (11.2,2.63); \node at (10.75,1.95) {half};
+      \node at (9.35,1.05) {GPU 0}; \node at (10.75,1.05) {GPU 1};
+      \node at (8.8,.45) {FSDP: shard model state\\(next module)};
+    \end{scope}
   \end{tikzpicture}
   \par\vspace{6pt}
   \small\textbf{The new cost:} GPUs must exchange information, and a larger global batch can change the result.

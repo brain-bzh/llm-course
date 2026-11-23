@@ -294,35 +294,6 @@ Which metrics on both training and inference would decide whether this is a good
 
 \section{Storage and correctness}
 
-\begin{frame}{A shard is a flat array of token IDs}
-  \small
-  \begin{columns}[t]
-    \begin{column}{.50\linewidth}
-      \begin{center}
-        \begin{tabular}{@{}lcc@{}}
-          \toprule
-          Element type & $b$ (bytes) & largest ID \\
-          \midrule
-          \texttt{uint16} & 2 & $65{,}535$ \\
-          \texttt{uint32} & 4 & $\approx 4.3\times10^{9}$ \\
-          \bottomrule
-        \end{tabular}
-      \end{center}
-      \vspace{2pt}
-      File size $= n\,b$ bytes for $n$ tokens, with no header: the element type and tokenizer are part of the shard's schema.
-    \end{column}
-    \begin{column}{.46\linewidth}
-      \begin{block}{Memory mapping}
-        The file is not read into RAM. The operating system pages in only the slices a batch touches, so a shard can exceed host memory.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \begin{alertblock}{Check the range before writing}
-    GPT-2's $V=50{,}257$ fits \texttt{uint16}; a 100k vocabulary does not. A narrowing cast wraps silently ($70{,}000\to4{,}464$), so reject any ID outside the element type's range.
-  \end{alertblock}
-\end{frame}
-
 \begin{frame}{One contiguous slice creates inputs and targets}
   \small
   Tokens are loaded from a flat 1D map $s$ of $n$ tokens.
@@ -360,7 +331,7 @@ Which metrics on both training and inference would decide whether this is a good
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Data bugs rarely crash: know their symptoms}
+\begin{frame}{Data bugs rarely crash loudly: know their symptoms}
   \small
   \begin{center}
     \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.40\linewidth}>{\raggedright\arraybackslash}p{.54\linewidth}@{}}

@@ -119,25 +119,7 @@
   Final attention is $o/\ell$. Rescaling preserves contributions computed under earlier maxima.
 \end{frame}
 
-\begin{frame}{Four parallelism maps, one comparison}
-  \footnotesize
-  \begin{center}
-    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.10\linewidth}>{\raggedright\arraybackslash}p{.24\linewidth}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.28\linewidth}@{}}
-      \toprule
-      Scheme & Work split & Weights / state & Communication \\
-      \midrule
-      DDP & different batches & full replica & average gradients \\[4pt]
-      FSDP & different batches & persistent state shards & gather parameters; scatter gradients \\[4pt]
-      TP & same tokens, different features & weight slices & combine activation slices / partials \\[4pt]
-      CP & different positions, same sequence & full weights along CP axis & exchange attention K/V; combine weight gradients \\
-      \bottomrule
-    \end{tabular}
-  \end{center}
-  \vfill
-  \begin{block}{Read this as a map, not four exclusive choices}
-    Each row isolates one parallelism axis. Real systems can compose several axes across the same cluster.
-  \end{block}
-\end{frame}
+
 
 \section{Pipeline parallelism}
 
@@ -392,6 +374,27 @@
 {Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
 {Expert parallelism routes tokens through distributed MLPs using dispatch and return communication.}
 {Count independent axes once and test placement against measured memory and communication.}
+\begin{frame}{Parallelism at a glance}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.10\linewidth}>{\raggedright\arraybackslash}p{.25\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}>{\raggedright\arraybackslash}p{.29\linewidth}@{}}
+    \toprule
+    Method & What is split? & Why use it? & Main communication \\
+    \midrule
+    DDP & training batches & more throughput & gradient all-reduce \\[1pt]
+    FSDP & parameters and state & fit model state & gather weights; reduce-scatter gradients \\[1pt]
+    TP & layer width / heads & fit wide layers & activation collectives \\[1pt]
+    SP & tokens between TP regions & save activations & reduce-scatter / all-gather \\[1pt]
+    CP & sequence positions & fit long contexts & exchange K/V; sum gradients \\[1pt]
+    PP & model depth & fit deep models & send activations / gradients \\[1pt]
+    EP & experts & distribute experts & dispatch / return tokens \\[1pt]
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \scriptsize Methods compose: SP uses the TP group; in our layout FSDP and EP subdivide the DP group.
+  \smallsource{Adapted from the \href{https://huggingface.co/spaces/nanotron/ultrascale-playbook}{Ultra-Scale Playbook} and the course parallelism composer}
+\end{frame}
+
 \begin{frame}{Explore a complete parallelism layout}
   \begin{block}{Parallelism composer}
     \href{https://brain-bzh.github.io/llm-course/demos/parallelism-composer.html}{\textbf{Open the parallelism composer} $\nearrow$}

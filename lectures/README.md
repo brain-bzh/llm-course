@@ -7,8 +7,7 @@ Styled with the IMT Atlantique theme adapted from `llm4code`.
 ## Teaching Format
 
 The course has 11 modules and 32 teaching sessions of 75 minutes. Lecture 0
-introduces the course. Modules 1–10 have developed slide sources; Module 11
-remains a scaffold reserved for later authoring. The website chapters are the
+introduces the course. All 11 modules have developed slide sources. The website chapters are the
 conceptual source, and the [schedule](../docs/schedule.md) assigns each module
 to one or more sessions.
 

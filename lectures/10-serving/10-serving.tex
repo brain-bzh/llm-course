@@ -29,22 +29,75 @@
 
 \section{From model forward to inference engine}
 
-\begin{frame}{One engine iteration: from requests to GPU and back}
+\begin{frame}{From one request to an online service}
+  \small
+  Our KV-cache walkthrough followed \textbf{one request} ($B=1$). A service receives many independent requests and must decide which tokens to run together.
+  \vspace{4pt}
+  \begin{center}
+    \begin{tikzpicture}[x=.90cm,y=.76cm,every node/.style={font=\scriptsize,align=center},
+        pre/.style={draw=leafreddraw,fill=leafredbg},
+        dec/.style={draw=themebluedraw,fill=themebluebg},
+      arr/.style={-{Stealth[length=4pt]},thick,draw=accentdarkdraw}]
+      % Request A: early arrival, short prompt, short decode
+      \node[anchor=east,font=\small\bfseries] at (-.15,2.2) {A};
+      \draw[arr] (.2,2.85)--(.2,2.52);
+      \draw[pre] (.2,1.9) rectangle (1.0,2.5); \node at (.6,2.2) {P};
+      \draw[dec] (1.0,1.9) rectangle (2.6,2.5); \node at (1.8,2.2) {decode};
+      % Request B: slightly later, long prompt, long decode
+      \node[anchor=east,font=\small\bfseries] at (-.15,1.2) {B};
+      \draw[arr] (1.1,1.85)--(1.1,1.52);
+      \draw[pre] (1.1,.9) rectangle (2.9,1.5); \node at (2.0,1.2) {prefill};
+      \draw[dec] (2.9,.9) rectangle (6.1,1.5); \node at (4.5,1.2) {decode};
+      % Request C: later arrival, medium prompt, short decode
+      \node[anchor=east,font=\small\bfseries] at (-.15,.2) {C};
+      \draw[arr] (3.4,.85)--(3.4,.52);
+      \draw[pre] (3.4,-.1) rectangle (4.6,.5); \node at (4.0,.2) {prefill};
+      \draw[dec] (4.6,-.1) rectangle (6.6,.5); \node at (5.6,.2) {decode};
+      % Time axis
+      \draw[-{Stealth[length=4pt]},thick,neutraldark] (0,-.55)--(7.1,-.55) node[right] {time};
+      % Right-side summary + legend
+      \node[anchor=west,align=left,text=neutraldark] at (7.45,1.65) {arrivals differ\\prompt lengths differ\\output lengths differ};
+      \draw[pre] (7.5,.38) rectangle (7.85,.68);
+      \node[anchor=west,text=neutraldark] at (7.9,.53) {prefill};
+      \draw[dec] (9.1,.38) rectangle (9.45,.68);
+      \node[anchor=west,text=neutraldark] at (9.5,.53) {decode};
+    \end{tikzpicture}
+  \end{center}
+  \begin{block}{Why not wait for a fixed batch of $B$?}
+    Training can form batches from an available dataset. Online arrivals are unpredictable: waiting for a batch increases latency, and requests finish at different times.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Continuous batching repacks every iteration}
   \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
-    box/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.7cm,minimum height=.8cm},
-    cache/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.2cm,minimum height=.8cm},
-    arrow/.style={-{Stealth[length=4pt]},thick}]
-    \node[box] (queue) at (0,2) {waiting\\requests};
-    \node[box] (scheduler) at (2.5,2) {scheduler\\token budget};
-    \node[box] (runner) at (5,2) {GPU model\\one iteration};
-    \node[box] (sampler) at (7.5,2) {sample / stream\\update state};
-    \node[cache] (cache) at (4.2,.25) {KV manager\\allocate / free blocks};
-    \draw[arrow] (queue)--(scheduler); \draw[arrow] (scheduler)--(runner); \draw[arrow] (runner)--(sampler);
-    \draw[arrow,accentvioletdraw] (scheduler)--(cache); \draw[arrow,accentvioletdraw] (cache)--(runner);
-    \draw[arrow] (sampler.south) |- (7.5,-.75) -| node[pos=.25,below]{unfinished requests return} (scheduler.south);
+  \begin{tikzpicture}[x=.72cm,y=.54cm,every node/.style={font=\scriptsize}]
+    \node[anchor=west,font=\scriptsize\bfseries] at (2.2,6.65) {static batch};
+    \node[anchor=west,font=\scriptsize\bfseries,text=accentdark] at (2.2,2.85) {continuous batch};
+    \foreach \x in {0,...,7}{\node[text=neutraldark] at (2.6+\x,6.15) {\pgfmathparse{int(\x+1)}\pgfmathresult};}
+    \foreach \y/\name in {5.4/A,4.55/B,3.7/C}{\node[left] at (2.05,\y+.25) {\name};}
+    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,5.4) rectangle (3.2+\x,5.9);}
+    \fill[neutralbg] (5.2,5.4) rectangle (10.2,5.9); \node at (7.7,5.65) {idle padding};
+    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,4.55) rectangle (3.2+\x,5.05);}
+    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,3.7) rectangle (3.2+\x,4.2);}
+    \fill[neutralbg] (4.2,3.7) rectangle (10.2,4.2); \node at (7.2,3.95) {idle padding};
+    \draw[neutrallight] (2.2,3.7) rectangle (10.2,5.9);
+    \draw[neutrallight] (2.2,3.7)--(10.2,3.7); \draw[neutrallight] (2.2,4.55)--(10.2,4.55); \draw[neutrallight] (2.2,5.4)--(10.2,5.4);
+    \foreach \y/\name in {1.9/slot 1,1.05/slot 2,.2/slot 3}{\node[left] at (2.05,\y+.25) {\name};}
+    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
+    \fill[signaldark] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (5.7,2.15) {D};
+    \foreach \x in {4,5,6,7}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
+    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,1.05) rectangle (3.2+\x,1.55);}
+    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
+    \fill[signaldark] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (4.7,.45) {E};
+    \foreach \x in {3,4,5,6,7}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
+    \draw[neutrallight] (2.2,.2) rectangle (10.2,2.4);
+    \foreach \x in {0,...,7}{\draw[white] (2.2+\x,.2)--(2.2+\x,2.4);}
+    \node[anchor=west,draw=successdraw,fill=successbg,rounded corners,align=center,font=\scriptsize\bfseries] at (10.5,1.3) {orange: prefill\\blue: decode};
   \end{tikzpicture}
-  \par\vspace{5pt}\small At each iteration, choose token work, reserve cache space, run the model, then stream outputs and retire finished requests.
+  \vspace{2pt}
+  \begin{block}{Eliminating head-of-line idle slots}
+    In a static batch, finished requests hold slots idle until the longest member completes. Continuous batching repacks active decodes and new prefills at every iteration.
+  \end{block}
 \end{frame}
 
 \begin{frame}{Prefill and decode compete for the same device}
@@ -75,57 +128,25 @@
   \par\vspace{4pt}
   \small An iteration that prefills $N_{\text{prefill}}$ prompt tokens lasts, to first order,
   $t_{\text{iter}}=t_{\text{step}}+c_{\text{prefill}}\,N_{\text{prefill}}$.\par\vspace{3pt}
-  Every request decoding in it waits $t_{\text{iter}}$ for its token: one long prompt stretches every inter-token gap.
+  Every request decoding in it waits $t_{\text{iter}}$ for its token: admitting a long prefill stretches every inter-token gap.
 \end{frame}
 
-\begin{frame}{Static batching waits for the slowest request}
-  \begin{center}
-    \begin{tikzpicture}[x=.7cm,y=.55cm,every node/.style={font=\scriptsize}]
-      \foreach \y/\name in {3/A,2/B,1/C}{\node[left] at (0,\y+.25) {\name};}
-      \fill[themebluecard] (0,3) rectangle (4,3.5);
-      \fill[neutralbg] (4,3) rectangle (8,3.5);
-      \fill[themebluecard] (0,2) rectangle (8,2.5);
-      \fill[themebluecard] (0,1) rectangle (2.5,1.5);
-      \fill[neutralbg] (2.5,1) rectangle (8,1.5);
-      \draw (0,3) rectangle (8,3.5); \draw (0,2) rectangle (8,2.5); \draw (0,1) rectangle (8,1.5);
-      \node at (6,3.25) {idle padding}; \node at (5.25,1.25) {idle padding};
-    \end{tikzpicture}
-  \end{center}
-  \begin{alertblock}{Head-of-line effect}
-    Completed sequences occupy batch slots until the longest member finishes. New work cannot enter even when capacity is available.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Continuous batching repacks every iteration}
+\begin{frame}{One engine iteration: from requests to GPU and back}
   \centering
-  \begin{tikzpicture}[x=.72cm,y=.56cm,every node/.style={font=\scriptsize}]
-    \node[anchor=west,font=\scriptsize\bfseries] at (2.2,6.65) {static batch};
-    \node[anchor=west,font=\scriptsize\bfseries,text=accentdark] at (2.2,2.85) {continuous batch};
-    \foreach \x in {0,...,7}{\node[text=neutraldark] at (2.6+\x,6.15) {\pgfmathparse{int(\x+1)}\pgfmathresult};}
-    \foreach \y/\name in {5.4/A,4.55/B,3.7/C}{\node[left] at (2.05,\y+.25) {\name};}
-    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,5.4) rectangle (3.2+\x,5.9);}
-    \fill[neutralbg] (5.2,5.4) rectangle (10.2,5.9); \node at (7.7,5.65) {idle};
-    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,4.55) rectangle (3.2+\x,5.05);}
-    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,3.7) rectangle (3.2+\x,4.2);}
-    \fill[neutralbg] (4.2,3.7) rectangle (10.2,4.2); \node at (7.2,3.95) {idle};
-    \draw[neutrallight] (2.2,3.7) rectangle (10.2,5.9);
-    \draw[neutrallight] (2.2,3.7)--(10.2,3.7); \draw[neutrallight] (2.2,4.55)--(10.2,4.55); \draw[neutrallight] (2.2,5.4)--(10.2,5.4);
-    \foreach \y/\name in {1.9/slot 1,1.05/slot 2,.2/slot 3}{\node[left] at (2.05,\y+.25) {\name};}
-    \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
-    \fill[signaldark] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (5.7,2.15) {D};
-    \foreach \x in {4,5,6,7}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
-    \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,1.05) rectangle (3.2+\x,1.55);}
-    \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
-    \fill[signaldark] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (4.7,.45) {E};
-    \foreach \x in {3,4,5,6,7}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
-    \draw[neutrallight] (2.2,.2) rectangle (10.2,2.4);
-    \foreach \x in {0,...,7}{\draw[white] (2.2+\x,.2)--(2.2+\x,2.4);}
-    \node[anchor=west,draw=successdraw,fill=successbg,rounded corners,align=center,font=\scriptsize\bfseries] at (10.5,1.3) {orange: prefill\\blue: decode};
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
+      box/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.7cm,minimum height=.8cm},
+      cache/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.2cm,minimum height=.8cm},
+    arrow/.style={-{Stealth[length=4pt]},thick}]
+    \node[box] (queue) at (0,2) {waiting\\requests};
+    \node[box] (scheduler) at (2.5,2) {scheduler\\token budget};
+    \node[box] (runner) at (5,2) {GPU model\\one iteration};
+    \node[box] (sampler) at (7.5,2) {sample / stream\\update state};
+    \node[cache] (cache) at (4.2,.25) {KV manager\\allocate / free blocks};
+    \draw[arrow] (queue)--(scheduler); \draw[arrow] (scheduler)--(runner); \draw[arrow] (runner)--(sampler);
+    \draw[arrow,accentvioletdraw] (scheduler)--(cache); \draw[arrow,accentvioletdraw] (cache)--(runner);
+    \draw[arrow] (sampler.south) |- (7.5,-.75) -| node[pos=.25,below]{unfinished requests return} (scheduler.south);
   \end{tikzpicture}
-  \vspace{3pt}
-  \begin{block}{Scheduling unit}
-    Repack useful decode tokens and prefill chunks every step, subject to token and KV-block budgets.
-  \end{block}
+  \par\vspace{5pt}\small Each iteration repacks active requests under two constraints we unpack next: a \textbf{token budget} (to keep prefills from stalling decodes) and \textbf{KV-block capacity}.
 \end{frame}
 
 \section{Token and memory scheduling}
@@ -170,7 +191,7 @@
     \node[anchor=east,font=\small\bfseries] at (-.4,3) {logical};
     \foreach \i/\label in {0/{0--3},1/{4--7},2/{8--9}}{
       \fill[themebluebg,draw=themebluedraw] (\i*2,2.5) rectangle (\i*2+1.7,3.5);
-      \node at (\i*2+.85,3) {block \i\\tokens \label}; }
+    \node at (\i*2+.85,3) {block \i\\tokens \label}; }
     \node[anchor=east,font=\small\bfseries] at (-.4,1.35) {physical};
     \foreach \i in {0,...,6}{\draw[neutrallight] (\i*1.05,1) rectangle (\i*1.05+.9,1.7); \node[font=\scriptsize,text=neutraldark] at (\i*1.05+.45,.72) {\i};}
     \fill[accentdarkbg,draw=accentdarkdraw] (4.2,1) rectangle (5.1,1.7); \node at (4.65,1.35) {0};
@@ -180,9 +201,13 @@
     \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (2.85,2.5)--(1.5,1.72);
     \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (4.85,2.5)--(6.75,1.72);
   \end{tikzpicture}
-  \par\vspace{4pt}
-  \small Block table: $[4,1,6]$. A cached length $T$ with $N_{\text{slot}}$ token slots per block needs $N_{\text{blocks}}=\lceil T/N_{\text{slot}}\rceil$ blocks: here $\lceil 10/4\rceil=3$, with two unused slots.
-  \par\footnotesize One conceptual block holds the K and V of its token range for every layer.
+  \par\vspace{3pt}
+  {\footnotesize\textbf{Block table:} $[4,1,6]$ \;$\cdot$\; $N_{\text{blocks}}=\lceil T/N_{\text{slot}}\rceil=\lceil 10/4\rceil=3$ (2 unused slots).}
+  \vspace{2pt}
+  \begin{block}{PagedAttention}
+    Allocating non-contiguous physical blocks on demand eliminates KV-cache fragmentation; this is the core optimization powering \textbf{vLLM}.
+  \end{block}
+  \smallsource{Kwon et al., PagedAttention / vLLM (SOSP 2023)}
 \end{frame}
 
 \begin{frame}{Explore batching and paged allocation}
@@ -251,14 +276,14 @@
   \end{itemize}
 \end{frame}
 
-\section{Measure the service, not a toy loop}
+\section{Serving metrics beyond throughput}
 
 \begin{frame}{A request has several latency clocks}
   \centering
   \begin{tikzpicture}[x=.85cm,y=.8cm,every node/.style={font=\scriptsize,align=center}]
     \draw[-{Stealth[length=4pt]},thick] (0,1)--(10.4,1) node[right]{time};
     \foreach \x/\lab in {0/arrival,2/admit,5/first token,7/second token,9/finish}{
-      \draw[thick] (\x,.85)--(\x,1.15); \node[above] at (\x,1.2) {\lab}; }
+    \draw[thick] (\x,.85)--(\x,1.15); \node[above] at (\x,1.2) {\lab}; }
     \draw[<->,thick,accentdark] (0,.35)--node[above]{queue}(2,.35);
     \draw[<->,thick,themebluedraw] (0,-.35)--node[above]{TTFT}(5,-.35);
     \draw[<->,thick,leafreddraw] (5,-1.05)--node[above]{ITL}(7,-1.05);

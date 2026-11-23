@@ -16,7 +16,9 @@ real improvement from a plausible story. Concretely, each module:
 4. adds evidence or an interpretation to the continuous course project.
 
 Modules 1–9 include required practical work. Module 10 is an instructor-led
-serving demonstration with interpretation questions. Module 11 is placeholder material for an open session, with optional exploration. Neither final module adds a mandatory coding
+serving demonstration with interpretation questions. Module 11 is a single
+lecture that reads two recent frontier models through the course's cost models,
+with an in-class exercise. Neither final module adds a mandatory coding
 assignment or report; project studios remain reserved for the reproduction.
 
 Slides and companion implementation guides are built from this material
@@ -129,7 +131,7 @@ and a measurement is proposed to test the placement.
 
 ## 9. KV-cached decoding
 
-**Understand:** prefill versus decode, cache shape and size, MHA/MQA/GQA and why
+**Understand:** prefill versus decode, cache shape and size, MHA, GQA/MQA and MLA, and why
 decode is often bandwidth-bound.
 
 **Implement:** cached autoregressive generation in the course model.
@@ -150,17 +152,18 @@ caching and scheduling.
 
 [Open the module page →](10-serving.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/10-serving.pdf){ target="_blank" } · [Interactive simulator :material-play-circle-outline:](../demos/continuous-batching.html){ target="_blank" }
 
-## 11. Frontier architectures and efficient generation (placeholder)
+## 11. Frontier architectures
 
-Session 27 is open; its final content is to be decided. This module is optional reading.
+**Understand:** the design of Mistral Large 4 and GLM-5.3-Flash, read from
+their `config.json`: MLA with and without RoPE, DeepSeek Sparse Attention and
+indexer reuse, cross-layer KV sharing, Kimi Delta Attention in a 3:1 hybrid,
+four-stream mHC residuals, and expert granularity.
 
-**Understand:** three bottleneck comparisons—speculative verification cost,
-MLA cache memory, and recurrent state versus a growing KV cache.
+**Practice:** compute parameters, cached bytes per token, recurrent state and
+the cache/state crossover for an unseen config.
 
-**Discuss:** what cost each mechanism reduces and what new cost or limitation
-it introduces. Diffusion, multimodality, and detailed MoE/MTP are optional reading.
-
-**Explain:** why expected accepted tokens are not wall-clock speedup, and why
-constant state in a recurrent layer is not unlimited memory of the input.
+**Explain:** for each design choice, the cost it reduces and the cost it
+adds: an $\mathcal{O}(T)$ indexer scan, a fixed per-request state, a wider
+residual, less compute per All-to-All byte.
 
 [Open the module page →](11-frontier-architectures.md) · [Lecture slides (PDF) :material-file-pdf-box:](../slides/11-frontier-architectures.pdf){ target="_blank" }

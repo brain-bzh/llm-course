@@ -74,34 +74,40 @@
 
 \begin{frame}{Column parallelism: split output features}
   \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.95,transform shape,every node/.style={font=\scriptsize,align=center},
     rank/.style={font=\small\bfseries,text=themenavy}]
-    \node[rank] at (-5.2,2.2) {GPU 0}; \node[rank] at (-5.2,.15) {GPU 1};
-    \foreach \y/\i/\col in {2.2/0/themenavy,.15/1/signaldark}{
-      \fill[themebluebg,draw=themebluedraw] (-4.3,\y-.42) rectangle (-2.95,\y+.42);
-      \node at (-3.63,\y) {$X$};
+    \node[rank] at (-5.0,2.15) {GPU 0}; \node[rank] at (-5.0,.1) {GPU 1};
+    \foreach \y/\i/\col in {2.15/0/themenavy,.1/1/signaldark}{
+      \fill[themebluebg,draw=themebluedraw] (-4.15,\y-.40) rectangle (-2.95,\y+.40);
+      \node at (-3.55,\y) {$X$};
       \node at (-2.65,\y) {$\times$};
       \ifnum\i=0
-      \fill[\col,draw=\col] (-2.3,\y-.65) rectangle (-1.55,\y+.65);
-      \node[text=white] at (-1.93,\y) {$W_0$};
-      \draw[\col,dashed] (-1.55,\y-.65) rectangle (-.8,\y+.65);
-      \fill[\col,draw=\col] (-.1,\y-.42) rectangle (.75,\y+.42);
-      \node[text=white] at (.33,\y) {$Y_0$};
-      \draw[\col,dashed] (.75,\y-.42) rectangle (1.6,\y+.42);
+      \fill[\col,draw=\col] (-2.35,\y-.62) rectangle (-1.62,\y+.62);
+      \node[text=white] at (-1.99,\y) {$W_0$};
+      \draw[\col,dashed] (-1.62,\y-.62) rectangle (-.89,\y+.62);
+      \fill[\col,draw=\col] (-.22,\y-.40) rectangle (.55,\y+.40);
+      \node[text=white] at (.17,\y) {$Y_0$};
+      \draw[\col,dashed] (.55,\y-.40) rectangle (1.32,\y+.40);
       \else
-      \draw[\col,dashed] (-2.3,\y-.65) rectangle (-1.55,\y+.65);
-      \fill[\col,draw=\col] (-1.55,\y-.65) rectangle (-.8,\y+.65);
-      \node[text=white] at (-1.18,\y) {$W_1$};
-      \draw[\col,dashed] (-.1,\y-.42) rectangle (.75,\y+.42);
-      \fill[\col,draw=\col] (.75,\y-.42) rectangle (1.6,\y+.42);
-      \node[text=white] at (1.18,\y) {$Y_1$};
+      \draw[\col,dashed] (-2.35,\y-.62) rectangle (-1.62,\y+.62);
+      \fill[\col,draw=\col] (-1.62,\y-.62) rectangle (-.89,\y+.62);
+      \node[text=white] at (-1.26,\y) {$W_1$};
+      \draw[\col,dashed] (-.22,\y-.40) rectangle (.55,\y+.40);
+      \fill[\col,draw=\col] (.55,\y-.40) rectangle (1.32,\y+.40);
+      \node[text=white] at (.94,\y) {$Y_1$};
       \fi
-      \node at (-.45,\y) {$=$};
+      \node at (-.55,\y) {$=$};
     }
-    \node[anchor=west,align=left] at (2.1,2.2) {same input $X$\\left weight columns\\left output features};
-    \node[anchor=west,align=left] at (2.1,.15) {same input $X$\\right weight columns\\right output features};
-    \node[font=\small] at (-2.8,-1.1) {$Y=[XW_0\mid XW_1]$};
-    \node[text=accentdark,font=\small\bfseries] at (2.2,-1.1) {No forward collective};
+    % All-gather to reconstruct full replicated Y
+    \node[draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.05cm,minimum height=.95cm] (ag) at (2.95,1.12) {all-gather\\$[Y_0\mid Y_1]$};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (1.38,2.15)--(ag.north west);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (1.38,.1)--(ag.south west);
+    \fill[themebluebg,draw=themebluedraw] (4.45,.75) rectangle (5.65,1.5);
+    \node at (5.05,1.12) {$Y$};
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (ag)--(4.45,1.12);
+    \node[align=center] at (5.05,.25) {full result\\on both GPUs};
+    \node[font=\small] at (-2.1,-1.05) {$Y=[XW_0\mid XW_1]$};
+    \node[text=accentdark,font=\small\bfseries] at (2.8,-1.05) {Skip all-gather if the next layer takes sharded $Y_i$};
   \end{tikzpicture}
   \par\vspace{3pt}\footnotesize Filled = local shard; dashed = held by the other GPU. Both GPUs process the same tokens.
   \par PyTorch stores $W^{\top}$ (out $\times$ in): with $N_{tp}$ tensor-parallel ranks, rank $r$ holds rows $[\,r\,d_{\text{out}}/N_{tp},\ (r+1)\,d_{\text{out}}/N_{tp})$ and their biases.
@@ -109,10 +115,14 @@
 
 \begin{frame}{Row parallelism: sum partial outputs}
   \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.88,transform shape,every node/.style={font=\scriptsize,align=center},
     rank/.style={font=\small\bfseries,text=themenavy}]
-    \node[rank] at (-5.0,2.15) {GPU 0}; \node[rank] at (-5.0,.1) {GPU 1};
+    \node[rank] at (-6.35,2.15) {GPU 0}; \node[rank] at (-6.35,.1) {GPU 1};
     \foreach \y/\i/\col in {2.15/0/themenavy,.1/1/signaldark}{
+      % Local slice from full replicated X (no communication)
+      \fill[themebluebg,draw=themebluedraw] (-5.65,\y-.38) rectangle (-4.8,\y+.38);
+      \node at (-5.22,\y) {$X$};
+      \draw[-{Stealth[length=3.5pt]},neutraldark] (-4.78,\y)--(-4.14,\y) node[midway,above,font=\tiny] {slice};
       \fill[\col,draw=\col] (-4.1,\y-.38) rectangle (-3.25,\y+.38); \node[text=white] at (-3.68,\y) {$X_{\i}$};
       \node at (-2.95,\y) {$\times$};
       \ifnum\i=0
@@ -125,6 +135,7 @@
       \node at (-.82,\y) {$=$};
       \fill[\col!25,draw=\col] (-.5,\y-.38) rectangle (.85,\y+.38); \node at (.18,\y) {$Z_{\i}$};
     }
+    \node[font=\scriptsize,align=center] at (-5.15,-1.1) {local slice\\(no comm.)};
     \node[font=\scriptsize,align=left] at (-1.9,-1.1) {matching input and\\weight row shards};
     \node[draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.2cm,minimum height=1cm] (sum) at (2.55,1.12) {all-reduce\\$Z_0+Z_1$};
     \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.9,2.15)--(sum.north west);
@@ -263,25 +274,68 @@
   Every operation must declare what is sharded, what is replicated, and what collective changes that layout. One block needs two forward all-reduces (attention, MLP) and two backward.
 \end{frame}
 
-\begin{frame}{Sequence parallelism shards the residual stream}
+\begin{frame}{Sequence parallelism: follow four tokens across two GPUs}
   \centering
-  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
-      op/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.0cm,minimum height=.85cm},
-    comm/.style={draw=accentvioletdraw,fill=accentvioletbg,minimum width=2.0cm,minimum height=.85cm}]
-    \node[op] (partial) at (0,1.6) {TP output\\partial on each GPU};
-    \node[comm] (rs) at (3,1.6) {reduce-scatter\\sum + split tokens};
-    \node[op] (local) at (6,1.6) {norm / residual\\local token shards};
-    \node[comm] (ag) at (9,1.6) {all-gather\\restore tokens};
-    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (partial)--(rs);
-    \draw[-{Stealth[length=4pt]},thick] (rs)--(local);
-    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (local)--(ag);
-    \node[font=\scriptsize] at (6,.45) {GPU 0: \textcolor{themenavy}{tokens 0--1} \quad GPU 1: \textcolor{leafreddraw}{tokens 2--3}};
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      first/.style={draw=themebluedraw,fill=themebluebg},
+      second/.style={draw=leafreddraw,fill=leafredbg},
+      absent/.style={draw=neutraldark!45,densely dashed,fill=white},
+      comm/.style={-{Stealth[length=4pt]},very thick,draw=accentvioletdraw},
+      local/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
+    % Four token slots per column; blank slots make the sequence split visible.
+    \node[font=\small\bfseries] at (.75,3.45) {1. TP output};
+    \node[font=\small\bfseries] at (3.4,3.45) {2. Sum + split};
+    \node[font=\small\bfseries] at (6.05,3.45) {3. Local ops};
+    \node[font=\small\bfseries] at (8.7,3.45) {4. Gather};
+    \node[anchor=east,font=\small\bfseries] at (-.35,2.55) {GPU 0};
+    \node[anchor=east,font=\small\bfseries] at (-.35,1.20) {GPU 1};
+    \foreach \r/\y in {0/2.55,1/1.20} {
+      \foreach \i in {0,1,2,3} {
+        \ifnum\i<2 \def\col{first}\else \def\col{second}\fi
+        \node[\col,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (\i*.46,\y) {$p^{\r}_{\i}$};
+        \node[\col,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (7.95+\i*.46,\y) {$u_{\i}$};
+      }
+    }
+    % Outlined slots are a guide to the global token positions, not allocated values.
+    \foreach \x in {2.65,5.30} {
+      \foreach \i in {2,3} {
+        \node[absent,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (\x+\i*.46,2.55) {};
+      }
+      \foreach \i in {0,1} {
+        \node[absent,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (\x+\i*.46,1.20) {};
+      }
+    }
+    \foreach \i in {0,1} {
+      \node[first,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (2.65+\i*.46,2.55) {$y_{\i}$};
+      \node[first,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (5.30+\i*.46,2.55) {$u_{\i}$};
+    }
+    \foreach \i in {2,3} {
+      \node[second,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (2.65+\i*.46,1.20) {$y_{\i}$};
+      \node[second,minimum width=.42cm,minimum height=.55cm,inner sep=0pt] at (5.30+\i*.46,1.20) {$u_{\i}$};
+    }
+    \foreach \y in {2.55,1.20} {
+      \draw[comm] (1.65,\y)--(2.4,\y);
+      \draw[local] (4.3,\y)--(5.05,\y);
+      \draw[comm] (6.95,\y)--(7.70,\y);
+    }
+    \draw[comm,densely dashed] (1.65,2.40)--(2.40,1.35);
+    \draw[comm,densely dashed] (1.65,1.35)--(2.40,2.40);
+    \draw[comm,densely dashed] (6.95,2.40)--(7.70,1.35);
+    \draw[comm,densely dashed] (6.95,1.35)--(7.70,2.40);
+    \node[text=accentvioletdraw,font=\tiny] at (2.025,3.03) {reduce-\\scatter};
+    \node[font=\tiny] at (4.675,1.87) {norm, add\\residual};
+    \node[text=accentvioletdraw,font=\tiny] at (7.325,3.03) {all-\\gather};
+    \node[font=\scriptsize,text=neutraldark] at (.7,.40) {partial values};
+    \node[font=\scriptsize,text=neutraldark] at (3.4,.40) {complete token shards};
+    \node[font=\scriptsize,text=neutraldark] at (6.05,.40) {shards stay local};
+    \node[font=\scriptsize,text=neutraldark] at (8.7,.40) {full sequence};
   \end{tikzpicture}
-  \par\vspace{8pt}
-  \begin{block}{Memory versus communication}
-    Shard activations between tensor-parallel regions; gather the input needed by the next region. These transitions change layout, not model math.
+  \vspace{-2pt}
+  \begin{block}{Same model, less replicated activation memory}
+    For token $i$, $y_i=p_i^0+p_i^1$. Each GPU keeps two complete tokens for local residual and per-token normalization; all-gather supplies all four tokens to the next TP region.
   \end{block}
-  \footnotesize Example assumes per-token normalization and dropout; other operations may require communication.
+  \scriptsize Each cell is a token’s hidden vector. Dashed slots are not stored on that GPU.
+  \smallsource{Korthikanti et al., \href{https://arxiv.org/abs/2205.05198}{Reducing Activation Recomputation in Large Transformer Models} (2022)}
 \end{frame}
 
 \begin{frame}{Forward and backward collectives are conjugate}

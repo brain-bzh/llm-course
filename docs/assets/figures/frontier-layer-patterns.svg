@@ -1,0 +1,303 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 334" role="img" aria-labelledby="title desc">
+  <title id="title">Layer patterns of GLM-5.2, Mistral Large 4 and GLM-5.3-Flash</title>
+  <desc id="desc">One tile per decoder layer. GLM-5.2 has 78 MLA layers with sparse attention; one in four owns an indexer. Mistral Large 4 has 72 MLA layers; 44 own an indexer and nine late layers reuse the KV cache of layer 35. GLM-5.3-Flash has 45 layers: three Kimi Delta Attention layers, then one MLA layer, repeated.</desc>
+  <defs>
+    <style>
+      text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .panel{fill:#f3f7fa;stroke:#d8e2e8;stroke-width:1.5}
+      .label{fill:#10233f;font-size:19px;font-weight:700}
+      .note{fill:#526476;font-size:16px}
+      .mla{fill:#ffede5;stroke:#c16c46;stroke-width:1.2}
+      .kda{fill:#e2f4f4;stroke:#007f86;stroke-width:1.2}
+      .shared{fill:#ffffff;stroke:#c16c46;stroke-width:1.6;stroke-dasharray:3 2}
+      .idx{fill:#10233f}
+      @media(prefers-color-scheme:dark){.panel{fill:#182534;stroke:#2c4052}.label{fill:#f3f7fa}.note{fill:#b9c8d5}.mla{fill:#493025;stroke:#ed9c78}.kda{fill:#173b40;stroke:#54d2d8}.shared{fill:#182534;stroke:#ed9c78}.idx{fill:#f3f7fa}}
+    </style>
+  </defs>
+  <rect class="panel" x="6" y="8" width="948" height="318" rx="12"/>
+  <text class="label" x="26" y="54">GLM-5.2</text>
+  <text class="note" x="26" y="76">78 layers</text>
+  <rect class="mla" x="212.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="215.7" cy="76" r="2.6"/>
+  <rect class="mla" x="221.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="225.1" cy="76" r="2.6"/>
+  <rect class="mla" x="230.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="234.5" cy="76" r="2.6"/>
+  <rect class="mla" x="240.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="249.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="259.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="268.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="272.1" cy="76" r="2.6"/>
+  <rect class="mla" x="277.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="287.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="296.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="306.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="309.7" cy="76" r="2.6"/>
+  <rect class="mla" x="315.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="324.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="334.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="343.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="347.3" cy="76" r="2.6"/>
+  <rect class="mla" x="353.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="362.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="371.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="381.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="384.9" cy="76" r="2.6"/>
+  <rect class="mla" x="390.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="400.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="409.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="418.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="422.5" cy="76" r="2.6"/>
+  <rect class="mla" x="428.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="437.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="447.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="456.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="460.1" cy="76" r="2.6"/>
+  <rect class="mla" x="465.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="475.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="484.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="494.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="497.7" cy="76" r="2.6"/>
+  <rect class="mla" x="503.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="512.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="522.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="531.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="535.3" cy="76" r="2.6"/>
+  <rect class="mla" x="541.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="550.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="559.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="569.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="572.9" cy="76" r="2.6"/>
+  <rect class="mla" x="578.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="588.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="597.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="606.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="610.5" cy="76" r="2.6"/>
+  <rect class="mla" x="616.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="625.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="635.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="644.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="648.1" cy="76" r="2.6"/>
+  <rect class="mla" x="653.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="663.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="672.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="682.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="685.7" cy="76" r="2.6"/>
+  <rect class="mla" x="691.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="700.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="710.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="719.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="723.3" cy="76" r="2.6"/>
+  <rect class="mla" x="729.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="738.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="747.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="757.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="760.9" cy="76" r="2.6"/>
+  <rect class="mla" x="766.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="776.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="785.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="794.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="798.5" cy="76" r="2.6"/>
+  <rect class="mla" x="804.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="813.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="823.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="832.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="836.1" cy="76" r="2.6"/>
+  <rect class="mla" x="841.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="851.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="860.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="870.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="873.7" cy="76" r="2.6"/>
+  <rect class="mla" x="879.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="888.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="898.2" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="907.6" y="34" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="911.3" cy="76" r="2.6"/>
+  <rect class="mla" x="917.0" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="926.4" y="34" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="935.8" y="34" width="7.4" height="34" rx="1.5"/>
+  <text class="label" x="26" y="132">Mistral Large 4</text>
+  <text class="note" x="26" y="154">72 layers</text>
+  <rect class="mla" x="212.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="215.7" cy="154" r="2.6"/>
+  <rect class="mla" x="221.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="225.1" cy="154" r="2.6"/>
+  <rect class="mla" x="230.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="234.5" cy="154" r="2.6"/>
+  <rect class="mla" x="240.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="243.9" cy="154" r="2.6"/>
+  <rect class="mla" x="249.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="253.3" cy="154" r="2.6"/>
+  <rect class="mla" x="259.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="262.7" cy="154" r="2.6"/>
+  <rect class="mla" x="268.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="272.1" cy="154" r="2.6"/>
+  <rect class="mla" x="277.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="281.5" cy="154" r="2.6"/>
+  <rect class="mla" x="287.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="290.9" cy="154" r="2.6"/>
+  <rect class="mla" x="296.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="300.3" cy="154" r="2.6"/>
+  <rect class="mla" x="306.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="309.7" cy="154" r="2.6"/>
+  <rect class="mla" x="315.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="319.1" cy="154" r="2.6"/>
+  <rect class="mla" x="324.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="328.5" cy="154" r="2.6"/>
+  <rect class="mla" x="334.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="337.9" cy="154" r="2.6"/>
+  <rect class="mla" x="343.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="347.3" cy="154" r="2.6"/>
+  <rect class="mla" x="353.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="356.7" cy="154" r="2.6"/>
+  <rect class="mla" x="362.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="366.1" cy="154" r="2.6"/>
+  <rect class="mla" x="371.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="381.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="390.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="394.3" cy="154" r="2.6"/>
+  <rect class="mla" x="400.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="403.7" cy="154" r="2.6"/>
+  <rect class="mla" x="409.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="418.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="428.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="431.9" cy="154" r="2.6"/>
+  <rect class="mla" x="437.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="441.3" cy="154" r="2.6"/>
+  <rect class="mla" x="447.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="456.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="465.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="469.5" cy="154" r="2.6"/>
+  <rect class="mla" x="475.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="478.9" cy="154" r="2.6"/>
+  <rect class="mla" x="484.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="494.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="503.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="507.1" cy="154" r="2.6"/>
+  <rect class="mla" x="512.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="516.5" cy="154" r="2.6"/>
+  <rect class="mla" x="522.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="531.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="541.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="544.7" cy="154" r="2.6"/>
+  <rect class="mla" x="550.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="554.1" cy="154" r="2.6"/>
+  <rect class="mla" x="559.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="569.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="578.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="582.3" cy="154" r="2.6"/>
+  <rect class="mla" x="588.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="591.7" cy="154" r="2.6"/>
+  <rect class="mla" x="597.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="606.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="616.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="619.9" cy="154" r="2.6"/>
+  <rect class="mla" x="625.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="629.3" cy="154" r="2.6"/>
+  <rect class="mla" x="635.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="644.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="653.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="657.5" cy="154" r="2.6"/>
+  <rect class="mla" x="663.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="666.9" cy="154" r="2.6"/>
+  <rect class="mla" x="672.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="682.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="691.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="695.1" cy="154" r="2.6"/>
+  <rect class="mla" x="700.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="704.5" cy="154" r="2.6"/>
+  <rect class="mla" x="710.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="719.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="729.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="732.7" cy="154" r="2.6"/>
+  <rect class="mla" x="738.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="742.1" cy="154" r="2.6"/>
+  <rect class="mla" x="747.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="757.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="766.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="770.3" cy="154" r="2.6"/>
+  <rect class="mla" x="776.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="779.7" cy="154" r="2.6"/>
+  <rect class="mla" x="785.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="794.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="804.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="807.9" cy="154" r="2.6"/>
+  <rect class="mla" x="813.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="817.3" cy="154" r="2.6"/>
+  <rect class="mla" x="823.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="832.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="841.8" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="845.5" cy="154" r="2.6"/>
+  <rect class="mla" x="851.2" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="854.9" cy="154" r="2.6"/>
+  <rect class="mla" x="860.6" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="870.0" y="112" width="7.4" height="34" rx="1.5"/>
+  <rect class="shared" x="879.4" y="112" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="883.1" cy="154" r="2.6"/>
+  <text class="label" x="26" y="210">GLM-5.3-Flash</text>
+  <text class="note" x="26" y="232">45 layers</text>
+  <rect class="kda" x="212.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="221.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="230.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="240.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="243.9" cy="232" r="2.6"/>
+  <rect class="kda" x="249.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="259.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="268.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="277.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="281.5" cy="232" r="2.6"/>
+  <rect class="kda" x="287.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="296.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="306.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="315.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="319.1" cy="232" r="2.6"/>
+  <rect class="kda" x="324.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="334.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="343.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="353.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="356.7" cy="232" r="2.6"/>
+  <rect class="kda" x="362.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="371.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="381.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="390.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="394.3" cy="232" r="2.6"/>
+  <rect class="kda" x="400.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="409.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="418.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="428.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="431.9" cy="232" r="2.6"/>
+  <rect class="kda" x="437.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="447.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="456.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="465.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="469.5" cy="232" r="2.6"/>
+  <rect class="kda" x="475.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="484.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="494.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="503.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="507.1" cy="232" r="2.6"/>
+  <rect class="kda" x="512.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="522.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="531.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="541.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="544.7" cy="232" r="2.6"/>
+  <rect class="kda" x="550.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="559.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="569.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="578.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="582.3" cy="232" r="2.6"/>
+  <rect class="kda" x="588.0" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="597.4" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="kda" x="606.8" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="616.2" y="190" width="7.4" height="34" rx="1.5"/>
+  <circle class="idx" cx="619.9" cy="232" r="2.6"/>
+  <rect class="kda" x="625.6" y="190" width="7.4" height="34" rx="1.5"/>
+  <rect class="mla" x="26" y="270" width="12" height="26" rx="2"/>
+  <text class="note" x="48" y="290">MLA + sparse attention</text>
+  <rect class="kda" x="272" y="270" width="12" height="26" rx="2"/>
+  <text class="note" x="294" y="290">KDA (recurrent)</text>
+  <rect class="shared" x="476" y="270" width="12" height="26" rx="2"/>
+  <text class="note" x="498" y="290">reads layer 35&#8217;s KV</text>
+  <circle class="idx" cx="742" cy="284" r="4"/>
+  <text class="note" x="758" y="290">owns an indexer</text>
+</svg>

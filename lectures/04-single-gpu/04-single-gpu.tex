@@ -26,7 +26,7 @@
 
 \learninggoals
 {Connect the GPT training step to CPU dispatch and GPU kernels.}
-{Use memory hierarchy and arithmetic intensity to reason about bottlenecks.}
+{Explain GPU throughput, memory hierarchy and arithmetic intensity.}
 {Explain kernel fusion and what \texttt{torch.compile} does.}
 {Profile an update and measure changes without losing correctness.}
 
@@ -84,7 +84,7 @@
   \begin{block}{Inside one Transformer block}
     Linear projections and MLP $\rightarrow$ \textbf{matrix multiplications}; attention $\rightarrow$ matrix products, masking and softmax; LayerNorm, GELU and residuals $\rightarrow$ reductions and elementwise work.
   \end{block}
-  \small The same model and batch can run on both CPU or GPU. The results should be identical but the difference lies in how the workload is executed.
+  \small The same model and batch can run on CPU or GPU. Results should agree within numerical tolerance; execution and floating-point order can differ.
 \end{frame}
 
 \begin{frame}{What happens when PyTorch runs on CUDA?}
@@ -102,26 +102,152 @@
 
 \section{The machine beneath the tensor}
 
-\begin{frame}{GEMM: the matrix multiplication behind our model}
-  \begin{block}{General matrix--matrix multiplication}
-    $Z \leftarrow \alpha XY + \beta Z$, with $X\in\mathbb{R}^{m\times k}$,
-    $Y\in\mathbb{R}^{k\times n}$ and $Z\in\mathbb{R}^{m\times n}$.
-    A plain matrix product is the case $\alpha=1,\ \beta=0$.
-  \end{block}
+\begin{frame}{CPU and GPU: different design priorities}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      ctl/.style={draw=warningdraw,fill=warningbg},
+      alu/.style={draw=successdraw,fill=successbg},
+      mem/.style={draw=themebluedraw,fill=themebluebg}]
+    \node[font=\large\bfseries,text=themenavy] at (2,3.7) {CPU};
+    \node[font=\large\bfseries,text=themenavy] at (7.8,3.7) {GPU};
+    % Conceptual layouts, inspired by the NVIDIA CUDA Programming Guide.
+    \draw[thick,themebluedraw] (0,0.7) rectangle (4,3.3);
+    \draw[ctl] (.15,1.85) rectangle (1.6,3.15);
+    \node at (.875,2.5) {control and\\scheduling};
+    \foreach \x in {0,1} \foreach \y in {0,1} {
+      \draw[alu] (1.75+\x*1.05,1.85+\y*.65) rectangle ++(.95,.55);
+      \node at (2.225+\x*1.05,2.125+\y*.65) {ALU};
+    }
+    \draw[mem] (.15,.85) rectangle (3.85,1.7);
+    \node at (2,1.275) {cache};
+    \draw[thick,themebluedraw] (5.8,.7) rectangle (9.8,3.3);
+    \foreach \y in {0,...,3} {
+      \draw[ctl] (5.95,2.7-\y*.6) rectangle ++(.55,.48);
+      \foreach \x in {0,...,6} {
+        \draw[alu] (6.65+\x*.43,2.7-\y*.6) rectangle ++(.35,.48);
+      }
+    }
+    \node[font=\scriptsize] at (6.2,.39) {control};
+    \node[font=\scriptsize] at (8.05,.39) {arithmetic lanes};
+    \node[font=\scriptsize,text=neutraldark] at (4.9,-.12) {Schematic, not to scale. Both devices have caches.};
+  \end{tikzpicture}
+  \vspace{3pt}
   \begin{columns}[t]
     \begin{column}{.48\linewidth}
-      \begin{block}{In a Transformer}
-        Linear layers reshape $B\times T$ token vectors into rows: Q/K/V, attention output, MLP and vocabulary projections.
-      \end{block}
+      \small Complex cores, caches and prediction help execute a few threads quickly, including irregular work.
     \end{column}
     \begin{column}{.48\linewidth}
-      \begin{block}{In attention}
-        Per-head $QK^\top$ forms scores; $AV$ mixes values. These are batched matrix products around a softmax.
-      \end{block}
+      \small Many arithmetic lanes share instruction control to process many data elements concurrently.
     \end{column}
   \end{columns}
   \vfill
-  \small GEMMs dominate much of the model's arithmetic; shape, dtype and data movement determine speed.
+  \smallsource{Adapted from \href{https://docs.nvidia.com/cuda/archive/12.8.1/cuda-c-programming-guide/index.html\#introduction}{NVIDIA CUDA C++ Programming Guide, Introduction}}
+\end{frame}
+
+
+
+\begin{frame}{CPU and GPU: different ways to execute work}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.18\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
+    \toprule
+    & CPU & GPU \\
+    \midrule
+    Design & Fewer complex cores; optimize latency and control & Many execution lanes; optimize throughput on parallel work \\
+    Good fit & Python, I/O, control flow; small or irregular work & Large batches of regular tensor operations \\
+    Memory & Host memory and caches & Device memory and on-chip caches \\
+    Trade-off & Less transfer/launch overhead for small work & Launch, transfer and synchronization costs \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{The GPU is not always faster}
+    Small or irregular work can favor the CPU, especially when launches or transfers dominate.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A GPU is a throughput machine with many lanes}
+  \begin{columns}[c]
+    \begin{column}{0.43\linewidth}
+      \begin{itemize}
+          \setlength{\itemsep}{6pt}
+        \item A kernel launches many threads, grouped into blocks.
+        \item On NVIDIA GPUs, an SM schedules warps of 32 threads.
+        \item A warp executes the same instruction across its active lanes.
+        \item Many resident warps give the scheduler work to choose from.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.55\linewidth}
+      \centering
+      \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+          lane/.style={draw=themebluedraw,fill=themebluebg,rounded corners=2pt,inner sep=1pt,minimum width=.54cm,minimum height=.65cm},
+        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
+        \node[font=\small\bfseries] at (2.05,2.1) {One warp: 32 threads};
+        \foreach \x/\n in {0/0,1/1,2/2,3/3,4/4,5/5} {
+          \node[lane] (t\x) at (\x*.66,1.45) {\n};
+          \node[lane,fill=successbg,draw=successdraw] (l\x) at (\x*.66,.15) {lane};
+          \draw[arr] (t\x)--(l\x);
+        }
+        \node at (4.05,1.45) {$\cdots$};
+        \node at (4.05,.15) {$\cdots$};
+        \node[font=\small\bfseries] at (1.7,-.5) {Parallel execution on an SM};
+      \end{tikzpicture}
+      \par\vspace{3pt}\scriptsize Schematic: six of 32 threads shown.
+    \end{column}
+  \end{columns}
+  \smallsource{\href{https://docs.nvidia.com/cuda/archive/12.3.0/cuda-c-programming-guide/index.html\#hardware-implementation}{NVIDIA CUDA C++ Programming Guide, Hardware Implementation}}
+\end{frame}
+
+\begin{frame}{How a GPU hides memory latency}
+  \small
+  \begin{columns}[c]
+    \begin{column}{.47\linewidth}
+      \begin{itemize}
+        \item A warp waits for data from memory.
+        \item The SM issues instructions from another ready warp.
+        \item Many ready warps help fill idle cycles.
+      \end{itemize}
+    \end{column}
+    \begin{column}{.49\linewidth}
+      \centering
+      \begin{tikzpicture}[scale=.75,transform shape,every node/.style={font=\scriptsize,align=center},
+        w/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.15cm,minimum height=.6cm},
+        wait/.style={draw=warningdraw,fill=warningbg,minimum width=1.15cm,minimum height=.6cm}]
+        \node[anchor=east] at (-.1,1.2) {warp A};
+        \node[w] at (.65,1.2) {load}; \node[wait,minimum width=2.55cm] at (2.6,1.2) {waiting for data};
+        \node[anchor=east] at (-.1,.4) {warp B};
+        \node[w,fill=successbg,draw=successdraw,minimum width=2.55cm] at (2.0,.4) {ready instructions};
+        \node[anchor=east] at (-.1,-.4) {SM issues};
+        \node[w] at (.65,-.4) {A}; \node[w,fill=successbg,draw=successdraw,minimum width=2.55cm] at (2.6,-.4) {B while A waits};
+        \draw[-{Stealth[length=4pt]},thick] (0,-1.0)--(4,-1.0) node[right] {time};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+  \vspace{4pt}
+  \small Ready warps hide latency, but cannot exceed memory bandwidth. Regular work helps lanes stay useful; registers and shared memory limit resident warps.
+\end{frame}
+
+
+
+
+
+
+
+\begin{frame}{Map GPT operations to GPU hardware}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
+    \toprule
+    GPT operation & Work & Hardware question \\
+    \midrule
+    QKV, MLP & matrix products & Can Tensor Cores use these shapes and dtype? \\[5pt]
+    Attention & products and softmax & Which attention backend runs? \\[5pt]
+    Norm, GELU, residual & reductions and pointwise ops & Are intermediate transfers or launches costly? \\[5pt]
+    Data and optimizer & copies and updates & Is the GPU waiting for the CPU or memory? \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{A training step uses more than matrix hardware}
+    Tensor Cores accelerate supported matrix operations; other execution units handle pointwise work and reductions. All depend on data movement.
+  \end{block}
+  \smallsource{NVIDIA, Matrix Multiplication Background; GPU Performance Background}
 \end{frame}
 
 \begin{frame}{The memory hierarchy trades capacity for speed}
@@ -142,6 +268,8 @@
     Moving a value often costs more time and energy than performing one arithmetic operation on it. Reuse data near the compute units.
   \end{alertblock}
 \end{frame}
+
+
 
 \section{Roofline reasoning}
 
@@ -168,7 +296,7 @@
   \end{columns}
   \vspace{3pt}
   \begin{alertblock}{Arithmetic intensity = FLOPs per byte transferred}
-    Higher intensity helps when memory bandwidth limits performance.
+    Count bytes at a chosen memory level. Higher intensity helps when bandwidth at that level limits performance.
   \end{alertblock}
 \end{frame}
 
@@ -328,6 +456,131 @@
   \footnotesize Measured peak $-$ static $=$ activations, buffers and allocator cache. Report peak allocated and peak reserved memory.
 \end{frame}
 
+
+
+
+
+\begin{frame}{Mixed precision: a performance and numerical trade-off}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      hi/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.25cm,minimum height=1.15cm},
+      lo/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=2.25cm,minimum height=1.15cm},
+    arr/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
+    \node[hi] (w) at (0,0) {parameters\\\textbf{FP32}};
+    \node[lo] (a) at (2.85,0) {supported ops\\\textbf{BF16}};
+    \node[hi] (s) at (5.7,0) {sensitive ops\\\textbf{higher precision}};
+    \node[hi] (u) at (8.55,0) {optimizer update\\\textbf{FP32}};
+    \draw[arr] (w)--(a); \draw[arr] (a)--(s); \draw[arr] (s)--(u);
+    \draw[decorate,decoration={brace,amplitude=4pt},neutraldark] (1.72,.8)--(6.83,.8)
+    node[midway,above=5pt,font=\small\bfseries,text=themeink] {autocast region};
+    \node[text=accentdark] at (2.85,-1.15) {faster matrix operations\\fewer activation bytes};
+    \node[text=neutraldark] at (7.1,-1.15) {same objective and update};
+  \end{tikzpicture}
+  \par\vspace{12pt}
+  \small\textbf{Check:} hardware support, loss and gradients. FP16 loss scaling is a separate consideration.
+\end{frame}
+
+\begin{frame}{What does \texttt{torch.compile} do?}
+  \begin{enumerate}
+      \setlength{\itemsep}{6pt}
+    \item Wrap a model or function: \texttt{compiled = torch.compile(model)}.
+    \item On execution, TorchDynamo captures supported PyTorch operations in graphs with guards on assumptions such as shapes.
+    \item For training, PyTorch captures forward and backward regions. The default TorchInductor backend generates optimized code and fuses eligible operations.
+    \item Later calls reuse compiled code when the guards hold.
+  \end{enumerate}
+  \begin{block}{Goal}
+    Reduce Python/launch overhead and memory traffic, and choose efficient kernels. Some operations remain library calls.
+  \end{block}
+  \smallsource{PyTorch torch.compile documentation}
+\end{frame}
+
+\begin{frame}{Read one training update on a timeline}
+  \small
+  \begin{tabular}{@{}p{.20\linewidth}p{.66\linewidth}@{}}
+    \toprule
+    CPU lane & prepare / launch kernels \hfill next work \\
+    GPU lane & copy (if needed) $\to$ forward $\to$ backward $\to$ optimizer \\
+    \bottomrule
+  \end{tabular}
+  \vspace{6pt}
+  \begin{itemize}
+    \item Zoom from the whole update to a long gap or expensive kernel; link it back to attention, MLP, normalization, loss or optimizer.
+    \item Many short kernels suggest launch overhead; fusion may also reduce HBM traffic.
+    \item A copy or CPU gap leaves SMs idle, even when individual kernels run fast.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{A timing protocol you can defend}
+  \small
+  \begin{enumerate}
+      \setlength{\itemsep}{2pt}
+    \item \textbf{One change:} explicit FP32 $\to$ SDPA FP32 $\to$ SDPA BF16; compiled vs eager.
+    \item \textbf{Correct first:} outputs, loss and gradients match the baseline within tolerance.
+    \item \textbf{Warm up:} exclude the first steps (compilation, allocator growth).
+    \item \textbf{Synchronize} before reading the clock, at both ends of the timed region.
+    \item \textbf{Repeat:} report the median and the spread, not one sample.
+    \item \textbf{Profile separately:} tracing adds overhead; keep it out of timed samples.
+    \item \textbf{Report:} device, shapes, tokens/s, peak allocated and reserved memory.
+  \end{enumerate}
+  \begin{block}{What to report}
+    Tokens/s and step time measure throughput; model FLOPs/s divided by the relevant dense peak gives MFU. Device-resident batches isolate model execution.
+  \end{block}
+\end{frame}
+
+
+
+
+
+\takeaways
+{GPU throughput comes from parallel work, data reuse and enough ready warps.}
+{Roofline reasoning relates arithmetic intensity to bandwidth and compute ceilings.}
+{Fusion reduces intermediate traffic; \texttt{torch.compile} is one way to get fused kernels.}
+{A trustworthy speedup needs stable shapes, warmup, synchronization, correctness checks and profiling evidence.}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{GEMM: the matrix multiplication behind our model}
+  \begin{block}{General matrix--matrix multiplication}
+    $Z \leftarrow \alpha XY + \beta Z$, with $X\in\mathbb{R}^{m\times k}$,
+    $Y\in\mathbb{R}^{k\times n}$ and $Z\in\mathbb{R}^{m\times n}$.
+    A plain matrix product is the case $\alpha=1,\ \beta=0$.
+  \end{block}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{In a Transformer}
+        Linear layers reshape $B\times T$ token vectors into rows: Q/K/V, attention output, MLP and vocabulary projections.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{In attention}
+        Per-head $QK^\top$ forms scores; $AV$ mixes values. These are batched matrix products around a softmax.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small GEMMs dominate much of the model's arithmetic; shape, dtype and data movement determine speed.
+\end{frame}
+
+\begin{frame}{Warps reward regular work}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Good utilization}
+        contiguous access\\similar control flow\\enough active warps\\tile-aligned matrix dimensions
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Lost utilization}
+        branch divergence\\strided loads\\register pressure\\tiny or awkward shapes
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering Layout, control flow and dimensions affect how much of the hardware does useful work.
+\end{frame}
+
+
+
 \begin{frame}{Training FLOPs per token for a GPT}
   \small
   Count matrix multiplications only: each weight costs 2 FLOPs per token forward, 4 backward.
@@ -380,73 +633,6 @@
   \smallsource{NVIDIA H100 specifications (1{,}979 TFLOP/s BF16 with sparsity, half without)}
 \end{frame}
 
-\begin{frame}{Mixed precision: a performance and numerical trade-off}
-  \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
-      hi/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.25cm,minimum height=1.15cm},
-      lo/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=2.25cm,minimum height=1.15cm},
-    arr/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
-    \node[hi] (w) at (0,0) {parameters\\\textbf{FP32}};
-    \node[lo] (a) at (2.85,0) {supported ops\\\textbf{BF16}};
-    \node[hi] (s) at (5.7,0) {sensitive ops\\\textbf{higher precision}};
-    \node[hi] (u) at (8.55,0) {optimizer update\\\textbf{FP32}};
-    \draw[arr] (w)--(a); \draw[arr] (a)--(s); \draw[arr] (s)--(u);
-    \draw[decorate,decoration={brace,amplitude=4pt},neutraldark] (1.72,.8)--(6.83,.8)
-    node[midway,above=5pt,font=\small\bfseries,text=themeink] {autocast region};
-    \node[text=accentdark] at (2.85,-1.15) {faster matrix operations\\fewer activation bytes};
-    \node[text=neutraldark] at (7.1,-1.15) {same objective and update};
-  \end{tikzpicture}
-  \par\vspace{12pt}
-  \small\textbf{Check:} hardware support, loss and gradients. FP16 loss scaling is a separate consideration.
-\end{frame}
-
-\begin{frame}{What does \texttt{torch.compile} do?}
-  \begin{enumerate}
-      \setlength{\itemsep}{6pt}
-    \item Wrap a model or function: \texttt{compiled = torch.compile(model)}.
-    \item On execution, TorchDynamo captures supported PyTorch operations in graphs with guards on assumptions such as shapes.
-    \item For training, PyTorch captures forward and backward regions. The default TorchInductor backend generates optimized code and fuses eligible operations.
-    \item Later calls reuse compiled code when the guards hold.
-  \end{enumerate}
-  \begin{block}{Goal}
-    Reduce Python/launch overhead and memory traffic, and choose efficient kernels. Some operations remain library calls.
-  \end{block}
-  \smallsource{PyTorch torch.compile documentation}
-\end{frame}
-
-\begin{frame}{Read one training update on a timeline}
-  \small
-  \begin{tabular}{@{}p{.20\linewidth}p{.66\linewidth}@{}}
-    \toprule
-    CPU lane & prepare / launch kernels \hfill next work \\
-    GPU lane & copy (if needed) $\to$ forward $\to$ backward $\to$ optimizer \\
-    \bottomrule
-  \end{tabular}
-  \vspace{6pt}
-  \begin{itemize}
-    \item Zoom from the whole update to a long gap or expensive kernel; link it back to attention, MLP, normalization, loss or optimizer.
-    \item Many short kernels point to missing fusion or launch overhead.
-    \item A copy or CPU gap costs end-to-end time even when model-only device timings look fast.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{A timing protocol you can defend}
-  \small
-  \begin{enumerate}
-      \setlength{\itemsep}{2pt}
-    \item \textbf{One change:} explicit FP32 $\to$ SDPA FP32 $\to$ SDPA BF16; compiled vs eager.
-    \item \textbf{Correct first:} outputs, loss and gradients match the baseline within tolerance.
-    \item \textbf{Warm up:} exclude the first steps (compilation, allocator growth).
-    \item \textbf{Synchronize} before reading the clock, at both ends of the timed region.
-    \item \textbf{Repeat:} report the median and the spread, not one sample.
-    \item \textbf{Profile separately:} tracing adds overhead; keep it out of timed samples.
-    \item \textbf{Report:} device, shapes, tokens/s, peak allocated and reserved memory.
-  \end{enumerate}
-  \begin{block}{Scope}
-    Batches already on the device isolate model execution, not the input pipeline.
-  \end{block}
-\end{frame}
-
 \checkpoint{one-change ablation}
 {In the eager trace of one GPT-2 Small update, every block runs LayerNorm, GELU and the residual add as separate short kernels, with idle gaps between launches. State the bottleneck hypothesis, the single intervention, the expected profiler change, and the correctness check that must remain unchanged.}
 
@@ -460,99 +646,13 @@
   \end{itemize}
 \end{frame}
 
-\takeaways
-{The course GPT update becomes CPU dispatch, GPU kernels and memory traffic.}
-{Roofline reasoning separates bandwidth-bound from compute-bound operations.}
-{Fusion reduces intermediate traffic; \texttt{torch.compile} is one way to get fused kernels.}
-{A trustworthy speedup needs stable shapes, warmup, synchronization, correctness checks and profiling evidence.}
 
-\appendix
-\section{Optional depth}
 
-\begin{frame}{CPU and GPU: different ways to execute work}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.18\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
-    \toprule
-    & CPU & GPU \\
-    \midrule
-    Design & Fewer complex cores; strong per-thread latency & Many execution lanes; high throughput on parallel work \\
-    Good fit & Python, I/O, control flow; small or irregular work & Large batches of regular tensor operations \\
-    Memory & Host memory and caches & Device memory and on-chip caches \\
-    Trade-off & Less transfer/launch overhead for small work & Launch, transfer and synchronization costs \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{alertblock}{The GPU is not always faster}
-    Small shapes and transfer-heavy work favor the CPU.
-  \end{alertblock}
-\end{frame}
 
-\begin{frame}{A GPU is a throughput machine with many lanes}
-  \begin{columns}[c]
-    \begin{column}{0.43\linewidth}
-      \begin{itemize}
-          \setlength{\itemsep}{6pt}
-        \item A kernel launches many threads, grouped into blocks.
-        \item An SM schedules threads in warps of 32.
-        \item Lanes execute work from a warp in parallel.
-        \item Many warps keep the GPU busy.
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.55\linewidth}
-      \centering
-      \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
-          lane/.style={draw=themebluedraw,fill=themebluebg,rounded corners=2pt,inner sep=1pt,minimum width=.54cm,minimum height=.65cm},
-        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
-        \node[font=\small\bfseries] at (2.05,2.1) {One warp: 32 threads};
-        \foreach \x/\n in {0/0,1/1,2/2,3/3,4/4,5/5} {
-          \node[lane] (t\x) at (\x*.66,1.45) {\n};
-          \node[lane,fill=successbg,draw=successdraw] (l\x) at (\x*.66,.15) {lane};
-          \draw[arr] (t\x)--(l\x);
-        }
-        \node at (4.05,1.45) {$\cdots$};
-        \node at (4.05,.15) {$\cdots$};
-        \node[font=\small\bfseries] at (1.7,-.5) {Parallel execution on an SM};
-      \end{tikzpicture}
-      \par\vspace{3pt}\scriptsize Schematic: six of 32 threads shown.
-    \end{column}
-  \end{columns}
-  \smallsource{JAX Scaling Book, How to Think About GPUs}
-\end{frame}
 
-\begin{frame}{Warps reward regular work}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Good utilization}
-        contiguous access\\similar control flow\\enough active warps\\tile-aligned matrix dimensions
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Lost utilization}
-        branch divergence\\strided loads\\register pressure\\tiny or awkward shapes
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering A mathematically identical operation runs much faster when its layout and dimensions match the hardware tiles.
-\end{frame}
 
-\begin{frame}{Tensor Cores and the rest of the GPU}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.34\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}@{}}
-    \toprule
-    Unit & Typical work & Transformer examples \\
-    \midrule
-    Tensor Cores & Specialized in matrix multiplication & Linear layers; attention products \\[5pt]
-    CUDA cores & General scalar / vector arithmetic & Residual adds; optimizer updates \\[5pt]
-    Other execution paths & Reductions and special functions & Norm statistics; softmax; GELU \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{alertblock}{Tensor Cores are not the whole step}
-    Non-matmul operations and HBM traffic still matter.
-  \end{alertblock}
-  \smallsource{NVIDIA, Matrix Multiplication Background; GPU Performance Background}
-\end{frame}
+
+
 
 \begin{frame}{CPU offload: capacity depends on the link}
   \begin{columns}[t]
@@ -574,19 +674,7 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Map GPT operations to hardware questions}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
-    \toprule
-    In our training step & Work & Diagnostic \\
-    \midrule
-    QKV and MLP & Matrix multiplications & Are shapes large enough? \\[4pt]
-    Attention & Products and softmax & Which backend ran? \\[4pt]
-    Norm, GELU, residual & Reductions and pointwise ops & Are launches or intermediates costly? \\[4pt]
-    Data, loss, optimizer & Copies and updates & Is the GPU waiting? \\
-    \bottomrule
-  \end{tabular}
-\end{frame}
+
 
 \begin{frame}{Vector addition: a bandwidth-bound model}
   For $z=x+y$ with FP32 elements:

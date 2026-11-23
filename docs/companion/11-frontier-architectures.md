@@ -1,10 +1,12 @@
-# Module 11 Lab — Frontier Architectures & Efficient Generation
+# Module 11 Lab — Frontier Architectures
 
-This lab accompanies [Module 11: Frontier architectures and efficient generation](../modules/11-frontier-architectures.md).
+This page accompanies [Module 11: Frontier architectures](../modules/11-frontier-architectures.md).
 
-!!! note "Open session"
-    Session 27 is reserved for content to be decided. This page and the
-    exploration script are optional material; there is no required lab.
+!!! note "No required lab"
+    Session 27 is a lecture with an in-class pen-and-paper exercise. The
+    exploration script below predates it and covers neighbouring topics
+    (speculative decoding, MLA memory, linear recurrence, MoE routing); it is
+    optional material.
 
     The exploration scripts and unit tests below are provided as optional reference implementations for self-paced study or for teams incorporating frontier techniques into their reproduction project.
 

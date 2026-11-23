@@ -423,9 +423,9 @@
 \begin{frame}{One wide head or several smaller heads?}
   \centering
   \begin{tikzpicture}[
-    every node/.style={font=\scriptsize,align=center},
-    box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.55cm,thick},
-    head/.style={draw=accentdarkdraw,fill=accentdarkbg,rounded corners=3pt,minimum width=2.4cm,minimum height=.46cm,thick},
+      every node/.style={font=\scriptsize,align=center},
+      box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.55cm,thick},
+      head/.style={draw=accentdarkdraw,fill=accentdarkbg,rounded corners=3pt,minimum width=2.4cm,minimum height=.46cm,thick},
     arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=neutraldark}]
     \node[font=\footnotesize\bfseries,anchor=west] at (-.1,2.9) {One head: width $d$};
     \node[box,minimum width=2.5cm] (singlein) at (1.25,2.0) {$Q,K,V$\\$T\times d$};
@@ -457,8 +457,8 @@
   For each projected tensor $Q,K,V$, make the head dimension explicit:
   \begin{center}
     \begin{tikzpicture}[
-      every node/.style={font=\small,align=center},
-      box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.8cm,minimum width=3.1cm,thick},
+        every node/.style={font=\small,align=center},
+        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.8cm,minimum width=3.1cm,thick},
       arr/.style={-{Stealth[length=4.5pt,width=3.2pt]},thick,draw=neutraldark}]
       \node[box] (q) at (0,0) {$B\times T\times d$};
       \node[box] (split) at (4.0,0) {$B\times T\times H\times d_h$};
@@ -512,10 +512,10 @@
     \begin{column}{.48\linewidth}
       \centering
       \begin{tikzpicture}[scale=.78,transform shape,
-        every node/.style={font=\scriptsize,align=center},
-        box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum width=2.9cm,minimum height=.48cm,thick},
-        add/.style={draw=successdraw,fill=successbg,circle,minimum size=.48cm,inner sep=0pt,thick,font=\small\bfseries},
-        flow/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy},
+          every node/.style={font=\scriptsize,align=center},
+          box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum width=2.9cm,minimum height=.48cm,thick},
+          add/.style={draw=successdraw,fill=successbg,circle,minimum size=.48cm,inner sep=0pt,thick,font=\small\bfseries},
+          flow/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=themenavy},
         skip/.style={-{Stealth[length=4pt,width=3pt]},very thick,draw=leafreddraw}]
         \node[box] (x) at (0,6.0) {input $X$};
         \node[box] (n1) at (0,4.95) {LayerNorm 1};
@@ -657,28 +657,6 @@
     \end{column}
   \end{columns}
   \smallsource{Press \& Wolf (2017, Weight Tying); Radford et al. (2019)}
-\end{frame}
-
-\begin{frame}{From logits to a token}
-  Generation reads the last position only: $z = Z_{b,T-1} \in \mathbb{R}^{V}$ (positions $0,\dots,T-1$), picks one token, appends it, and repeats.
-  \begin{center}
-    \footnotesize
-    \renewcommand{\arraystretch}{1.25}
-    \begin{tabular}{@{}lll@{}}
-      \toprule
-      \textbf{Rule} & \textbf{Next token} & \textbf{Effect} \\
-      \midrule
-      Greedy & $\arg\max_i z_i$ & deterministic \\
-      Temperature $\tau$ & sample $p=\operatorname{softmax}(z/\tau)$ & $\tau<1$ sharper \\
-      Top-$k$ & sample $p$ over the $k$ largest logits & fixed count \\
-      Top-$p$ & sample $p$ over the smallest set with mass $\ge\rho$ & adaptive count \\
-      \bottomrule
-    \end{tabular}\\[3pt]
-    {\footnotesize Top-$k$ and top-$p$ (threshold $\rho$) renormalize $p$ over the kept tokens before sampling.}
-  \end{center}
-  \begin{block}{Perplexity}
-    $\operatorname{PPL}=\exp(\mathcal{L})$, with $\mathcal{L}$ the mean cross-entropy in nats per token. A uniform guess over the vocabulary gives $\operatorname{PPL}=V$.
-  \end{block}
 \end{frame}
 
 \begin{frame}{Interactive walkthrough: visual explorer of the Transformer}
@@ -852,6 +830,28 @@
     \end{tabular}
   \end{center}
   \footnotesize Inside attention, $Q,K,V$ are the query, key and value matrices. Code keeps the companion's identifiers (\texttt{n\_layer}, \texttt{n\_head}, \texttt{head\_dim}, \texttt{block\_size}).
+\end{frame}
+
+\begin{frame}{From logits to a token}
+  Generation reads the last position only: $z = Z_{b,T-1} \in \mathbb{R}^{V}$ (positions $0,\dots,T-1$), picks one token, appends it, and repeats.
+  \begin{center}
+    \footnotesize
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      \textbf{Rule} & \textbf{Next token} & \textbf{Effect} \\
+      \midrule
+      Greedy & $\arg\max_i z_i$ & deterministic \\
+      Temperature $\tau$ & sample $p=\operatorname{softmax}(z/\tau)$ & $\tau<1$ sharper \\
+      Top-$k$ & sample $p$ over the $k$ largest logits & fixed count \\
+      Top-$p$ & sample $p$ over the smallest set with mass $\ge\rho$ & adaptive count \\
+      \bottomrule
+    \end{tabular}\\[3pt]
+    {\footnotesize Top-$k$ and top-$p$ (threshold $\rho$) renormalize $p$ over the kept tokens before sampling.}
+  \end{center}
+  \begin{block}{Perplexity}
+    $\operatorname{PPL}=\exp(\mathcal{L})$, with $\mathcal{L}$ the mean cross-entropy in nats per token. A uniform guess over the vocabulary gives $\operatorname{PPL}=V$.
+  \end{block}
 \end{frame}
 
 \begin{frame}{What does multi-head attention cost?}

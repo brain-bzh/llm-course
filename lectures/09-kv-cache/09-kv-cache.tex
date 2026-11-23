@@ -4,6 +4,13 @@
 \normalsize\itshape Reuse, Memory Growth, and Exact Autoregressive State}
 \date{\today}
 
+% Timing for a 75-minute session:
+%   15 min  why caching works; prefill and decode
+%   15 min  cache shapes, memory and bandwidth
+%   20 min  MHA, GQA/MQA and MLA
+%   15 min  positions, masks and correctness
+%   10 min  questions and transition to practice
+
 \begin{document}
 \makelecturetitle
 \begin{frame}{Lecture map}
@@ -22,12 +29,13 @@
   \textbf{\textcolor{signaldark}{Today:}} generate from the trained model one token at a time, and cache keys and values instead of recomputing the prefix.
 \end{frame}
 \learninggoals
-{Explain the redundant work removed by a KV cache.}
-{Compute cache shapes and memory for MHA, GQA, and MQA.}
-{Reason about decode bandwidth and cache layout.}
+{Explain the redundant work a KV cache removes, in prefill and in decode.}
+{Compute cache shapes, bytes, and the bandwidth cost of one decode step.}
+{Compare what MHA, GQA/MQA, and MLA store per cached token.}
 {Test cached generation against a full-prefix reference.}
 
-\section{From full-prefix recomputation to reuse}
+% ---------------------------------------------------------------- 15 min
+\section{Why caching works: prefill and decode}
 
 \begin{frame}{Naive decoding recomputes the unchanged prefix}
   \centering
@@ -44,34 +52,10 @@
     \draw[-{Stealth[length=4pt]},thick] (4.5,.5)--(5.4,.5) node[right]{sample $y_3$};
   \end{tikzpicture}
   \par\vspace{5pt}
-  \begin{block}{The opportunity}
-    Causality leaves past layer states unchanged: store their keys and values instead of recomputing the full prefix at every step.
+  \begin{block}{Why the prefix never changes}
+    With a causal mask, position $j$ attends only to positions $\le j$. With fixed weights and causal attention, earlier states and their keys and values are unchanged mathematically. Different floating-point execution paths can differ slightly.
   \end{block}
-  \footnotesize Example: three prompt tokens and two generated tokens. Sampling and model weights are fixed across the comparison.
-\end{frame}
-
-\begin{frame}{One request: prefill produces the first token}
-  \centering
-  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
-    input/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.7cm,minimum height=.8cm},
-    compute/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.8cm,minimum height=.8cm},
-    token/.style={draw=leafreddraw,fill=leafredbg,minimum width=1.0cm,minimum height=.8cm},
-    arr/.style={-{Stealth[length=4pt]},thick}]
-    \node[input] (p) at (0,2.1) {prompt\\$x_{1:P}$};
-    \node[compute] (prefill) at (2.5,2.1) {prefill\\$P$ queries};
-    \node[token] (y1) at (4.9,2.1) {sample\\$y_1$};
-    \node[compute] (decode) at (7.1,2.1) {decode\\1 query};
-    \node[token] (y2) at (9.4,2.1) {sample\\$y_2$};
-    \node[input,minimum width=3.5cm] (cache) at (4.8,.4) {per-layer KV cache\\prompt $\rightarrow$ prompt + $y_1$};
-    \draw[arr] (p)--(prefill); \draw[arr] (prefill)--(y1); \draw[arr] (y1)--(decode); \draw[arr] (decode)--(y2);
-    \draw[arr,accentvioletdraw] (prefill.south)--(cache.north west);
-    \draw[arr,accentvioletdraw] (cache.north east)--(decode.south);
-  \end{tikzpicture}
-  \par\vspace{5pt}
-  \begin{block}{Different shapes, different bottlenecks}
-    Prefill processes prompt tokens together. Decode consumes the previous output token and reads its growing KV history.
-  \end{block}
-  \footnotesize Prefill's final logits sample $y_1$; processing $y_1$ appends its K/V and predicts $y_2$.
+  \footnotesize Example: three prompt tokens and two generated tokens, with fixed weights.
 \end{frame}
 
 \begin{frame}{Cached attention at one layer}
@@ -102,52 +86,74 @@
   \footnotesize\raggedright Per layer, the cache is a pair $K,V$ of shape $[B,H,T,d_h]$, here with $T=t-1$. Only the new token is projected: its $k_t,v_t$ of shape $[B,H,1,d_h]$ are concatenated along the $T$ axis, and its query scans all $t$ positions.
 \end{frame}
 
-\begin{frame}{Generating $n$ tokens: one prefill, $n-1$ decode steps}
+\begin{frame}{One request: one prefill, then one token per step}
+  \centering
+  \begin{tikzpicture}[scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
+    input/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.7cm,minimum height=.8cm},
+    compute/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.8cm,minimum height=.8cm},
+    token/.style={draw=leafreddraw,fill=leafredbg,minimum width=1.0cm,minimum height=.8cm},
+    arr/.style={-{Stealth[length=4pt]},thick}]
+    \node[input] (p) at (0,1.9) {prompt\\$x_{1:P}$};
+    \node[compute] (prefill) at (2.5,1.9) {prefill\\$P$ queries};
+    \node[token] (y1) at (4.9,1.9) {sample\\$y_1$};
+    \node[compute] (decode) at (7.1,1.9) {decode\\1 query};
+    \node[token] (y2) at (9.4,1.9) {sample\\$y_2$};
+    \node[input,minimum width=3.5cm] (cache) at (4.8,.4) {per-layer KV cache\\prompt $\rightarrow$ prompt + $y_1$};
+    \draw[arr] (p)--(prefill); \draw[arr] (prefill)--(y1); \draw[arr] (y1)--(decode); \draw[arr] (decode)--(y2);
+    \draw[arr,accentvioletdraw] (prefill.south)--(cache.north west);
+    \draw[arr,accentvioletdraw] (cache.north east)--(decode.south);
+  \end{tikzpicture}
+  \par\vspace{6pt}
   \small
-  \begin{center}
-    \begin{tabular}{@{}llll@{}}
-      \toprule
-      Forward pass & Input & Cache in & Cache out \\
-      \midrule
-      prefill & prompt, $[B,P]$ & none & $T=P$ \\
-      decode step $i=1,\ldots,n-1$ & $y_i$ alone, $[B,1]$ & $T=P+i-1$ & $T=P+i$ \\
-      \bottomrule
-    \end{tabular}
-  \end{center}
-  \begin{enumerate}
-      \setlength{\itemsep}{4pt}
-    \item Prefill the whole prompt once and keep the $L$ per-layer $(K,V)$ pairs.
-    \item Select $y_i$ from the logits of the \textbf{last} position: temperature, top-$k$, then sample (argmax at temperature 0), exactly as without a cache.
-    \item Feed $y_i$ alone with the cache to obtain the logits for $y_{i+1}$.
-  \end{enumerate}
-  \begin{block}{The last token is never fed back}
-    $y_n$ is emitted without a forward pass, so the final cached length is $T=P+n-1$, and this must fit in the context window.
-  \end{block}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    Forward pass & Input & Cache in & Cache out \\
+    \midrule
+    prefill & prompt, $[B,P]$ & none & $T=P$ \\
+    decode step $i=1,\ldots,n-1$ & $y_i$ alone, $[B,1]$ & $T=P+i-1$ & $T=P+i$ \\
+    \bottomrule
+  \end{tabular}
+  \par\vspace{6pt}
+  \raggedright\footnotesize
+  Each $y_i$ is selected from the logits of the \textbf{last} position (temperature, top-$k$, sample), exactly as without a cache.\par
+  \vspace{3pt}
+  $y_n$ is emitted and never fed back: the final cached length is $T=P+n-1$, and it must fit in the context window.
 \end{frame}
 
-\begin{frame}{The cache changes asymptotic projection work}
-  For $n$ generated tokens after a prompt:
+\begin{frame}{What the cache saves, and what it does not}
+  Token-positions pushed through the network to emit $n$ tokens after a prompt of $P$:
   \begin{columns}[t]
     \begin{column}{0.47\linewidth}
       \begin{alertblock}{Without cache}
-        Reproject the growing prefix at every step. Prefix projection work accumulates roughly quadratically in generated length.
+        \[
+          \sum_{i=1}^{n}(P+i-1)\;\approx\;nP+\tfrac{n^2}{2}
+        \]
+        Every step reprocesses the whole prefix.
       \end{alertblock}
     \end{column}
     \begin{column}{0.47\linewidth}
       \begin{block}{With cache}
-        Project each token's key and value once. Attention still scans a context that grows linearly per decode step.
+        \[
+          P+(n-1)
+        \]
+        Every token is projected once, in every layer.
       \end{block}
     \end{column}
   \end{columns}
   \vfill
-  \centering The cache removes redundant projection work. It does not make full-context attention constant-time.
+  \begin{itemize}
+      \setlength{\itemsep}{5pt}
+    \item \textbf{Not saved:} each decode query still scans all $T$ cached positions.
+    \item \textbf{The price:} the reused state must stay resident, per layer and per request.
+  \end{itemize}
 \end{frame}
 
-\section{Cache memory and bandwidth}
+% ---------------------------------------------------------------- 15 min
+\section{Cache shapes, memory and bandwidth}
 
-\begin{frame}{A separate cache for every layer and request}
+\begin{frame}{From cache shape to bytes}
   \centering
-  \begin{tikzpicture}[x=.7cm,y=.7cm,every node/.style={font=\scriptsize,align=center}]
+  \begin{tikzpicture}[x=.7cm,y=.62cm,every node/.style={font=\scriptsize,align=center}]
     \foreach \y/\layer in {3/1,2/2,1/L}{
       \node[anchor=east,font=\small\bfseries] at (-.6,\y+.25) {layer $\layer$};
       \node[anchor=east] at (.5,\y+.25) {$K$}; \node[anchor=east] at (5.3,\y+.25) {$V$};
@@ -159,73 +165,28 @@
     \node[font=\scriptsize] at (2.4,.3) {cached positions $1\ldots T$};
     \node[font=\scriptsize] at (7.2,.3) {cached positions $1\ldots T$};
   \end{tikzpicture}
-  \par\vspace{5pt}
-  \small Every new token appends one K and one V vector \emph{per layer}; each vector has $H_{kv}d_h$ elements.
-  \begin{block}{Serving implication}
-    More active requests or longer contexts mean more resident cache state. We count its bytes next.
-  \end{block}
-\end{frame}
-
-\begin{frame}{Cache shape determines capacity}
-  For $L$ layers, batch $B$, $H_{kv}$ key-value heads, cached length $T$, head width $d_h$, and $b$ bytes per element:
+  \par\vspace{4pt}
+  \small\raggedright
+  $L$ layers, batch $B$, $H$ heads of width $d_h$, cached length $T$, $b$ bytes per element:
   \[
-    M_{KV}=2\,L\,B\,H_{kv}\,T\,d_h\,b
+    M_{KV}=\underbrace{2}_{K\text{ and }V}\,L\,B\,H\,T\,d_h\,b
   \]
-  The factor 2 stores both keys and values. After a prompt of $P$ tokens and $n$ emitted tokens, $T=P+n-1$.
   \begin{block}{Per-token, per-request growth}
-    \[
-      m_{\text{token}}=2L H_{kv}d_hb
-    \]
-    This number links model architecture directly to serving concurrency.
+    \centering $m_{\text{token}}=2\,L\,H\,d_h\,b$ bytes appended at every decode step
   \end{block}
 \end{frame}
 
 \begin{frame}{Worked memory estimate}
-  Suppose $L=32$, $H_{kv}=32$, $d_h=128$, BF16, and $T=4096$:
+  Suppose $L=32$, $H=32$, $d_h=128$, BF16 ($b=2$):
   \[
-    M_{KV}=2\cdot32\cdot1\cdot32\cdot4096\cdot128\cdot2
-    \approx 2\ \text{GiB}
+    m_{\text{token}}=2\cdot32\cdot32\cdot128\cdot2=524{,}288\ \text{bytes}=0.5\ \text{MiB per token}
   \]
-  \begin{alertblock}{Serving implication}
-    Sixteen concurrent requests at this cached length would need roughly 32 GiB for KV state alone, before weights, workspaces, and fragmentation.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{MHA, GQA and MQA: who shares K/V?}
-  \centering
-  \begin{tikzpicture}[x=.75cm,y=.78cm,scale=.94,transform shape,every node/.style={font=\scriptsize,align=center},
-    query/.style={draw=themebluedraw,fill=themebluebg,minimum width=.65cm,minimum height=.52cm},
-    kv/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=.7cm,minimum height=.52cm}]
-    \foreach \offset/\title in {0/MHA,4.4/GQA,8.8/MQA}{
-      \node[font=\small\bfseries] at (\offset+1.7,2.8) {\title};
-      \foreach \i in {0,...,3}{\node[query] at (\offset+.35+\i*.9,1.9) {$Q_{\i}$};}
-    }
-    \foreach \i in {0,...,3}{
-      \node[kv] at (.35+\i*.9,.65) {KV}; \draw[themebluedraw] (.35+\i*.9,1.62)--(.35+\i*.9,.93); }
-    \node[kv] at (5.2,.65) {KV}; \node[kv] at (7,.65) {KV};
-    \draw[themebluedraw] (4.75,1.62)--(5.2,.93); \draw[themebluedraw] (5.65,1.62)--(5.2,.93);
-    \draw[themebluedraw] (6.55,1.62)--(7,.93); \draw[themebluedraw] (7.45,1.62)--(7,.93);
-    \node[kv] at (10.5,.65) {KV};
-    \foreach \i in {0,...,3}{\draw[themebluedraw] (9.15+\i*.9,1.62)--(10.5,.93);}
-    \node at (1.7,-.25) {4 KV heads}; \node at (6.1,-.25) {2 KV heads}; \node at (10.5,-.25) {1 KV head};
-  \end{tikzpicture}
-  \par\vspace{6pt}
-  \begin{block}{Cache scales with KV heads}
-    For this four-query-head example, relative KV memory is $1$, $1/2$, and $1/4$. Query heads still have distinct queries.
-  \end{block}
-  \footnotesize Changing the sharing pattern is an architecture/training choice, not an exact reshape of an arbitrary trained MHA model.
-\end{frame}
-
-\begin{frame}{Decode often reads far more bytes than it computes}
-  Each new token reads the cached $K,V$ for every active layer and request. Batch-1 decode has little reuse across queries.
-  \begin{block}{Bandwidth model}
-    \[
-      t_{\text{decode}}\gtrsim
-      \frac{\text{weight bytes read}+\text{KV bytes read}}{BW_{\text{effective}}}
-    \]
-  \end{block}
-  \begin{alertblock}{Consequence}
-    Reducing KV heads, using lower cache precision, batching requests, and improving memory layout can matter more than reducing arithmetic.
+  One request at $T=4096$:
+  \[
+    M_{KV}=4096\cdot0.5\ \text{MiB}=2\ \text{GiB}
+  \]
+  \begin{alertblock}{Cache memory bounds concurrency}
+    Sixteen such requests need 32 GiB of KV state alone, before weights, workspaces, and fragmentation.
   \end{alertblock}
 \end{frame}
 
@@ -248,25 +209,136 @@
   \par\footnotesize Module 10 follows multiple requests through a shared paged allocator.
 \end{frame}
 
+\begin{frame}{Decode often reads far more bytes than it computes}
+  Each new token reads the cached state of every layer, for every active request. Batch-1 decode has little reuse across queries.
+  \begin{block}{Bandwidth model}
+    \[
+      t_{\text{decode}}\gtrsim
+      \frac{\text{weight bytes read}+\text{KV bytes read}}{BW_{\text{effective}}}
+    \]
+  \end{block}
+  \begin{alertblock}{Consequence}
+    Cache bytes affect capacity and can limit decode speed. The bottleneck depends on context length, batch, model and hardware; precision and layout also matter.
+  \end{alertblock}
+\end{frame}
+
+% ---------------------------------------------------------------- 20 min
+\section{What to cache: MHA, GQA/MQA and MLA}
+
+\begin{frame}{MHA to GQA to MQA: share K/V across query heads}
+  \centering
+  \begin{tikzpicture}[x=.75cm,y=.78cm,scale=.94,transform shape,every node/.style={font=\scriptsize,align=center},
+    query/.style={draw=themebluedraw,fill=themebluebg,minimum width=.65cm,minimum height=.52cm},
+    kv/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=.7cm,minimum height=.52cm}]
+    \foreach \offset/\title/\group in {0/MHA/mha,4.4/GQA/gqa,8.8/MQA/mqa}{
+      \node[font=\small\bfseries] at (\offset+1.7,2.8) {\title};
+      \foreach \i in {0,...,3}{\node[query] (\group-q\i) at (\offset+.35+\i*.9,1.9) {$Q_{\i}$};}
+    }
+    \foreach \i in {0,...,3}{
+      \node[kv] (mha-kv\i) at (.35+\i*.9,.65) {KV};
+      \draw[themebluedraw] (mha-q\i.south) -- (mha-kv\i.north);
+    }
+    \node[kv] (gqa-kv0) at (5.2,.65) {KV};
+    \node[kv] (gqa-kv1) at (7,.65) {KV};
+    \foreach \i in {0,1}{\draw[themebluedraw] (gqa-q\i.south) -- (gqa-kv0.north);}
+    \foreach \i in {2,3}{\draw[themebluedraw] (gqa-q\i.south) -- (gqa-kv1.north);}
+    \node[kv] (mqa-kv) at (10.5,.65) {KV};
+    \foreach \i in {0,...,3}{\draw[themebluedraw] (mqa-q\i.south) -- (mqa-kv.north);}
+    \node at (1.7,-.25) {4 KV heads}; \node at (6.1,-.25) {2 KV heads}; \node at (10.5,-.25) {1 KV head};
+  \end{tikzpicture}
+  \par\vspace{6pt}
+  \begin{block}{The cache scales with KV heads, not query heads}
+    Replace $H$ by $H_{kv}$ in $M_{KV}$: the cache shape becomes $[B,H_{kv},T,d_h]$. Here the relative memory is $1$, $1/2$, $1/4$; every query head keeps its own query.
+  \end{block}
+  \footnotesize At $H_{kv}=1$ all heads share keys and values. The quality trade-off depends on model and training.
+  \smallsource{MHA: \href{https://arxiv.org/abs/1706.03762}{Attention Is All You Need (2017)}; GQA: \href{https://arxiv.org/abs/2305.13245}{GQA (2023)}; MQA: \href{https://arxiv.org/abs/1911.02150}{One Write-Head Is All You Need (2019)}}
+\end{frame}
+
+\begin{frame}{MLA: cache one shared latent, not K/V per head}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.9,transform shape,every node/.style={font=\scriptsize,align=center},
+    input/.style={draw=leafreddraw,fill=leafredbg,minimum width=1.3cm,minimum height=.8cm},
+    proj/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.5cm,minimum height=.7cm},
+    cache/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.9cm,minimum height=.85cm},
+    ghost/.style={draw=neutrallight,dashed,minimum width=1.9cm,minimum height=.7cm},
+    arrow/.style={-{Stealth[length=4pt,width=3pt]},thick}]
+    \node[input] (x) at (0,1.5) {layer input\\$x_t$};
+    \node[proj] (down) at (2.5,2.3) {$W^{DKV}$};
+    \node[proj] (pos) at (2.5,.7) {$W^{KR}$, RoPE};
+    \node[cache] (c) at (5.3,2.3) {latent $c_t$\\width $d_c$};
+    \node[cache] (kr) at (5.3,.7) {positional key $k^R_t$\\width $d_R$};
+    \node[proj,minimum width=1.1cm] (uk) at (8.0,2.9) {$W^{UK}_i$};
+    \node[proj,minimum width=1.1cm] (uv) at (8.0,1.7) {$W^{UV}_i$};
+    \node[ghost] (kc) at (10.4,2.9) {content key $k^C_{t,i}$};
+    \node[ghost] (v) at (10.4,1.7) {value $v_{t,i}$};
+    \draw[arrow] (x)--(down); \draw[arrow] (x)--(pos);
+    \draw[arrow] (down)--(c); \draw[arrow] (pos)--(kr);
+    \draw[arrow,neutrallight] (c)--(uk); \draw[arrow,neutrallight] (c)--(uv);
+    \draw[arrow,neutrallight] (uk)--(kc); \draw[arrow,neutrallight] (uv)--(v);
+    \node[draw=accentdarkdraw,dashed,thick,inner sep=5pt,fit=(c)(kr)] (box) {};
+    \node[font=\scriptsize\bfseries,text=accentdark,anchor=north] at (box.south) {cached per token};
+    \node[font=\scriptsize,text=neutraldark,anchor=north] at (9.2,1.15) {per head $i$, width $d_h$\\not cached};
+  \end{tikzpicture}
+  \par\vspace{3pt}
+  {\small Each token produces a shared latent and a positional key.\par}
+  \vspace{3pt}
+  \begin{block}{Low-rank by construction}
+    \small Head-specific content keys and values are linear readouts of one shared latent with $d_c\ll H d_h$. The cache holds $d_c+d_R$ elements per token and layer.
+  \end{block}
+  \smallsource{MLA: \href{https://arxiv.org/abs/2405.04434}{DeepSeek-V2 (2024)}}
+\end{frame}
+
+
+
+\begin{frame}{Four designs, four per-token costs}
+  \small
+  \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{.31\linewidth}lrr@{}}
+    \toprule
+    Design & Cached per token, layer & Elements & Example & $T=4096$ \\
+    \midrule
+    MHA & K/V pair per head & $2\,H\,d_h$ & 8192 & 2 GiB \\
+    GQA & K/V pair per KV head & $2\,H_{kv}\,d_h$ & 2048 & 512 MiB \\
+    MQA & one K/V pair & $2\,d_h$ & 256 & 64 MiB \\
+    MLA & latent + positional key & $d_c+d_R$ & 576 & 144 MiB \\
+    \bottomrule
+  \end{tabular}
+  \par\vspace{4pt}
+  \footnotesize Example: $L=32$, $H=32$, $d_h=128$, BF16; GQA with $H_{kv}=8$; MLA with $d_c=4d_h$ and $d_R=d_h/2$, the DeepSeek-V2 ratios.
+  \par\vspace{5pt}
+  \small In general $M=L\,B\,T\,e\,b$, with $e$ the elements per token and layer. MLA costs as much as GQA with $2.25$ KV heads, while each head keeps its own keys and values.
+  \begin{alertblock}{A different design, not an exact compression}
+    \small None of these can be applied exactly to an arbitrary pretrained MHA model: the sharing, or the latent, is part of the architecture and is trained in.
+  \end{alertblock}
+  \smallsource{DeepSeek-V2 (2024), model architecture}
+\end{frame}
+
 \checkpoint{capacity calculation}
-{Recompute the worked example with eight KV heads. How many 4096-token requests fit in 32 GiB if 24 GiB is available for cache after weights and workspaces?}
+{24 GiB is available for cache after weights and workspaces. With the example model at $T=4096$, how many concurrent requests fit with MHA, with GQA at eight KV heads, and with MLA at $d_c=512$, $d_R=64$?}
 
 \begin{frame}{Capacity calculation: one possible answer}
-  Only $H_{kv}$ changes, from 32 to 8:
-  \[
-    M_{KV}=2\cdot32\cdot1\cdot8\cdot4096\cdot128\cdot2
-    =536{,}870{,}912\ \text{bytes}=0.5\ \text{GiB per request}
-  \]
+  Only the elements per token and layer change; $L\,T\,b=32\cdot4096\cdot2=262{,}144$ bytes per element.
+  \par\vspace{6pt}
+  \begin{center}
+    \begin{tabular}{@{}lrrr@{}}
+      \toprule
+      Design & Elements & Per request & Requests in 24 GiB \\
+      \midrule
+      MHA & 8192 & 2 GiB & 12 \\
+      GQA, $H_{kv}=8$ & 2048 & 512 MiB & 48 \\
+      MLA, $512+64$ & 576 & 144 MiB & 170 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
   \begin{itemize}
-      \setlength{\itemsep}{8pt}
-    \item A quarter of the KV heads gives a quarter of the 2 GiB in the worked example.
-    \item Capacity: $24\ \text{GiB}/0.5\ \text{GiB}=48$ concurrent requests.
-    \item With 32 KV heads the same budget holds only $24/2=12$ requests.
-    \item This is an upper bound: block slack and fragmentation reduce it.
+      \setlength{\itemsep}{6pt}
+    \item MLA: $24\cdot1024/144=170.7$, so 170 whole requests.
+    \item These are upper bounds: block slack and fragmentation reduce them.
+    \item Fewer bytes per token also means fewer bytes read at every decode step.
   \end{itemize}
 \end{frame}
 
-\section{Correctness and benchmarking}
+% ---------------------------------------------------------------- 15 min
+\section{Positions, masks and correctness}
 
 \begin{frame}{Positions and mask continue from the cached length}
   \begin{columns}[c]
@@ -277,7 +349,7 @@
           \setlength{\itemsep}{3pt}
         \item \textbf{Positions:} new tokens take $T,\ldots,T+N_{\text{new}}-1$; they never restart at 0.
         \item \textbf{Mask:} rows $T,\ldots,T+N_{\text{new}}-1$ of the causal matrix, all $T+N_{\text{new}}$ columns.
-        \item \textbf{One new token:} its row is all ones; no mask is needed.
+        \item \textbf{One new token:} for an unpadded sequence, its row is all ones; no causal mask is needed.
         \item \textbf{Square causal mask:} correct only when queries and keys start together, that is with an empty cache.
       \end{itemize}
     \end{column}
@@ -335,11 +407,63 @@
     \bottomrule
   \end{tabular}
   \par\vspace{9pt}
-  Model TTFT $=$ prefill $+$ first token selection: it grows with $P$. The decode interval grows only slowly with $T$.
+  Model TTFT includes prefill and first-token selection. Decode latency can increase with cached length; measure the dependence for the workload.
   \vfill
   \begin{alertblock}{Verify, warm, synchronize}
-    Time only after cached and uncached tokens match. Kernel compilation, allocation, and asynchronous timing otherwise dominate or under-report short decode steps.
+    Check cached and uncached logits within tolerance before timing. Kernel compilation, allocation, and asynchronous timing otherwise dominate or under-report short decode steps.
   \end{alertblock}
+\end{frame}
+
+
+
+
+
+\checkpoint{cache debugging}
+{Single-token cached decode matches the full-prefix reference. When a prompt is fed in two chunks, logits diverge on the second token of the second chunk. What would you inspect first?}
+
+\begin{frame}{Cache debugging: one possible answer}
+  \begin{itemize}
+    \item Compare logits at each new position to locate the first mismatch.
+    \item Check positions continue from the cached length $T$.
+    \item For a chunk of new queries, use causal mask rows starting at $T$: each query sees the cache and earlier positions in the chunk, not later ones.
+    \item Inspect cache length and append order; compare layer K/V with a full-prefix run.
+  \end{itemize}
+\end{frame}
+
+\takeaways
+{Causality makes past keys and values exactly reusable: prefill once, then one token per step.}
+{Cache bytes grow with layers, requests, cached tokens, per-token elements, and precision; decode is commonly bandwidth-bound.}
+{MHA, GQA/MQA, and MLA store $2Hd_h$, $2H_{kv}d_h$, and $d_c+d_R$ elements per token; each is a trained architecture, not a retrofit.}
+{Full-prefix logit equivalence is the primary correctness test before benchmarking.}
+\appendix
+\section{Optional depth}
+
+\begin{frame}{MLA attention: content from the latent, position on the side}
+  \footnotesize
+  Head $i$, query at $t$, cached position $j$:
+  {\small
+  \[
+    s^{(i)}_{t,j}=
+    \underbrace{\big\langle q^C_{t,i},\,W^{UK}_i c_j\big\rangle}_{\text{content}}
+    +\underbrace{\big\langle q^R_{t,i},\,k^R_j\big\rangle}_{\text{position}},
+    \quad
+    o_{t,i}=\sum_{j\le t}\operatorname{softmax}_j\!\Big(\tfrac{s^{(i)}_{t,j}}{\sqrt{d_h+d_R}}\Big)W^{UV}_i c_j
+  \]}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Why position is separate}
+        \footnotesize RoPE on $W^{UK}_ic_j$ would put a rotation that depends on $j$ between the query and $W^{UK}_i$. Rotating only a small key $k^R_j$, shared by all heads, keeps the content path linear.
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{block}{An absorbed decode implementation}
+        \footnotesize
+        $\langle q,W^{UK}_ic_j\rangle=\langle W^{UK\top}_i q,\,c_j\rangle$: project the one query down and score the latents directly. $W^{UV}_i$ folds into the output projection the same way.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \footnotesize The query has a content part $q^C$ and a RoPE part $q^R$ per head; queries are never cached.
 \end{frame}
 
 \checkpoint{cache debugging}
@@ -350,15 +474,10 @@
   \begin{itemize}
       \setlength{\itemsep}{8pt}
     \item \textbf{Localize:} compare cached and full-prefix logits step by step; note the first divergent step and layer.
-    \item \textbf{Remove the layout:} rerun the same prompt with a contiguous cache, or a block larger than the sequence. If the logits now match, positions are correct and the paged layout is at fault.
+    \item \textbf{Remove the layout:} rerun the same prompt with a contiguous cache, or a block larger than the sequence. If logits now match, investigate the paged path, including its position and mask handling.
     \item \textbf{State check:} rebuild $K,V$ in logical order through the block table and compare them with the full-prefix $K,V$. Inspect the new table entry, the in-block offset, the per-request length and the mask at the boundary.
-    \item \textbf{Position check:} if the gathered $K,V$ match but logits differ, verify that the new token's position $t$ continues across the boundary instead of restarting inside the new block.
+    \item \textbf{Position check:} also verify that the new token's position $t$ continues across the boundary instead of restarting inside the new block.
   \end{itemize}
 \end{frame}
 
-\takeaways
-{KV caching reuses past key and value projections exactly.}
-{Cache memory grows with layers, KV heads, requests, cached tokens, head width, and precision.}
-{Decode is commonly bandwidth-bound, so cache architecture and layout shape performance.}
-{Full-prefix logit equivalence is the primary correctness test before benchmarking.}
 \end{document}

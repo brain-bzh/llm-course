@@ -19,6 +19,7 @@ By the end of the module, students should be able to:
 - distinguish prefill from decode;
 - explain why K and V are reusable but a new Q is still required;
 - derive KV-cache shapes and byte cost for MHA, MQA and GQA;
+- explain what MLA caches instead of K and V, and why it is a trained design;
 - explain why cached decode often becomes memory-bandwidth-bound;
 - handle position offsets, masks and maximum context correctly;
 - design an equivalence test for cached and uncached logits;
@@ -191,6 +192,77 @@ If \(H_q=32\):
 - GQA with 8 KV heads uses one quarter as many KV bytes;
 - MQA with 1 KV head uses one thirty-second as many.
 
+## Multi-head latent attention (MLA)
+
+GQA and MQA shrink the cache by sharing K/V heads, and at \(H_{kv}=1\) every
+query head reads the same keys and values. Multi-head latent attention, introduced
+with [DeepSeek-V2](https://arxiv.org/abs/2405.04434), moves along a different
+axis: it keeps a distinct key and value for every head, but makes all of them
+linear readouts of one small latent per token, and caches the latent instead
+of K and V.
+
+For a layer input \(x_t\) and head \(i\):
+
+\[
+c_t = W^{DKV}x_t,\qquad
+k^C_{t,i} = W^{UK}_i c_t,\qquad
+v_{t,i} = W^{UV}_i c_t,\qquad
+k^R_t = \operatorname{RoPE}\!\left(W^{KR}x_t\right).
+\]
+
+Only two things are stored per token and layer:
+
+- the shared latent \(c_t\), of width \(d_c \ll H d_h\);
+- a small positional key \(k^R_t\), of width \(d_R\), shared by all heads.
+
+The attention score adds a content term and a positional term:
+
+\[
+s^{(i)}_{t,j} =
+\big\langle q^C_{t,i},\, W^{UK}_i c_j \big\rangle
++ \big\langle q^R_{t,i},\, k^R_j \big\rangle,
+\qquad
+o_{t,i} = \sum_{j\le t}
+\operatorname{softmax}_j\!\left(\frac{s^{(i)}_{t,j}}{\sqrt{d_h+d_R}}\right)
+W^{UV}_i c_j .
+\]
+
+**Why position is separate.** RoPE rotates a key by an angle that depends on
+its position. Applied to \(W^{UK}_i c_j\), that rotation would sit between the
+query and \(W^{UK}_i\), and the content path would no longer be a fixed linear
+map of the latent. MLA therefore rotates only the small key \(k^R_j\) and
+leaves the content path position-free.
+
+**No K/V is rebuilt at decode.** Because
+\(\langle q, W^{UK}_i c_j\rangle = \langle W^{UK\top}_i q, c_j\rangle\), the one
+new query is projected down to width \(d_c\) and scored against the cached
+latents directly. \(W^{UV}_i\) folds into the output projection in the same
+way, since
+\(\sum_j a_j W^{UV}_i c_j = W^{UV}_i \sum_j a_j c_j\).
+
+### What each design caches
+
+Write \(e\) for the elements cached per token and per layer, so that
+\(M = L\,B\,T\,e\,b\).
+
+| Design | Cached per token and layer | \(e\) | Example \(e\) | One request, \(T=4096\) |
+| --- | --- | ---: | ---: | ---: |
+| MHA | K/V pair per head | \(2H_qd_h\) | 8192 | 2 GiB |
+| GQA | K/V pair per KV head | \(2H_{kv}d_h\) | 2048 | 512 MiB |
+| MQA | one K/V pair | \(2d_h\) | 256 | 64 MiB |
+| MLA | latent + positional key | \(d_c+d_R\) | 576 | 144 MiB |
+
+The example uses \(L=32\), \(H_q=32\), \(d_h=128\) and BF16, GQA with
+\(H_{kv}=8\), and MLA with \(d_c=4d_h=512\) and \(d_R=d_h/2=64\), the ratios
+used by DeepSeek-V2. At these ratios MLA costs as much as GQA with 2.25 KV
+heads, while each head still has its own keys and values.
+
+!!! warning "A different design, not an exact compression"
+    MLA cannot be applied exactly to an arbitrary pretrained MHA model: generic
+    per-head K and V are not linear readouts of one \(d_c\)-wide latent. Like
+    GQA's sharing pattern, the latent is part of the architecture and is
+    trained in.
+
 ## Why cached decode is often bandwidth-bound
 
 At every decode step the GPU must read:
@@ -344,7 +416,8 @@ For the sequence `the cat sat` and one attention head:
 ### Part B — memory calculator
 
 Compute bytes/token, bytes/request and maximum theoretical concurrent requests
-for three attention layouts: MHA, GQA with 8 KV heads, and MQA. Reserve model
+for four attention layouts: MHA, GQA with 8 KV heads, MQA, and MLA with
+\(d_c=4d_h\), \(d_R=d_h/2\). Reserve model
 weights and a declared workspace margin before dividing remaining VRAM.
 
 ### Part C — scaling curves
@@ -362,7 +435,8 @@ Explain each curve from the work and bytes moved, not only from measurements.
 
 1. Why can past K/V be reused after appending a token?
 2. Why is only the new query needed during decode?
-3. Which dimension makes MQA's cache smaller than MHA's?
+3. Which dimension makes MQA's cache smaller than MHA's, and what does MLA
+   store instead of K and V?
 4. Why does KV caching trade compute for memory rather than make decoding free?
 5. What positional bug occurs if every decode token is assigned position zero?
 
@@ -380,6 +454,8 @@ cached-versus-uncached throughput across context lengths.
   — multi-query attention and decode bandwidth;
 - [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245)
   — grouped-query attention as the intermediate design;
+- [DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model](https://arxiv.org/abs/2405.04434)
+  — multi-head latent attention: a cached low-rank latent with decoupled RoPE;
 - [Continuous batching from first principles](https://huggingface.co/blog/continuous_batching)
   — visual connection from KV caching to multi-request serving.
 

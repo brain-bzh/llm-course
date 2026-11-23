@@ -1,379 +1,444 @@
-# Module 11 — Frontier architectures and efficient generation
-
-!!! note "Open session"
-    This module and its slide deck are a placeholder for the open session.
-    The final topic and scope are to be decided. The material below is optional reading.
+# Module 11 — Frontier architectures: reading a 2026 model config
 
 ## Purpose
 
-Examine the frontiers of model architecture and inference acceleration that go beyond
-standard dense pre-norm Transformers.
+Use the course's cost models to read the design of two very recent open-weight
+models, line by line from their `config.json`:
 
-As language models scale to multi-million token contexts and high-throughput production
-serving, two fundamental physical walls emerge:
+- **Mistral Large 4** (October 2026, 1T total / 52B active): sparse attention in
+  every layer, with indexer reuse and cross-layer KV sharing;
+- **GLM-5.3-Flash** (August 2026, 320B / 18B): a "super hybrid" in which three
+  of every four attention layers are recurrent, and the remaining layers are
+  sparse.
 
-1. **The memory-bandwidth wall during generation:** Standard autoregressive decoding is
-   often bandwidth-bound at small batch sizes, with weight-only arithmetic intensity $\sim 1\text{ FLOP/byte}$.
-2. **The quadratic scaling wall of softmax attention:** Standard causal self-attention
-   scales $\mathcal{O}(T^2)$ in computation and $\mathcal{O}(T)$ in KV-cache memory.
+Both models target a context window of 1,048,576 tokens. At that length the
+dense-Transformer costs from earlier modules stop being abstract: a KV cache of
+tens of GiB per request (Module 9), quadratic prefill (Module 4), expert
+traffic (Module 8). Each architecture choice in these configs reduces one of
+those costs and creates a new one. The session's goal is to name both.
 
-This module analyzes the modern architectural innovations breaking through these walls:
-**speculative decoding**, **discrete and continuous diffusion for text**,
-**DeepSeek architectural breakthroughs (MLA, fine-grained MoE, MTP)**,
-**multimodal input architectures**, and
-**linear attention / recurrent state-space models (Mamba, GDN, KDA)**.
+!!! note "Session 27 · no required lab"
+    This is a lecture with an in-class pen-and-paper exercise. It adds no
+    coding assignment or report. Speculative decoding is covered in
+    [Module 10](10-serving.md).
 
----
+## Learning goals
 
-## Session 27: open slot
+By the end of the session, students should be able to:
 
-The content of this session is to be decided. The sections below are optional
-reading and do not constitute a required lecture or assignment.
+- read an MoE/MLA `config.json` and recover total and active parameters, the
+  layer pattern and the cached bytes per token;
+- explain what DeepSeek Sparse Attention removes from attention cost and what
+  it still has to scan;
+- explain the indexer sharing and cross-layer KV sharing in Mistral Large 4,
+  and what each one saves;
+- compare a growing KV cache with the fixed recurrent state of Kimi Delta
+  Attention, and compute the context length at which one exceeds the other;
+- explain why hybrid models keep some attention layers, and why those layers
+  can be NoPE;
+- state what a four-stream residual (mHC) adds to per-token state;
+- relate expert granularity to compute per dispatched byte (Module 8).
 
-## Key ideas
+## Session plan
 
-- speculative decoding mechanics, rejection sampling verification, and tree-based speculation;
-- diffusion models for text generation: score matching, iterative denoising, and continuous vs discrete spaces;
-- Multi-Head Latent Attention (MLA) and low-rank KV-cache compression with decoupled RoPE;
-- fine-grained mixture of experts (DeepSeekMoE), isolated shared experts, and aux-loss-free balancing;
-- multi-token prediction (MTP) architectures;
-- multimodal input architectures: vision encoders, discrete image tokenizers, and direct patch projection;
-- linear attention, selective state-space models (Mamba/Mamba-2), and Gated Delta Networks (GDN).
-
----
-
-## Speculative decoding: Breaking the memory-bandwidth wall
-
-In standard autoregressive decoding, generating each token requires reading all model
-parameters $N$ from high-bandwidth memory (HBM) into SRAM to perform a single vector-matrix
-multiplication:
-
-$$\text{Arithmetic Intensity} = \frac{2N \text{ FLOPs}}{2N \text{ Bytes}} = 1 \text{ FLOP / Byte}.$$
-
-This estimate assumes one sequence, dense weights stored in two bytes per
-parameter, and weight traffic dominating the step. Batching amortizes weight
-reads; long contexts add substantial KV traffic. Use the measured workload
-and device roofline before concluding that compute is underutilized.
-
-```
-[ Small Draft Model ] ──(Proposes γ draft tokens)──> [ x₁, x₂, ..., x_γ ]
-                                                              │
-                                                     (Parallel Forward)
-                                                              ▼
-[ Large Target Model ] ──(Verifies all γ in 1 step)──> [ Accept k ≤ γ + 1 tokens ]
-```
-
-### 1. The draft-and-verify paradigm
-
-Speculative decoding (Leviathan et al., 2023; Chen et al., 2023) decouples draft proposal
-from target verification:
-
-1. **Draft Phase:** A small, fast draft model (e.g. 1B) autoregressively generates $\gamma$
-   candidate tokens: $[x_1, \dots, x_\gamma]$.
-2. **Verification Phase:** The large target model (e.g. 70B) runs a **single parallel forward pass**
-   evaluating all $\gamma$ tokens simultaneously:
-   
-   $$p_{\text{target}}(x_t \mid x_{< t}) \quad \text{for all } t \in \{1, \dots, \gamma\}.$$
-   
-   Evaluating several positions together can reuse target weights and improve
-   arithmetic intensity. Verification cost still depends on draft length, context,
-   batch size, and kernels; it must be measured rather than assumed equal to one
-   ordinary decode step.
-
-### 2. Provably unbiased rejection sampling
-
-To ensure the output text matches the exact target model distribution without any bias,
-each draft token $x_t$ is evaluated sequentially with rejection sampling:
-
-- Accept $x_t$ with probability:
-  
-  $$\min\left(1, \frac{p_{\text{target}}(x_t \mid x_{< t})}{p_{\text{draft}}(x_t \mid x_{< t})}\right).$$
-
-- If $x_t$ is rejected, stop and sample the replacement token from the residual distribution:
-  
-  $$p_{\text{residual}}(x) = \frac{\max(0, p_{\text{target}}(x) - p_{\text{draft}}(x))}{\sum_{x'} \max(0, p_{\text{target}}(x') - p_{\text{draft}}(x'))}.$$
-
-- If all $\gamma$ tokens are accepted, sample one bonus token from $p_{\text{target}}(x_{\gamma+1} \mid x_{\le \gamma})$.
-
-### 3. Expected speedup & advanced speculation
-
-In a simplified model with constant conditional acceptance probability
-$\alpha$ at each draft position, the expected emitted tokens per verification
-step (including the replacement or bonus token) is:
-
-$$\mathbb{E}[\text{tokens per step}] = \frac{1 - \alpha^{\gamma+1}}{1 - \alpha}.$$
-
-For $\alpha = 0.8$ and $\gamma=5$, $\mathbb{E} \approx 3.69$ emitted tokens.
-That is not yet a wall-clock speedup. Let $t_{\mathrm{base}}$ be the ordinary
-target decode time, $t_{\mathrm{draft}}(\gamma)$ the time to propose $\gamma$ tokens, and
-$t_{\mathrm{verify}}(\gamma)$ the verification time. A simple cost model is
-
-$$S \approx \frac{\mathbb{E}[N_{\text{tok}}] \, t_{\mathrm{base}}}
-{t_{\mathrm{draft}}(\gamma) + t_{\mathrm{verify}}(\gamma) + t_{\mathrm{overhead}}}.$$
-
-For illustrative costs of 10 ms baseline, 8 ms drafting, 12 ms verification,
-and 2 ms overhead, the speedup is about $1.68\times$. If drafting takes 30 ms,
-it falls below $1\times$. Increasing draft length is useful only while its
-extra accepted tokens outweigh its extra cost. At $\alpha=1$, use the limit
-$\mathbb{E}[N_{\text{tok}}]=\gamma+1$.
-
-- **Alternative draft mechanisms:** Auxiliary heads or feature-based draft
-  networks can replace a separate standalone language model. Their training,
-  acceptance rates, and verification cost remain part of the comparison.
-- **Tree-based speculation:** Generates candidate trees instead of linear sequences, verifying
-  multiple token branches concurrently using tree attention masks.
+| Time | Block | Builds on |
+| --- | --- | --- |
+| 0–10 min | Where the cost goes at a million tokens | Modules 4, 8, 9 |
+| 10–25 min | Four mechanisms: MLA without RoPE, DSA, KDA, mHC | Module 9 |
+| 25–42 min | Case study: Mistral Large 4 | Modules 8, 9 |
+| 42–60 min | Case study: GLM-5.2 → GLM-5.3-Flash | Modules 8, 9 |
+| 60–75 min | Exercise: read an unknown config | everything |
 
 ---
 
-## Diffusion models for language generation
+## 1. Where the cost goes at a million tokens
 
-While autoregressive models generate text strictly left-to-right, **diffusion models**
-formulate generation as iterative denoising:
+For one decode step of one request at cached length \(T\), the bytes read are
+roughly
 
-$$x_S \sim \mathcal{N}(0, I) \quad \longrightarrow \quad x_{S-1} \quad \longrightarrow \quad \dots \quad \longrightarrow \quad x_0.$$
+\[
+\underbrace{\frac{\text{weights}_{\text{active}}}{B_{\text{eff}}}}_{\text{amortized over the batch}}
+\;+\;
+\underbrace{L_{\text{attn}}\;T\;e\;b}_{\text{KV cache, per request}}
+\;+\;
+\underbrace{\text{state}}_{\text{per request}} ,
+\]
 
-### Continuous vs discrete diffusion for text
+with \(e\) elements cached per token and layer (Module 9). Batching amortizes
+the first term. With MoE it amortizes only partly, because different tokens
+select different experts. The cache term grows with \(T\) and belongs to a
+single request. At the full window \(T=2^{20}=1{,}048{,}576\), a 7B-scale GQA model with 32 layers, 8 KV heads
+of width 128 and BF16 needs 128 KiB per token, i.e. 128 GiB for one request.
 
-Language is discrete (categorical tokens), creating a fundamental challenge for diffusion:
+Prefill has the matching problem in compute: dense causal attention does
+\(\mathcal{O}(T^2)\) work per layer.
 
-1. **Continuous diffusion in embedding space (e.g. Diffusion-LM, Plaid):**
-   Tokens are mapped to continuous embedding vectors $e(x) \in \mathbb{R}^d$. Gaussian noise
-   is added in embedding space according to a forward SDE:
-   
-   $$q(x_t \mid x_0) = \mathcal{N}(x_t; \sqrt{\bar{\alpha}_t} x_0, (1 - \bar{\alpha}_t) I).$$
-   
-   A Transformer neural network predicts the denoised embeddings, which are projected back
-   to vocabulary logits via a rounding operation: $p(w) \propto \exp(-\|w - \hat{x}_0\|^2)$.
-2. **Discrete state-space diffusion:**
-   Noise is defined directly over discrete vocabulary states via continuous-time Markov chains
-   or transition matrices $Q_t$. Tokens are masked or uniformly corrupted, and the model
-   learns reverse transition probabilities.
+Frontier designs attack the per-request terms in two ways:
 
-### Non-autoregressive trade-offs
+1. **Make every attention layer cheaper.** Store less per token (MLA), and
+   attend to a selected subset of positions instead of all of them (DSA).
+   Mistral Large 4 takes this route.
+2. **Replace most attention layers with a fixed-size recurrent state.** Keep a
+   few attention layers for exact retrieval. GLM-5.3-Flash takes this route
+   (and also makes its remaining attention layers sparse).
 
-| Dimension | Autoregressive (Causal GPT) | Diffusion / Non-Autoregressive |
-| :--- | :--- | :--- |
-| **Generation order** | Strictly sequential left-to-right | Global, bidirectional iterative refinement |
-| **Latency scaling** | $\mathcal{O}(T)$ (proportional to generated length) | $\mathcal{O}(S)$ (fixed $S$ denoising steps, independent of length) |
-| **Controllability** | Prefix-guided only | Infilling, attribute guidance, and arbitrary token conditioning |
-| **Per-token quality** | Gold standard (monotonic chain-rule probability) | Prone to local inconsistencies and error accumulation |
+<figure markdown="span">
+  ![Layer-by-layer attention type for GLM-5.2, Mistral Large 4 and GLM-5.3-Flash. GLM-5.2 has 78 MLA layers with an indexer in one of every four. Mistral Large 4 has 72 MLA layers, 44 with their own indexer and 9 that reuse the KV cache of layer 35. GLM-5.3-Flash alternates three KDA layers and one MLA layer.](../assets/figures/frontier-layer-patterns.svg){ loading=lazy }
+  <figcaption>Layer patterns read from each model's <code>config.json</code>.</figcaption>
+</figure>
 
----
+## 2. Four mechanisms
 
-## DeepSeek architectural lineage: Overcoming scaling limits
+### MLA, and MLA without RoPE
 
-DeepSeek's recent architectures (DeepSeek-V2, V3, and Flash variants) introduced several
-defining systems-level modifications to standard Transformer layers.
+Module 9 introduced multi-head latent attention: cache one latent
+\(c_t\in\mathbb{R}^{d_c}\) per token and layer, plus a small positional key of
+width \(d_R\). All three models in this session use \(d_c=512\).
 
-```
-                  Standard Multi-Head Attention (MHA)
-Query ───> [H Heads] \
-Key   ───> [H Heads]  ├──> Cache Size = 2 * L * H * d_h * T  (Memory Crisis!)
-Value ───> [H Heads] /
+- Mistral Large 4 and GLM-5.2 keep the decoupled RoPE key, \(d_R=64\), so a
+  layer caches \(576\) elements per token.
+- GLM-5.3-Flash sets `qk_rope_head_dim = 0`: its MLA layers are **NoPE** and
+  cache only the \(512\)-wide latent. Order information comes from the
+  recurrent layers around them, which see tokens in sequence. Kimi Linear made
+  the same choice.
+- Mistral Large 4 uses NoPE in one layer in four (`no_rope_layer_interval: 4`).
+  The other layers use YaRN-scaled RoPE, which Mistral calls LeRoPE because it
+  adds a learned scale per frequency.
 
-                  Multi-Head Latent Attention (MLA)
-Key/Val ─(Low-rank Down-proj)─> Latent Vector c_t^{KV}  (Cache Size: d_c * T, 80%+ smaller!)
-                                       │
-                                (Decoupled RoPE k_t^R)
-```
+### DeepSeek Sparse Attention (DSA)
 
-### 1. Multi-Head Latent Attention (MLA)
+[DeepSeek-V3.2](https://arxiv.org/abs/2512.02556) added a **lightning
+indexer** in front of MLA. For query position \(t\) and each earlier position
+\(s\), a few small indexer heads give a relevance score
 
-In long-context inference ($T \ge 32\text{k}$), the KV-cache dominates GPU memory.
-Grouped-Query Attention (GQA) reduces head count, but degrades model expressivity when
-$H_{kv} \ll H_q$.
+\[
+I_{t,s}=\sum_{j=1}^{H^I} w_{t,j}\,\operatorname{ReLU}\!\left(q^{I}_{t,j}\cdot k^{I}_{s}\right),
+\]
 
-**Multi-Head Latent Attention (MLA)** compresses the Key and Value vectors into a single
-low-dimensional latent vector $c_t^{KV} \in \mathbb{R}^{d_c}$ ($d_c \ll d$):
+and MLA attends only to the top-\(k\) positions:
 
-1. **Down-projection during caching:**
-   
-   $$c_t^{KV} = W^{DKV} x_t, \quad c_t^{KV} \in \mathbb{R}^{d_c}.$$
-   
-   **Only $c_t^{KV}$ is stored in the KV-cache.** This achieves an $80\%\text{--}90\%$ reduction
-   in inference memory compared to standard MHA.
-2. **Decoupled Rotary Positional Embeddings (RoPE):**
-   Standard RoPE mixes position information into $K$, preventing linear absorption.
-   MLA decouples positional representations into a separate small head:
-   
-   $$q_{t, i} = [ W^{UQ}_i c_t^Q, \text{RoPE}(W^{QR} c_t^Q) ], \quad k_{t, i} = [ W^{UK}_i c_t^{KV}, \text{RoPE}(W^{KR} x_t) ].$$
+\[
+\mathcal{S}_t=\operatorname{top-}k_s\;I_{t,s},
+\qquad
+o_t=\operatorname{Attn}\!\big(q_t,\{c_s: s\in\mathcal{S}_t\}\big).
+\]
 
-During inference, $W^{UK}$ and $W^{UV}$ can be absorbed directly into the query and output
-projection matrices, eliminating key and value reconstruction entirely.
+All three DSA models here use \(H^I=32\) indexer heads of width 128 and
+\(k=2048\).
 
-### 2. DeepSeekMoE: Fine-grained experts & isolated shared experts
+| Cost | Dense MLA | MLA + DSA |
+| --- | --- | --- |
+| Core attention per query | \(\mathcal{O}(T)\) | \(\mathcal{O}(k)\) |
+| Indexer per query | — | \(\mathcal{O}(T)\), but cheap per pair |
+| Prefill, per layer | \(\mathcal{O}(T^2)\) | \(\mathcal{O}(Tk)\) attention + \(\mathcal{O}(T^2)\) indexer |
+| Extra cache per token | — | one indexer key (128 values) |
 
-Traditional MoE (like Switch Transformer or Mixtral 8x7B) routes tokens among a few large
-experts (e.g. 8 experts, activating top-2).
+The indexer is still quadratic over a whole sequence. What makes DSA pay is the
+cost of one query–key pair. With weight absorption, a Mistral Large 4 MLA head
+does about \(576+512=1088\) multiply–adds per pair, and 64 heads give about
+\(70\)k. The indexer does \(32\times128\approx4\)k, often in FP8. That is about
+17 times less work per pair, applied to all \(T\) positions, while full
+attention is applied to only \(k\) of them.
 
-DeepSeekMoE alters the expert granularity:
-- **Fine-grained expert division:** Instead of 8 large experts of size $4d^2$, the model
-  instantiates 256 fine experts of size $0.25d^2$, activating 32. This enables combinatorial
-  specialization ($\binom{256}{32}$ vs $\binom{8}{2}$).
-- **Isolated shared experts:** Several experts are kept permanently active for all tokens.
-  These shared experts capture common language modeling features and grammar, preventing
-  specialized experts from redundantly storing general knowledge.
+!!! warning "DSA is trained in"
+    In DeepSeek-V3.2, the indexer is first trained to match the dense attention
+    distribution, and then the model continues training with sparse selection.
+    As with MLA, top-\(k\) selection cannot be switched on in an arbitrary
+    pretrained model without that training.
 
-### 3. Auxiliary-Loss-Free Load Balancing
+### Kimi Delta Attention (KDA)
 
-Standard MoE models rely on auxiliary load-balancing losses to prevent routing collapse
-(where one expert receives all tokens). However, strong auxiliary losses degrade primary
-cross-entropy learning.
+[Kimi Linear](https://arxiv.org/abs/2510.26692) replaces softmax attention in
+most layers with a gated delta-rule recurrence. Each head keeps a matrix state
+\(S_t\in\mathbb{R}^{d_k\times d_v}\):
 
-DeepSeek replaces auxiliary loss with **dynamic expert bias adjustment**:
-- A learnable bias $b_e$ is added to each expert's routing score: $s_{t, e} = \text{softmax}(x_t^\top w_e) + b_e$.
-- If expert $e$ is overloaded, $b_e$ is decreased; if underloaded, $b_e$ is increased.
-- Gradients from the task loss do not update $b_e$, preserving training stability without
-  compromising modeling quality.
+\[
+S_t=\big(I-\beta_t\,k_tk_t^{\top}\big)\operatorname{Diag}(\alpha_t)\,S_{t-1}
++\beta_t\,k_t v_t^{\top},
+\qquad
+o_t=S_t^{\top}q_t .
+\]
 
-### 4. Multi-Token Prediction (MTP)
+- \(\alpha_t\in(0,1)^{d_k}\) is a forget gate **per channel**. Gated DeltaNet
+  uses one scalar per head.
+- \(\beta_t\) is a write strength. The term \((I-\beta_tk_tk_t^{\top})\)
+  erases the value previously stored along \(k_t\) before writing the new one.
+- Training uses chunk-wise parallel kernels, so the recurrence still turns into
+  matrix multiplications.
 
-Rather than predicting only token $x_{t+1}$, Multi-Token Prediction trains sequential prediction
-modules that forecast $k$ future tokens ($x_{t+1}, \dots, x_{t+k}$) concurrently:
+The state does not grow with \(T\). A KDA layer can only keep what fits in
+\(d_k\times d_v\) numbers per head, however. Exact retrieval of an arbitrary
+old token is what the remaining attention layers are for.
 
-- Each MTP module consists of a Transformer layer that combines the previous layer's hidden
-  state with future token representations.
-- Enhances representation learning during pretraining by requiring deeper multi-step planning.
-- At inference time, the trained MTP modules can be reused directly as native draft heads for
-  **speculative decoding**, eliminating the need to train and host an independent draft model.
+### Manifold-constrained hyper-connections (mHC)
 
----
+A standard residual stream carries one vector of width \(C\) per token.
+[Hyper-connections](https://arxiv.org/abs/2409.19606) widen it to \(n\)
+parallel streams \(X_l\in\mathbb{R}^{n\times C}\), with learned mixing:
 
-## Multimodal input architectures (optional)
+\[
+X_{l+1}=H^{\text{res}}_l X_l+\big(H^{\text{post}}_l\big)^{\top}
+F\!\big(H^{\text{pre}}_l X_l\big).
+\]
 
-Separate three decisions: how an image becomes tokens or features, where those
-representations enter the language model, and which components are trainable.
-Early fusion does not by itself imply an encoder-free input path.
-
-- **Vision encoder plus language model:** Gemma 3 uses a SigLIP vision encoder;
-  it is not a direct-patch encoder-free example. See the
-  [Gemma 3 developer guide](https://developers.googleblog.com/introducing-gemma3/).
-- **Discrete image tokens and early fusion:** Chameleon represents images with
-  a learned image tokenizer and models mixed image/text token sequences. This
-  is distinct from feeding raw patches through a single linear projection.
-  See the [Chameleon paper](https://arxiv.org/abs/2405.09818).
-- **Direct patch projection:** A patch embedding can map raw patches into the
-  shared model's hidden dimension. Whether later layers are shared or specialized,
-  and which weights are frozen, must be checked for the particular architecture.
-
-For a systems comparison, count image tokens, preprocessing/encoder latency,
-prefill work, and cache growth. Compare quality at a declared image resolution;
-a shorter representation can reduce cost while losing useful detail.
-
----
-
-## Linear attention & modern recurrent architectures
-
-Standard self-attention computes:
-
-$$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{Q K^\top}{\sqrt{d_h}}\right) V.$$
-
-The softmax operator couples queries and keys non-linearly, enforcing quadratic $\mathcal{O}(T^2)$
-complexity and requiring the entire history to be stored in the KV cache.
-
-### 1. The linear attention formulation
-
-By replacing the softmax with a kernel feature map $\phi(x)$, attention becomes associative:
-
-$$\text{Attn}(Q, K, V) = \frac{(\phi(Q) \phi(K)^\top) V}{\phi(Q) \sum \phi(K)^\top} = \frac{\phi(Q) (\phi(K)^\top V)}{\phi(Q) \sum \phi(K)^\top}.$$
-
-During decoding, the term $S_t = \sum_{\tau=1}^t \phi(K_\tau)^\top V_\tau \in \mathbb{R}^{d \times d}$
-acts as a **constant-size recurrent state**:
-
-$$S_t = S_{t-1} + \phi(K_t)^\top V_t.$$
-
-Inference requires **$\mathcal{O}(1)$ memory per step**, completely eliminating the growing KV-cache!
-
-### 2. Mamba & Mamba-2 (Selective State-Space Models)
-
-Continuous-time State-Space Models map an input $x(t)$ to an output $y(t)$ through a hidden state $h(t)$:
-
-$$h'(t) = A h(t) + B x(t), \quad y(t) = C h(t).$$
-
-**Mamba (Gu & Dao, 2023)** made SSMs input-dependent:
-- The parameters $\Delta, B, C$ are parameterized as functions of the current input $x_t$.
-- This enables the model to selectively remember or filter out information based on content.
-- A hardware-aware **parallel associative scan** enables fast parallel training on GPUs.
-- **Mamba-2 (State Space Duality):** Proves that selective SSMs and 1-semiseparable structured
-  masked attention are mathematically dual representations of the same operation.
-
-### 3. Gated Delta Networks (GDN / DeltaNet)
-
-Standard linear attention suffers from memory capacity limits: $S_t = S_{t-1} + K_t^\top V_t$
-continually accumulates new associations without discarding stale information.
-
-**Gated Delta Networks (GDN)** apply the classical **delta rule** to associative memory:
-the model predicts the current retrieved value $\hat{V}_t = S_{t-1} K_t$ and updates
-the memory using the prediction error $(V_t - \hat{V}_t)$:
-
-$$S_t = \alpha_t S_{t-1} + \beta_t (V_t - S_{t-1} K_t) K_t^\top = \alpha_t S_{t-1} (I - \beta_t K_t K_t^\top) + \beta_t V_t K_t^\top,$$
-
-where:
-- $\alpha_t \in (0, 1)$ acts as a dynamic **forget/decay gate**, controlling the persistence of historical memory;
-- $\beta_t \in (0, 1)$ is a data-dependent **write gate** (learning rate) that controls the magnitude of the associative update;
-- the $(I - \beta_t K_t K_t^\top)$ term projects along the key vector to **actively erase stale associations**, solving the capacity saturation problem of un-gated linear RNNs.
-
-### 4. Kimi Delta Attention (KDA)
-
-[Kimi Linear](https://arxiv.org/abs/2510.26692) introduces Kimi Delta Attention,
-which extends Gated DeltaNet with finer-grained gating. Kimi Linear is a hybrid
-architecture: fixed-size recurrent state in some layers does not imply that
-the entire model has constant cache memory if other layers retain attention.
+The block \(F\) (attention or MLP) still sees one vector of width \(C\).
+[mHC](https://arxiv.org/abs/2512.24880) projects \(H^{\text{res}}\) onto
+doubly stochastic matrices with Sinkhorn iterations. Mixing then cannot amplify
+the signal across depth, which addresses the training instability of
+unconstrained hyper-connections. GLM-5.3-Flash uses \(n=4\) streams
+(`hc_mult`) and 20 Sinkhorn iterations. The authors report about 6.7% extra
+training time at \(n=4\). The residual state each token carries between
+blocks is four times wider. That matters for activation memory (Module 4) and
+for any communication that moves the residual stream.
 
 ---
 
-## Architectural Comparison Matrix
+## 3. Case study: Mistral Large 4 — sparse attention everywhere
 
-| Architecture | Attention / Sequence Operator | Training Complexity | Inference KV-Memory | Key Strength | Dominant Bottleneck |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Standard Transformer** | Causal Softmax Attention | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ (Large MHA/GQA) | Exact associative recall | Memory bandwidth & quadratic context |
-| **DeepSeek (MLA + MoE)** | Low-Rank Latent Attention | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ ($80\%\text{--}90\%$ smaller) | Extreme parameter and cache efficiency | High All-to-All network communication |
-| **Speculative Decoding** | Target MHA + Draft verification | Standard | $\mathcal{O}(T)$ (Target + draft caches) | Empirical $1.5\text{--}2.5\times$ decode latency reduction | Draft acceptance rate $\alpha$, drafting latency, and verification kernel overhead |
-| **Mamba-2 (SSD)** | Selective State-Space / 1-SS | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $h$) | Long-context linear throughput | Bounded memory capacity on complex multi-needle retrieval |
-| **Gated Delta Net (GDN)** | Delta-Rule Recurrent Memory | $\mathcal{O}(T)$ | $\mathcal{O}(1)$ (Fixed state $S$) | Dynamic associative erasure and update | Matrix state dimension $d \times d$ compute |
-| **Multimodal token sequence** | Causal Transformer with image representations | $\mathcal{O}(T^2)$ | $\mathcal{O}(T)$ | End-to-end multimodal alignment | Long sequence lengths from vision patches |
+| Field (`text_config`) | Value | Reading |
+| --- | --- | --- |
+| `hidden_size`, `num_hidden_layers` | 6144, 72 | |
+| `num_attention_heads` | 64 | MLA, no query compression |
+| `kv_lora_rank`, `qk_rope_head_dim` | 512, 64 | 576 cached elements per layer |
+| `index_n_heads`, `index_head_dim`, `index_topk` | 32, 128, 2048 | DSA in all 72 layers |
+| `indexer_types` | 44 `full`, 28 `shared` | 28 layers reuse the previous indexer's top-\(k\) |
+| `kv_source_layers` | 63 distinct sources | layers 39, 43, …, 71 read layer 35's latent |
+| `no_rope_layers` | 18 NoPE, 54 RoPE | one layer in four is NoPE |
+| `n_routed_experts`, `num_experts_per_tok`, `n_shared_experts` | 128, 4, 1 | softmax router; layer 0 dense |
+| `moe_intermediate_size` | 6144 | each expert ≈ 113M parameters |
+| `final_logit_softcapping` | 30 | |
+| `vocab_size`, `max_position_embeddings` | 204,800, 1,048,576 | |
+
+Counting from these fields gives about 1.05T total parameters and about 52B
+active per token (about 50B without embeddings and output layer), which
+matches the published 1T-A52B.
+
+**Two different kinds of sharing.**
+
+- *Indexer sharing* reuses the **selection**. A `shared` layer attends to the
+  same 2,048 positions as the most recent `full` layer, but with its own
+  queries over its own cached latents. This saves the \(\mathcal{O}(T)\)
+  indexer scan, and the indexer key cache, in 28 layers.
+- *KV sharing* reuses the **cache**. The nine NoPE layers after layer 35 write
+  no latent of their own and attend over layer 35's cache, which is also NoPE.
+  Each of these layers keeps its own indexer.
+
+**Cache per token.** Use BF16 latents and the FP8 indexer key used by vLLM's
+DSA cache (128 bytes and a 4-byte scale):
+
+\[
+\underbrace{63\times576\times2}_{72{,}576\ \text{B latent}}
++\underbrace{44\times132}_{5{,}808\ \text{B indexer}}
+=78{,}384\ \text{B}\approx76.5\ \text{KiB per token}.
+\]
+
+Without KV sharing the latent alone would be \(72\times1152=82{,}944\) B. With
+an FP8 latent cache, vLLM reports 47,136 B per token. One request at
+\(T=2^{20}\) still holds about 77 GiB in BF16. MLA, DSA and sharing reduce the
+cache by constant factors. They do not stop it growing with \(T\).
+
+**What remains at long context.** Per decode step and request at
+\(T=2^{20}\):
+
+- sparse attention reads about \(63\times2048\times1152\approx0.15\) GB of
+  latents;
+- the 44 indexers scan about \(44\times2^{20}\times132\approx6.1\) GB of keys.
+
+Weights (about 52 GB of active FP8 weights) are shared across the batch, but
+the indexer scan belongs to each request. At long context the indexer becomes
+the dominant per-request decode traffic, and this is the term that indexer
+sharing reduces.
+
+**MoE shape.** Each token goes to 4 large experts plus one shared expert.
+Compared with fine-grained designs, this means fewer, larger expert GEMMs and
+less dispatch traffic per FLOP (see the comparison in §5).
+
+## 4. Case study: GLM-5.2 → GLM-5.3-Flash — the super hybrid
+
+GLM-5.2 is already a DSA model. GLM-5.3-Flash keeps its MoE recipe, shrinks it,
+and replaces three of every four attention layers with KDA.
+
+| Field | GLM-5.2 | GLM-5.3-Flash |
+| --- | --- | --- |
+| Parameters (total / active) | 744B / 40B | 320B / 18B |
+| `hidden_size` | 6144 | 4096 |
+| Layers | 78 (+1 MTP) | 45 (+1 MTP) |
+| Attention pattern | 78 × MLA + DSA | 34 × KDA + 11 × MLA + DSA, repeating `KKKD` |
+| `kv_lora_rank` / `qk_rope_head_dim` | 512 / 64 | 512 / 0 (NoPE) |
+| Indexer | 21 `full`, 57 `shared` (IndexShare) | 11 `full`, pooled selection (`index_kpool: 4`) |
+| KDA heads × \(d_k\) × \(d_v\) | — | 64 × 128 × 128, short convolution of width 4 |
+| Experts (routed / active / shared) | 256 / 8 / 1 | 288 / 8 / 1 |
+| `moe_intermediate_size` | 2048 | 2048 |
+| Dense layers before MoE | 3 | 3 |
+| Router | sigmoid, bias-based balancing (`noaux_tc`) | same |
+| Residual | standard | mHC, 4 streams |
+| Vision | — | native ViT encoder (24 layers) |
+
+Counting from the GLM-5.3-Flash config gives about 313B, plus about 7B for the
+MTP layer, with about 17–18B active.
+
+**Cache and state per request.** Use the same convention as for Mistral Large 4:
+BF16 latent and a 132-byte indexer key. GLM-5.3-Flash caches
+
+\[
+\underbrace{11\times512\times2}_{11{,}264\ \text{B latent}}
++\underbrace{11\times132}_{1{,}452\ \text{B indexer}}
+=12{,}716\ \text{B}\approx12.4\ \text{KiB per token},
+\]
+
+against about 90.5 KiB for GLM-5.2. In exchange, every request holds a **fixed**
+KDA state:
+
+\[
+34\ \text{layers}\times64\times128\times128\times4\ \text{B (FP32)}
+=136\ \text{MiB},
+\]
+
+plus about 5 MiB of convolution cache. The reference implementation keeps the
+recurrent state in FP32.
+
+| Context \(T\) | Mistral Large 4 | GLM-5.3-Flash (cache + state) |
+| ---: | ---: | ---: |
+| 4k | 0.30 GiB | 0.18 GiB |
+| 32k | 2.4 GiB | 0.52 GiB |
+| 128k | 9.6 GiB | 1.7 GiB |
+| 1M | 76.5 GiB | 12.5 GiB |
+
+The state equals the cache at \(136\ \text{MiB}/12{,}716\ \text{B}\approx11\)k
+tokens. Below that, GLM-5.3-Flash's per-request memory is mostly fixed state.
+Short-prompt, high-concurrency serving therefore gains much less than the
+million-token headline suggests. That is the workload Module 10 measures.
+
+**Why keep MLA layers, and why make them sparse.**
+
+- The 11 attention layers give exact access to any earlier token. The KDA state
+  is a compressed summary and cannot provide that.
+- These layers are NoPE: the KDA layers already encode order, and a NoPE
+  latent has no RoPE frequencies to extrapolate to a million positions.
+- With only 11 indexers, each scoring pools of 4 tokens, the \(\mathcal{O}(T)\)
+  indexer term is much smaller than in Mistral Large 4. The four-token pooling
+  is an inference from the config and the Transformers code; Z.ai does not
+  describe it.
+
+**What it costs.**
+
+- KDA is lossy memory. Retrieval-heavy long-context evaluations, not perplexity,
+  are the evidence to ask for.
+- There are two kinds of layer to implement, fuse and parallelize. Context
+  parallelism (Module 8) must pass a recurrent state between ranks instead of
+  ring-passing K/V blocks.
+- mHC makes the residual state four times wider.
 
 ---
 
-## Optional exploration
+## 5. Side by side
 
-1. **MLA memory calculation:** Derive the precise byte savings of Multi-Head Latent Attention
-   versus standard MHA and GQA across sequence lengths from $4\text{k}$ to $128\text{k}$.
-2. **Speculative decoding simulation:** Model expected token acceleration $\mathbb{E}[\text{tokens/step}]$
-   and the wall-clock cost model as a function of draft length $\gamma \in \{1, \dots, 8\}$ and empirical acceptance rate $\alpha \in [0.5, 0.95]$.
-3. **Linear recurrent step:** Implement a minimal Gated Delta Network update step and compare
-   its memory footprint against an autoregressive KV-cache during generation.
+| | Mistral Large 4 | GLM-5.3-Flash |
+| --- | --- | --- |
+| Main idea | every layer sparse; share selections and caches | most layers recurrent; the rest sparse |
+| Cache per token | ≈76.5 KiB | ≈12.4 KiB + 136 MiB fixed |
+| Per-request long-context traffic | indexer scan, 44 layers | indexer scan, 11 layers (pooled), plus state |
+| Experts | 128, top-4 + 1 shared, \(d_{ff}=6144\) | 288, top-8 + 1 shared, \(d_{ff}=2048\) |
+| Dispatch per token and MoE layer (BF16) | \(4\times6144\times2=48\) KiB | \(8\times4096\times2=64\) KiB |
+| Expert FLOPs per dispatched byte | ≈18k | ≈6k |
+| Position | 3:1 RoPE : NoPE | NoPE attention, order from KDA |
+| Residual | standard | mHC, 4 streams |
 
----
+The last MoE rows connect to Module 8. Fine-grained experts give more expert
+combinations per token, but they do less compute for each byte sent through
+All-to-All. Overlapping that communication is therefore harder.
+
+## 6. In-class exercise: read an unknown config
+
+The following model is **invented** for the exercise. Treat it like a new
+release.
+
+| Field | Value |
+| --- | --- |
+| `hidden_size` | 5120 |
+| `num_hidden_layers` | 48, pattern `GGGM` repeated (G: gated DeltaNet, M: MLA) |
+| MLA | `kv_lora_rank` 512, `qk_rope_head_dim` 64, dense (no indexer) |
+| Linear layers | 40 heads, \(d_k=d_v=128\), FP32 state |
+| MoE | 256 routed experts, top-8, 1 shared, `moe_intermediate_size` 1536 |
+| Dense layers before MoE | 2, `intermediate_size` 12288 |
+| Vocabulary | 160,000, untied input and output embeddings |
+| Attention and recurrent projections | 6.0B parameters in total (given) |
+
+1. KV-cache bytes per token in BF16.
+2. Recurrent state per request.
+3. The context length at which cache and state are equal, and the per-request
+   total at 128k.
+4. Total and active parameters (SwiGLU experts have \(3\,C\,d_{ff}\)
+   parameters).
+5. Which cost does this design target? What evidence would you ask for before
+   believing that it does not lose quality?
+
+??? success "One possible answer"
+    1. 12 MLA layers × 576 × 2 B = 13,824 B = 13.5 KiB per token. The same
+       model with MLA in all 48 layers would need 54 KiB.
+    2. 36 × 40 × 128 × 128 × 4 B = 90 MiB.
+    3. 90 MiB / 13.5 KiB ≈ 6.8k tokens. At 128k: 1.69 GiB cache + 0.09 GiB
+       state ≈ 1.8 GiB, against 6.75 GiB for all-MLA.
+    4. One expert: 3 × 5120 × 1536 ≈ 23.6M. MoE layers: 46 × 257 × 23.6M ≈
+       278.9B total; 46 × 9 × 23.6M ≈ 9.8B active. Add dense layers 0.38B,
+       embeddings 1.64B and projections 6.0B: ≈ 287B total, ≈ 17.8B active.
+    5. Per-request memory and bandwidth at long context. Ask for long-context
+       retrieval results (multi-needle, multi-hop) against an all-attention
+       baseline trained the same way, and for measured decode throughput
+       against context length, not only the parameter count.
+
+## Exit ticket
+
+1. DSA keeps an \(\mathcal{O}(T^2)\) term in prefill. Why is it still worth
+   paying?
+2. What does Mistral Large 4 share in `shared` indexer layers, and what in
+   layers 39, 43, …, 71?
+3. Below roughly what context does GLM-5.3-Flash use **more** per-request
+   memory for KDA state than for its KV cache?
+4. Why can GLM-5.3-Flash's MLA layers be NoPE?
+5. Which of the two models do you expect to be easier to serve with expert
+   parallelism across nodes, and why?
 
 ## Expected output
 
-An in-class explanation of the three core comparisons: what cost is reduced,
-what cost remains, and what evidence would establish a useful trade-off. The
-explorations above are optional and do not add a required report.
+An in-class worksheet for the exercise, and one sentence per design choice
+stating the cost it reduces and the cost it adds. There is no required report.
 
----
+## A note on sources
+
+Architecture fields come from the published `config.json` files. Parameter
+counts and byte counts are computed from them in this module. Cache sizes depend
+on the implementation (latent dtype, indexer key format, paging), so always
+state your convention. Statements about *why* a choice was made are marked
+as interpretation when no source gives a reason.
 
 ## References
 
-- [Leviathan et al. (2023) — Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192)
-  — foundational draft-and-verify algorithm and rejection sampling proof;
-- [The Ultimate MoE Training Handbook](https://huggingface.co/spaces/huggingface/moe-blogpost)
-  — interactive handbook on routing mechanisms, auxiliary load-balancing, and expert parallelism;
-- [DeepSeek-V3 Technical Report (2024)](https://arxiv.org/abs/2412.19437)
-  — Multi-Head Latent Attention (MLA), DeepSeekMoE, Aux-loss-free balancing, and MTP;
-- [Gu & Dao (2023) — Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)
-  — selective state-space mechanics and hardware-aware scan;
-- [Dao & Gu (2024) — Transformers are SSMs: Generalized Models and State Space Duality](https://arxiv.org/abs/2405.21060)
-  — Mamba-2 and theoretical unification of attention and SSMs;
-- [Schlag et al. (2021) — Linear Transformers with Learnable Kernel Functions (Delta Net)](https://arxiv.org/abs/2102.11174)
-  — delta-rule memory update mechanics;
-- [Chameleon Team (2024) — Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)
-  — discrete image tokenization and mixed-modal early fusion.
-- [Kimi Team (2025) — Kimi Linear](https://arxiv.org/abs/2510.26692)
-  — Kimi Delta Attention and hybrid recurrent/attention layers.
+- [Mistral Large 4 `config.json`](https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B/blob/main/config.json),
+  [Hugging Face release post](https://huggingface.co/blog/mistral-large4) and
+  [vLLM day-0 post](https://vllm.ai/blog/2026-10-29-mistral-large-4)
+  — architecture, indexer and KV sharing, cache sizes in production;
+- [GLM-5.3-Flash `config.json`](https://huggingface.co/zai-org/GLM-5.3-Flash/blob/main/config.json),
+  [Transformers model page](https://huggingface.co/docs/transformers/en/model_doc/glm5_next) and
+  [GLM-5.2 `config.json`](https://huggingface.co/zai-org/GLM-5.2/blob/main/config.json);
+- [Raschka (2026) — GLM-5.3-Flash architecture notes](https://sebastianraschka.com/blog/2026/glm-5-3-flash-architecture-notes.html)
+  and the [LLM Architecture Gallery](https://sebastianraschka.com/llm-architecture-gallery/)
+  — compact side-by-side summaries of recent models;
+- [GLM-5: from Vibe Coding to Agentic Engineering (2026)](https://arxiv.org/abs/2602.15763)
+  — the GLM-5 family and its adoption of DSA;
+- [DeepSeek-V3.2 (2025)](https://arxiv.org/abs/2512.02556)
+  — DeepSeek Sparse Attention and the lightning indexer;
+- [Kimi Linear (2025)](https://arxiv.org/abs/2510.26692)
+  — Kimi Delta Attention and a 3:1 hybrid with NoPE MLA;
+- [Gated Delta Networks (2024)](https://arxiv.org/abs/2412.06464)
+  — the gated delta rule that KDA refines;
+- [Hyper-Connections (2024)](https://arxiv.org/abs/2409.19606) and
+  [mHC: Manifold-Constrained Hyper-Connections (2025)](https://arxiv.org/abs/2512.24880)
+  — multi-stream residuals and their doubly stochastic constraint;
+- [DeepSeek-V2 (2024)](https://arxiv.org/abs/2405.04434)
+  — multi-head latent attention, as used in Module 9.
 
 ---
 
 [:material-file-pdf-box: View Lecture Slides (PDF)](../slides/11-frontier-architectures.pdf){ .md-button target="_blank" }
-[:material-code-tags: Practical Companion Guide](../companion/11-frontier-architectures.md){ .md-button .md-button--primary }
+[:material-code-tags: Optional companion material](../companion/11-frontier-architectures.md){ .md-button .md-button--primary }
