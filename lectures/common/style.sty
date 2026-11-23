@@ -76,7 +76,8 @@
 
 % ---- Footline: hairline, short title left, logo + page number right ----
 % Main-body and optional (appendix) slides are counted separately: the main
-% total stops at \appendix, and optional slides restart from 1.
+% total stops at \appendix, and optional slides restart from 1 (section dividers
+% after \appendix take no number; see \coursesectiondivider).
 \newif\ifcourse@inappendix
 \def\course@maintotal{\inserttotalframenumber}
 \def\course@optionaltotal{\inserttotalframenumber}
@@ -199,6 +200,8 @@
       {\small\tableofcontents[currentsection,hideallsubsections]}
       \vskip0pt plus 1.4fill
     \end{frame}
+    % After \appendix the divider takes no number, so optional slides start at 1.
+    \ifcourse@inappendix\addtocounter{framenumber}{-1}\fi
   }%
 }
 

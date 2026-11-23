@@ -51,7 +51,7 @@ The complete block test comes after attention is implemented in session 3.
 Implement `MLP` with the following data flow:
 
 ```text
-d_model → 4 × d_model → GELU → d_model → dropout
+d → 4d → GELU → d → dropout
 ```
 
 Use `nn.GELU(approximate="tanh")` to match GPT-2. Test this component on its
@@ -72,7 +72,7 @@ x = x + attention(norm_1(x))
 x = x + mlp(norm_2(x))
 ```
 
-The block must preserve `B × T × d_model`. Keep the component names `ln_1`,
+The block must preserve `B × T × d`. Keep the component names `ln_1`,
 `attn`, `ln_2`, and `mlp`; the GPT-2 converter uses those names. The block
 cannot run until attention is implemented. If time is short, retain the sketch
 and start the attention exercise with the class.
@@ -81,11 +81,11 @@ and start the attention exercise with the class.
 
 Implement `CausalSelfAttention` in `nanolm/model.py`.
 
-For an input `x` with shape `B × T × d_model`:
+For an input `x` with shape `B × T × d`:
 
 1. Project `x` independently into `Q`, `K`, and `V`.
-2. Reshape each projection to `B × n_head × T × d_head`, where
-   `d_head = d_model / n_head`.
+2. Reshape each projection to `B × H × T × d_h`, where `d_h = d / H`
+   (`head_dim = n_embd // n_head` in the code).
 3. Compute the attention scores:
 
    $$S = \frac{QK^\top}{\sqrt{d_h}}.$$
@@ -93,7 +93,7 @@ For an input `x` with shape `B × T × d_model`:
 4. Before the softmax, replace scores above the causal diagonal with
    $-\infty$.
 5. Apply the softmax over key positions and multiply by `V`.
-6. Join the heads back into `B × T × d_model` and apply the output projection.
+6. Join the heads back into `B × T × d` and apply the output projection.
 
 Register the causal mask as a buffer so that it follows the module between
 devices without becoming a trainable parameter.

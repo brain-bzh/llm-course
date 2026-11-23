@@ -236,8 +236,8 @@ bucket overlap hides some communication only when sufficient compute is availabl
 Measure achieved bandwidth and exposed time rather than dividing by an advertised
 aggregate link rate and declaring the result optimal.
 
-For an ideal ring all-reduce of payload $S$ bytes over $R$ ranks, bytes **sent per
-rank** are $2(R-1)S/R$. This excludes received bytes and latency. A parameter
+For an ideal ring all-reduce of payload $S$ bytes over $W$ ranks, bytes **sent per
+rank** are $2(W-1)S/W$. This excludes received bytes and latency. A parameter
 count becomes a payload only after specifying precision and sharding. For FSDP,
 also specify how often weights are resharded and whether gradients synchronize
 on each micro-batch; “three times parameters per optimizer step” is not universal.
@@ -247,6 +247,9 @@ on each micro-batch; “three times parameters per optimizer step” is not univ
 For this course's balanced teaching layout, define independent coordinates:
 
 $$W=N_{dp}\times N_{tp}\times N_{cp}\times N_{pp}.$$
+
+Here \(W\) is the total world size. In Modules 5–6 data parallelism is the only
+axis, so there \(W=N_{dp}\).
 
 - $N_{pp}$: pipeline stages;
 - $N_{tp}$: tensor-parallel degree;
@@ -271,9 +274,10 @@ See [Megatron's parallel configuration](https://docs.nvidia.com/megatron-core/de
 
 The companion calculator supports either FSDP or EP under these assumptions.
 It rejects combined EP/FSDP layouts rather than guessing the expert shard groups.
-For micro-batch size $B$ and $K$ accumulation micro-batches per update:
+For micro-batch size $B$ and $M$ micro-batches per update (the pipeline's $M$;
+without a pipeline this is the accumulation count $K$ of Module 2):
 
-$$\text{global tokens/update}=B\,T\,K\,N_{dp}.$$
+$$\text{global tokens/update}=B\,T\,M\,N_{dp}.$$
 
 Neither CP nor TP creates extra training examples.
 

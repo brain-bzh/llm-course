@@ -254,7 +254,7 @@
     \text{tokens per update} = B\,T\,K\,W
   \]
   \par\vspace{-6pt}
-  {\centering\footnotesize $B$: micro-batch per device \quad $W$: devices ($W=1$ until Module 5)\par}
+  {\centering\footnotesize $B$: micro-batch per device \quad $W$: data-parallel devices ($W=1$ on one GPU; Module 5)\par}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \begin{itemize}
@@ -282,7 +282,7 @@
   \]
   \[
     g_i \leftarrow g_i\cdot
-    \min\!\left(1,\frac{M}{\lVert g\rVert_2+\epsilon}\right)
+    \min\!\left(1,\frac{c}{\lVert g\rVert_2+\epsilon}\right)
   \]
   \begin{itemize}
       \setlength{\itemsep}{8pt}
@@ -353,7 +353,7 @@
       \midrule
       1 & set $\eta_t$ from the schedule & optimizer learning rate \\
       2 & $K$ times: forward, $\mathcal L_k/K$, backward & \texttt{.grad} accumulates $\tfrac1K\sum_k\nabla\mathcal L_k$ \\
-      3 & clip the global norm to $M$ & \texttt{.grad} rescaled \\
+      3 & clip the global norm to $c$ & \texttt{.grad} rescaled \\
       4 & optimizer step & $\theta$, $m$, $v$ \\
       5 & clear gradients & \texttt{.grad} $\leftarrow$ \texttt{None} \\
       6 & $t\leftarrow t+1$ & update counter \\

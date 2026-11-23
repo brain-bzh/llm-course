@@ -282,7 +282,7 @@
     \item Explicit attention: $QK^\top$, mask, softmax and $AV$ are separate kernels with $T\times T$ intermediates.
     \item Scaled dot-product attention (SDPA) is the same function of $Q,K,V$, each $(B,H,T,d_h)$:\\[1pt]
       {\footnotesize\texttt{y = F.scaled\_dot\_product\_attention(q, k, v, is\_causal=True)}}
-    \item The causal mask is a flag, not a tensor. Dropout is a probability, zero outside training.
+    \item The causal mask is a flag, not a tensor. Dropout is the \texttt{dropout\_p} argument: pass 0 in evaluation, SDPA does not switch it off.
     \item PyTorch selects the backend from hardware, dtype, shapes and mask: FlashAttention, another fused kernel, or the plain math path.
   \end{enumerate}
   \begin{alertblock}{Same function, different kernels}
@@ -340,7 +340,7 @@
       MLP $d\to4d\to d$ & $8d^2$ per layer & \\
       Vocabulary head (tied) & $Vd$ & \\
       \midrule
-      All projections & $M=12Ld^2+Vd$ & $6M$ \\
+      All projections & $N_{\text{proj}}=12Ld^2+Vd$ & $6N_{\text{proj}}$ \\
       $QK^\top$ and $AV$ products & none & $12\,L\,d\,T$ \\
       \bottomrule
     \end{tabular}
@@ -351,7 +351,7 @@
   \]
   \footnotesize The embedding lookup is not a multiplication. Each attention product costs $2Td$ FLOPs per token and layer forward; training triples the forward cost.\par
   \vspace{3pt}
-  \textbf{GPT-2 small} ($L=12$, $d=768$, $V=50{,}257$, $T=1024$): $6M\approx7.41\times10^{8}$ plus attention $1.13\times10^{8}$ gives $F_{\text{token}}\approx8.5\times10^{8}$. The $6N$ shortcut gives $7.44\times10^{8}$.
+  \textbf{GPT-2 small} ($L=12$, $d=768$, $V=50{,}257$, $T=1024$): $6N_{\text{proj}}\approx7.41\times10^{8}$ plus attention $1.13\times10^{8}$ gives $F_{\text{token}}\approx8.5\times10^{8}$. The $6N$ shortcut gives $7.44\times10^{8}$.
 \end{frame}
 
 \begin{frame}{Performance metrics answer different questions}

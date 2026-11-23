@@ -12,8 +12,8 @@
   <path class="save" d="M130 90C190 160 270 245 800 355"/><path class="loss" d="M130 365L800 105"/>
   <path class="total" d="M130 92C230 235 315 300 440 312C575 325 675 250 800 110"/>
   <line class="opt" x1="440" y1="312" x2="440" y2="390"/><circle class="point" cx="440" cy="312" r="10"/>
-  <text class="orange" x="205" y="150">save overhead S / τ</text><text class="teal" x="660" y="175">expected lost work τ / (2M)</text><text class="label" x="535" y="300">total expected overhead</text>
+  <text class="orange" x="205" y="150">save overhead S / τ</text><text class="teal" x="800" y="82" text-anchor="end">expected lost work τ / (2T<tspan baseline-shift="sub" font-size="70%">int</tspan>)</text><text class="label" x="640" y="292">total expected overhead</text>
   <text class="label" x="440" y="420" text-anchor="middle">best interval for this job</text><text class="sub" x="160" y="420">save too often</text><text class="sub" x="750" y="420">lose too much work</text>
   <text class="label" x="480" y="456" text-anchor="middle">checkpoint interval τ →</text><text class="label" x="30" y="230" text-anchor="middle" transform="rotate(-90 30 230)">expected overhead →</text>
-  <text class="formula" x="500" y="42" text-anchor="middle">overhead rate ≈ S/τ + τ/(2M) + R/M, with M = MTBI</text>
+  <text class="formula" x="500" y="42" text-anchor="middle">overhead rate ≈ S/τ + τ/(2T<tspan baseline-shift="sub" font-size="70%">int</tspan>) + R/T<tspan baseline-shift="sub" font-size="70%">int</tspan>, with T<tspan baseline-shift="sub" font-size="70%">int</tspan> = MTBI</text>
 </svg>

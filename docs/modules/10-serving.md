@@ -311,7 +311,7 @@ shape specialization.
 </figure>
 
 For request arrival time \(t_0\), first-token time \(t_1\), completion
-\(t_f\), and \(N_{\text{out}}\) output tokens:
+\(t_f\), and \(N_r\) output tokens for request \(r\):
 
 \[
 \mathrm{TTFT} = t_1 - t_0,
@@ -322,10 +322,10 @@ For request arrival time \(t_0\), first-token time \(t_1\), completion
 \]
 
 \[
-\mathrm{TPOT} = \frac{t_f-t_1}{N_{\text{out}}-1}
+\mathrm{TPOT} = \frac{t_f-t_1}{N_r-1}
 \]
 
-for \(N_{\text{out}}>1\). TPOT is a per-request average; **ITL** is the distribution of
+for \(N_r>1\). TPOT is a per-request average; **ITL** is the distribution of
 individual gaps between streamed tokens.
 
 Also report:

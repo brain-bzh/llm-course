@@ -337,12 +337,12 @@
     \end{tabular}
   \end{center}
   \[
-    N_{\text{rank}}=\frac{N_{\text{shared}}+N_{\text{expert}}/N_{ep}}{N_{tp}\,N_{pp}\,N_{fsdp}},
+    N_{\text{rank}}=\frac{N}{N_{tp}\,N_{pp}\,N_{fsdp}}\ \text{(FSDP)},
     \qquad
-    \text{tokens per update}=B\,T\,M\,N_{dp}
+    N_{\text{rank}}=\frac{N_{\text{shared}}+N_{\text{expert}}/N_{ep}}{N_{tp}\,N_{pp}}\ \text{(EP)}
   \]
   \vfill
-  Persistent bytes are $N_{\text{rank}}$ times the bytes per parameter for weights, gradients and optimizer state. Only data parallelism multiplies the batch: $M$ micro-batches of $B$ sequences per replica.
+  Both $N_{fsdp}$ and $N_{ep}$ divide $N_{dp}$; this course uses one or the other, since combining them needs explicit expert shard groups. Persistent bytes are $N_{\text{rank}}$ times the bytes per parameter for weights, gradients and optimizer state. Only data parallelism multiplies the batch: tokens per update $=B\,T\,M\,N_{dp}$, with $M$ micro-batches of $B$ sequences per replica.
 \end{frame}
 
 \begin{frame}{Map the chattiest group to the fastest fabric}
