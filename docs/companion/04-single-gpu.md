@@ -111,6 +111,12 @@ and record that choice:
 Change **one** thing per comparison. The modes form a chain:
 manual FP32 → SDPA FP32 → SDPA BF16. `compile` uses SDPA FP32, so compare it with SDPA FP32.
 
+!!! note "Which GPU for which mode"
+    The lab GTX 1080s (Pascal) have no BF16 Tensor Cores, and PyTorch's
+    FlashAttention backend needs an Ampere-class GPU or newer. Run `manual`,
+    `sdpa` and `compile` there; SDPA will pick another kernel. Run the `bf16`
+    mode, and any FlashAttention comparison, on the GCP A100s.
+
 ```bash
 # CPU: checks the workflow only
 uv run python scripts/04_single_gpu_perf.py --device cpu --modes manual sdpa

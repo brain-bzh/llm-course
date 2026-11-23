@@ -324,15 +324,15 @@
             \item Cached $=$ uncached decoding
           \end{itemize}
         \item Dependencies managed with \texttt{uv}.
-        \item \textbf{Hardware}: laptop CPU for small checks; lab GPUs (GTX 1080) when available; GCP for larger GPU runs.
+        \item \textbf{Hardware}: laptop CPU for small checks; lab GTX 1080s for FP32 GPU runs; GCP A100s (planned) for BF16 and FlashAttention.
       \end{itemize}
     \end{column}
     \begin{column}{0.44\linewidth}
       \begin{block}{Sanity check before Session 1}
         \ttfamily\scriptsize
         \# Clone \& install\\
-        git clone https://github.com/\\
-        \hspace*{0.4em}brain-bzh/llm-course-companion\\
+        git clone https://github.com/\textbackslash\\
+        brain-bzh/llm-course-companion\\
         cd llm-course-companion\\
         uv python install\\
         uv sync\\

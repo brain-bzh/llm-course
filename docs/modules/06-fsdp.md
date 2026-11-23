@@ -55,18 +55,22 @@ DDP gives every rank a complete copy of:
 - optimizer moments and any master parameters.
 
 Only the activations are naturally different, because each rank processes a
-different micro-batch. If one rank uses \(M\) bytes for persistent model state,
-\(W\) DDP ranks use roughly \(WM\) bytes in aggregate while every rank still
-needs enough memory for the full model.
+different micro-batch. \(W\) DDP ranks hold \(W\) copies of the persistent
+model state in aggregate, while every rank still needs enough memory for the
+full model.
 
-For \(N\) parameters, a common AdamW mixed-precision accounting is:
+For \(N\) parameters trained in FP32 with AdamW (the course's accounting, used
+by the lecture and the companion calculator):
 
 | State | Bytes per parameter | Replicated DDP bytes |
 | --- | ---: | ---: |
-| BF16 parameters | 2 | \(2N\) |
-| BF16 gradients | 2 | \(2N\) |
-| FP32 master parameters + Adam moments | 12 | \(12N\) |
+| FP32 parameters | 4 | \(4N\) |
+| FP32 gradients | 4 | \(4N\) |
+| Adam moments \(m, v\) (FP32) | 8 | \(8N\) |
 | **Total before activations/temporaries** | **16** | **\(16N\)** |
+
+A BF16 mixed-precision recipe with FP32 master weights also totals about
+\(16N\) (2 + 2 + 12), but splits it differently across the ZeRO stages.
 
 Some systems keep FP32 gradients, omit master parameters or use different
 optimizer-state precision. Always replace the example with the measured state
@@ -80,8 +84,8 @@ data-parallel degree \(W\):
 | Method | Parameters | Gradients | Optimizer state | Approximate persistent bytes/rank |
 | --- | --- | --- | --- | ---: |
 | DDP / ZeRO-0 | replicated | replicated | replicated | \(16N\) |
-| ZeRO-1 | replicated | replicated | sharded | \(4N + 12N/W\) |
-| ZeRO-2 | replicated | sharded | sharded | \(2N + 14N/W\) |
+| ZeRO-1 | replicated | replicated | sharded | \(8N + 8N/W\) |
+| ZeRO-2 | replicated | sharded | sharded | \(4N + 12N/W\) |
 | ZeRO-3 / full sharding | sharded | sharded | sharded | \(16N/W\) |
 
 These simplified formulas exclude activations, communication buffers,
@@ -197,11 +201,11 @@ a communication trace.
 Sharding does not make the full parameter set disappear from the computation.
 It moves parameter shards when layers need them.
 
-For a ring collective on \(P\) bytes across \(W\) ranks, a rank transfers
+For a ring collective on \(S\) bytes across \(W\) ranks, a rank transfers
 approximately
 
 \[
-\frac{W-1}{W}P
+\frac{W-1}{W}S
 \]
 
 for one all-gather or reduce-scatter. A fully sharded block normally requires:
@@ -298,11 +302,11 @@ artifact, not disposable implementation detail.
 ### Checkpoint cadence is an expected-cost decision
 
 Let \(\tau\) be the interval between checkpoints, \(S\) the exposed time to
-save one checkpoint, \(R\) the recovery load time and \(M\) the mean time
+save one checkpoint, \(R\) the recovery load time and \(T_{\text{int}}\) the mean time
 between interruptions. A useful approximation to the overhead rate is
 
 \[
-\frac{S}{\tau} + \frac{\tau}{2M} + \frac{R}{M}.
+\frac{S}{\tau} + \frac{\tau}{2T_{\text{int}}} + \frac{R}{T_{\text{int}}}.
 \]
 
 The first term penalizes saving too often. The second is the expected training

@@ -311,7 +311,7 @@
 \begin{frame}{Full-prefix decoding is the reference oracle}
   For fixed weights, prompt, and token sequence:
   \begin{enumerate}
-      \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{5pt}
     \item run a full-prefix forward pass for each step
     \item run cached prefill plus single-token decode
     \item compare next-token logits at every step
@@ -319,7 +319,7 @@
     \item repeat across batch sizes, prompt lengths, and up to the full context window
   \end{enumerate}
   \begin{block}{Then test generation}
-    \small Compare logits within dtype tolerance. Greedy tokens then match exactly; sampling also needs matching random state.
+    \small Compare logits within dtype tolerance. Greedy tokens then match, except at near-ties within that tolerance; sampling also needs matching random state.
   \end{block}
 \end{frame}
 

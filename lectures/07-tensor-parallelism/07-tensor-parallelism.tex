@@ -104,7 +104,7 @@
     \node[text=accentdark,font=\small\bfseries] at (2.2,-1.1) {No forward collective};
   \end{tikzpicture}
   \par\vspace{3pt}\footnotesize Filled = local shard; dashed = held by the other GPU. Both GPUs process the same tokens.
-  \par PyTorch stores $W^{\top}$ (out $\times$ in): rank $r$ holds rows $[\,r\,d_{\text{out}}/N_{tp},\ (r+1)\,d_{\text{out}}/N_{tp})$ and their biases.
+  \par PyTorch stores $W^{\top}$ (out $\times$ in): with $N_{tp}$ tensor-parallel ranks, rank $r$ holds rows $[\,r\,d_{\text{out}}/N_{tp},\ (r+1)\,d_{\text{out}}/N_{tp})$ and their biases.
 \end{frame}
 
 \begin{frame}{Row parallelism: sum partial outputs}

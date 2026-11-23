@@ -660,7 +660,7 @@
 \end{frame}
 
 \begin{frame}{From logits to a token}
-  Generation reads the last position only: $z = Z_{b,T} \in \mathbb{R}^{V}$, picks one token, appends it, and repeats.
+  Generation reads the last position only: $z = Z_{b,T-1} \in \mathbb{R}^{V}$ (positions $0,\dots,T-1$), picks one token, appends it, and repeats.
   \begin{center}
     \footnotesize
     \renewcommand{\arraystretch}{1.25}
@@ -669,12 +669,12 @@
       \textbf{Rule} & \textbf{Next token} & \textbf{Effect} \\
       \midrule
       Greedy & $\arg\max_i z_i$ & deterministic \\
-      Temperature $\tau$ & sample $p=\operatorname{softmax}(z/\tau)$ & $\tau<1$ sharper, $\tau>1$ flatter \\
-      Top-$k$ & sample $p$ over the $k$ largest logits & fixed candidate count \\
-      Top-$p$ & sample $p$ over the smallest set of mass $\ge P$ & adaptive candidate count \\
+      Temperature $\tau$ & sample $p=\operatorname{softmax}(z/\tau)$ & $\tau<1$ sharper \\
+      Top-$k$ & sample $p$ over the $k$ largest logits & fixed count \\
+      Top-$p$ & sample $p$ over the smallest set with mass $\ge\rho$ & adaptive count \\
       \bottomrule
     \end{tabular}\\[3pt]
-    {\footnotesize Top-$k$ and top-$p$ (threshold $P$) renormalize $p$ over the kept tokens before sampling.}
+    {\footnotesize Top-$k$ and top-$p$ (threshold $\rho$) renormalize $p$ over the kept tokens before sampling.}
   \end{center}
   \begin{block}{Perplexity}
     $\operatorname{PPL}=\exp(\mathcal{L})$, with $\mathcal{L}$ the mean cross-entropy in nats per token. A uniform guess over the vocabulary gives $\operatorname{PPL}=V$.
@@ -843,10 +843,11 @@
       $B$ & batch (micro-batch per device) & $N$ & parameter count \\
       $T$ & sequence length (tokens) & $A$ & attention weights \\
       $V$ & vocabulary size & $K$ & accumulation micro-steps \\
+      $M$ & pipeline micro-batches & $c$ & gradient-clip threshold \\
       $d$ & model width & $W$ & world size (ranks) \\
       $L$ & number of layers (blocks) & $b$ & bytes per element \\
       $H$, $H_{kv}$ & heads, KV heads & $\mathcal{L}$ & loss \\
-      $d_h$ & head width, $d/H$ & $N_{x}$ & a count of $x$, e.g.\ $N_{dp}$ \\
+      $d_h$ & head width, $d/H$ & $N_{x}$ & a count or degree, e.g.\ $N_{dp}$ \\
       \bottomrule
     \end{tabular}
   \end{center}
@@ -903,7 +904,7 @@
 
 \begin{frame}{Original Transformer: fixed sinusoidal positions}
   \begin{block}{Sinusoidal position encoding}
-    \footnotesize For position $p$ and feature pair $2i,2i+1$ ($d=d_{\rm model}$):
+    \footnotesize For position $p$ and feature pair $2i,2i+1$ of the width-$d$ embedding:
     \[
       \operatorname{PE}(p,2i)=\sin\!\left(\frac{p}{10000^{2i/d}}\right),\qquad
       \operatorname{PE}(p,2i+1)=\cos\!\left(\frac{p}{10000^{2i/d}}\right).

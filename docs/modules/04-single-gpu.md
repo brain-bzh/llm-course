@@ -396,13 +396,13 @@ The main result is:
 
 ### 2. The $2\times$ backward multiplier
 
-For every linear layer $Y = X W$ in the forward pass, the backward pass must compute two distinct matrix derivatives via the chain rule:
+For every linear layer $Z = X W$ in the forward pass, the backward pass must compute two distinct matrix derivatives via the chain rule:
 
 **Gradient with respect to input activations:**
 
 \[
 \frac{\partial \mathcal{L}}{\partial X}
-= \frac{\partial \mathcal{L}}{\partial Y} W^\top
+= \frac{\partial \mathcal{L}}{\partial Z} W^\top
 \quad \implies 2mkn\text{ FLOPs}.
 \]
 
@@ -410,7 +410,7 @@ For every linear layer $Y = X W$ in the forward pass, the backward pass must com
 
 \[
 \frac{\partial \mathcal{L}}{\partial W}
-= X^\top \frac{\partial \mathcal{L}}{\partial Y}
+= X^\top \frac{\partial \mathcal{L}}{\partial Z}
 \quad \implies 2mkn\text{ FLOPs}.
 \]
 
