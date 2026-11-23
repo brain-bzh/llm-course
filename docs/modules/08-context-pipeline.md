@@ -49,7 +49,7 @@ exceeds single-device memory.
 ## Ring attention for context parallelism
 
 LayerNorm, RMSNorm, and MLP projections act independently on each token. If
-a sequence is partitioned across $C$ context-parallel ranks, each rank holds $T/C$
+a sequence is partitioned across $N_{cp}$ context-parallel ranks, each rank holds $T/N_{cp}$
 tokens and evaluates these operations locally without communication.
 
 Attention is different: token $i$ must attend to all preceding keys and values
@@ -66,17 +66,17 @@ In **ring attention**, ranks form a logical communication ring:
    using the online softmax formula:
    
    $$m_{\text{new}} = \max(m_{\text{prev}}, m_{\text{curr}}), \quad l_{\text{new}} = e^{m_{\text{prev}} - m_{\text{new}}} l_{\text{prev}} + e^{m_{\text{curr}} - m_{\text{new}}} l_{\text{curr}}.$$
-4. Repeat for $C-1$ shifts until all KV blocks have circulated.
+4. Repeat for $N_{cp}-1$ shifts until all KV blocks have circulated.
 
 ### Causal load imbalance & zig-zag placement
 
 In causal language modeling, tokens only attend to past positions. Contiguous
-chunking ($[0, T/C)$ on rank 0, $[T/C, 2T/C)$ on rank 1, etc.) leaves rank 0
-processing fewer valid key blocks than rank $C-1$. The imbalance depends on
+chunking ($[0, T/N_{cp})$ on rank 0, $[T/N_{cp}, 2T/N_{cp})$ on rank 1, etc.) leaves rank 0
+processing fewer valid key blocks than rank $N_{cp}-1$. The imbalance depends on
 which masked blocks the kernel skips and whether transfers overlap compute.
 
 **Zig-zag placement** distributes paired non-contiguous sub-chunks across ranks
-(e.g., assigning chunk $i$ and chunk $2C - 1 - i$ to the same rank), balancing ideal valid-pair counts for equally sized chunks. Runtime also
+(e.g., assigning chunk $i$ and chunk $2N_{cp} - 1 - i$ to the same rank), balancing ideal valid-pair counts for equally sized chunks. Runtime also
 depends on kernel efficiency and communication.
 
 <figure markdown="span">
@@ -89,9 +89,9 @@ Counting each diagonal tile as one, contiguous assignments have 3, 7, 11 and
 potential non-masked tiles, not a timing prediction; diagonal work, kernel
 skipping, packing and communication affect runtime.
 
-For a simple forward ring with $C$ ranks, local batch $B$, sequence length $T$,
-KV width $d_{kv}$ and $b$ bytes per element, $C-1$ full-block sends per rank
-move approximately $(C-1)2B(T/C)d_{kv}b$ bytes per rank. This counts K and V,
+For a simple forward ring with $N_{cp}$ ranks, local batch $B$, sequence length $T$,
+KV width $H_{kv}d_h$ and $b$ bytes per element, $N_{cp}-1$ full-block sends per rank
+move approximately $(N_{cp}-1)2B(T/N_{cp})H_{kv}d_hb$ bytes per rank. This counts K and V,
 and assumes equal chunks without causal communication skipping. Backward and
 weight-gradient synchronization add communication; overlap and topology govern
 the exposed cost. See the [Megatron Core context-parallel guide](https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/features/context_parallel.html).
@@ -101,17 +101,17 @@ the exposed cost. See the [Megatron Core context-parallel guide](https://docs.nv
 ## Pipeline parallelism (PP)
 
 Pipeline parallelism partitions the model *by depth*: layers $1 \dots L$ are
-divided across $P$ sequential stages.
+divided across $N_{pp}$ sequential stages.
 
 ### All-forward-all-backward (AFAB / GPipe)
 
-All $m$ micro-batches execute forward through the pipeline before backward
+All $M$ micro-batches execute forward through the pipeline before backward
 starts. Each micro-batch then traverses the stages in reverse depth order; the
 order of micro-batches is schedule-dependent.
 
-- **Bubble fraction:** $F_{\text{bubble}} = \frac{P - 1}{m + P - 1}$. Under balanced stage times and negligible communication, $F_{\text{bubble}}<0.1$
-  requires $m>9(P-1)$. At $P=4,m=16$, the fraction is $3/19\approx15.8\%$.
-- **Activation residency:** Stage 1 must hold activations for all $m$ micro-batches
+- **Bubble fraction:** $F_{\text{bubble}} = \frac{N_{pp} - 1}{M + N_{pp} - 1}$. Under balanced stage times and negligible communication, $F_{\text{bubble}}<0.1$
+  requires $M>9(N_{pp}-1)$. At $N_{pp}=4,M=16$, the fraction is $3/19\approx15.8\%$.
+- **Activation residency:** Stage 1 must hold activations for all $M$ micro-batches
   in memory until backward begins, causing severe activation memory spikes.
 
 ### One-forward-one-backward (1F1B)
@@ -135,19 +135,19 @@ on schedule constraints, micro-batch count, stage balance, and communication.
 
 ### Communication at a stage boundary
 
-For a boundary activation of shape $B_\mu\times T\times d$ with $b$ bytes
+For a boundary activation of shape $B\times T\times d$ with $b$ bytes
 per element, one forward activation and one backward gradient transfer about
-$2B_\mu Tdb$ bytes per micro-batch across that boundary, assuming matching
+$2BTdb$ bytes per micro-batch across that boundary, assuming matching
 dtypes and shapes. Link bandwidth, latency, stage imbalance and overlap control
 how much transfer is visible in step time. More micro-batches mean more messages;
 total bytes also depend on the global batch and schedule.
 
 ### Interactive pipeline schedule simulator
 
-To explore how these pipeline schedules behave under different numbers of stages ($p$) and micro-batches ($m$), launch the dedicated interactive simulator:
+To explore how these pipeline schedules behave under different numbers of stages ($N_{pp}$; $p$ in the simulator) and micro-batches ($M$; $m$ in the simulator), launch the dedicated interactive simulator:
 
 !!! tip "Interactive Visualization Lab"
-    Experiment with Naive, GPipe / AFAB, 1F1B, and Interleaved 1F1B schedules in a visual step-by-step simulator. Distinguish idle/useful ratio $r=(p-1)/m$ from idle/total fraction $r/(1+r)$, track activation memory accumulation across GPUs, and watch peer-to-peer tensor transfers along stage boundaries.
+    Experiment with Naive, GPipe / AFAB, 1F1B, and Interleaved 1F1B schedules in a visual step-by-step simulator. Distinguish idle/useful ratio $r=(N_{pp}-1)/M$ from idle/total fraction $r/(1+r)$, track activation memory accumulation across GPUs, and watch peer-to-peer tensor transfers along stage boundaries.
 
     [:material-play-circle-outline: Launch Pipeline Parallelism Simulator](../demos/pipeline-parallelism.html){ .md-button .md-button--primary target="_blank" }
 
@@ -159,8 +159,8 @@ In Mixture of Experts (MoE) models, dense MLP layers are replaced with $E$
 sparsely activated experts. Each token is dynamically routed by a gating network
 to its top-$k$ experts ($k \ll E$).
 
-**Expert Parallelism (EP)** shards the $E$ expert networks across $E_P$ devices:
-each rank hosts $E / E_P$ experts. The router scores experts, dispatches each
+**Expert Parallelism (EP)** shards the $E$ expert networks across $N_{ep}$ devices:
+each rank hosts $E / N_{ep}$ experts. The router scores experts, dispatches each
 token to the selected experts, and combines their outputs. Top-$k$ controls
 active expert work, not total stored parameters. Uneven routing can overload one
 rank; capacity limits or balancing policies change both runtime and model behavior.
@@ -200,8 +200,8 @@ Let $n$ be the number of source tokens owned by a rank, $k$ the selected experts
 per token, $d$ the hidden width, and $b$ the bytes per activation element.
 Dispatch plus combine has payload approximately $2n k d b$ in forward; backward
 adds approximately the same again. Local routes do not use the network. With
-uniform routing across $E_P$ ranks, a simple estimate multiplies by
-$1-1/E_P$. Declare the token layout before setting $n$: TP/SP can change whether
+uniform routing across $N_{ep}$ ranks, a simple estimate multiplies by
+$1-1/N_{ep}$. Declare the token layout before setting $n$: TP/SP can change whether
 tokens are replicated or partitioned. Metadata, padding, skew, and protocol
 traffic are additional costs.
 
@@ -246,21 +246,21 @@ on each micro-batch; “three times parameters per optimizer step” is not univ
 
 For this course's balanced teaching layout, define independent coordinates:
 
-$$G=P\times T_P\times C\times D.$$
+$$W=N_{dp}\times N_{tp}\times N_{cp}\times N_{pp}.$$
 
-- $P$: pipeline stages;
-- $T_P$: tensor-parallel degree;
-- $C$: context-parallel degree;
-- $D$: total data-parallel degree, counting independent micro-batches.
+- $N_{pp}$: pipeline stages;
+- $N_{tp}$: tensor-parallel degree;
+- $N_{cp}$: context-parallel degree;
+- $N_{dp}$: total data-parallel degree, counting independent micro-batches.
 
-**FSDP is a state-sharding choice within $D$.** Let $F$ divide $D$. There are
-$D/F$ replica groups, each sharding state over $F$ ranks. Ordinary DDP has $F=1$;
-full sharding across the whole DP group has $F=D$. Do not multiply by $F$ again.
+**FSDP is a state-sharding choice within $N_{dp}$.** Let $N_{fsdp}$ divide $N_{dp}$. There are
+$N_{dp}/N_{fsdp}$ replica groups, each sharding state over $N_{fsdp}$ ranks. Ordinary DDP has $N_{fsdp}=1$;
+full sharding across the whole DP group has $N_{fsdp}=N_{dp}$. Do not multiply by $N_{fsdp}$ again.
 
-**EP can subdivide $D$.** In the simple MoE layout used here, $E_P$ divides $D$:
-experts are distributed across $E_P$ ranks and each expert has $D/E_P$ replicas.
+**EP can subdivide $N_{dp}$.** In the simple MoE layout used here, $N_{ep}$ divides $N_{dp}$:
+experts are distributed across $N_{ep}$ ranks and each expert has $N_{dp}/N_{ep}$ replicas.
 Shared and expert parameters have different synchronization groups. Do not
-multiply the device count by $E_P$ again. Production layouts can use different
+multiply the device count by $N_{ep}$ again. Production layouts can use different
 expert TP degrees or fold axes differently; derive their rank groups explicitly.
 See [Megatron's parallel configuration](https://docs.nvidia.com/megatron-core/developer-guide/latest/apidocs/core/core.model_parallel_config.html).
 
@@ -271,9 +271,9 @@ See [Megatron's parallel configuration](https://docs.nvidia.com/megatron-core/de
 
 The companion calculator supports either FSDP or EP under these assumptions.
 It rejects combined EP/FSDP layouts rather than guessing the expert shard groups.
-For micro-batch size $B_\mu$ and $A$ accumulation micro-batches per update:
+For micro-batch size $B$ and $K$ accumulation micro-batches per update:
 
-$$\text{global tokens/update}=B_\mu\,T\,A\,D.$$
+$$\text{global tokens/update}=B\,T\,K\,N_{dp}.$$
 
 Neither CP nor TP creates extra training examples.
 
@@ -292,36 +292,36 @@ reports **average persistent state per rank**, not peak VRAM or a fit guarantee.
 
 ### Case A — model fits, short context, 64 devices
 
-Start with $D=64$ and the other independent degrees at one. Compare strong
+Start with $N_{dp}=64$ and the other independent degrees at one. Compare strong
 scaling at fixed global batch with weak scaling at fixed local batch. DDP can
 still be communication-bound; a model fitting on one GPU does not ensure speedup.
 
 ### Case B — 512 devices, dense model
 
-One candidate is $T_P=8,P=4,D=16,C=1$, with $F=16$ for state sharding. It uses
+One candidate is $N_{tp}=8,N_{pp}=4,N_{dp}=16,N_{cp}=1$, with $N_{fsdp}=16$ for state sharding. It uses
 512 devices, not 8192. Compare another layout at the same global token budget.
 Neither the device identity nor static-state estimate proves memory fit.
 
 ### Case C — long-context training on 32 devices
 
-One candidate is $C=8,T_P=4,D=P=1$. CP divides token activations and attention
+One candidate is $N_{cp}=8,N_{tp}=4,N_{dp}=N_{pp}=1$. CP divides token activations and attention
 work, but adds per-layer communication. Estimate training activations and
 backward state; an inference KV-cache formula alone is not a training-memory budget.
 
 ### Case D — four experts within a data-parallel group
 
-For $D=4,T_P=2,P=C=1$, the world contains eight devices. Choosing $E_P=4$ still
+For $N_{dp}=4,N_{tp}=2,N_{pp}=N_{cp}=1$, the world contains eight devices. Choosing $N_{ep}=4$ still
 uses eight devices. Each expert-TP rank holds a slice of one expert, while
 shared attention parameters remain replicated across the four EP ranks.
 
 ## In-class investigation
 
-1. For $P=4,m=16$, calculate idle/total fraction and idle/useful ratio. Find the
-   smallest integer $m$ giving an ideal bubble below 10%. Compare AFAB and 1F1B
+1. For $N_{pp}=4,M=16$, calculate idle/total fraction and idle/useful ratio. Find the
+   smallest integer $M$ giving an ideal bubble below 10%. Compare AFAB and 1F1B
    activation residency in the [simulator](../demos/pipeline-parallelism.html).
 2. Trace four ranks and eight equally sized causal context chunks. Pair early
    and late chunks and explain which imbalance the pairing addresses.
-3. For $n=8192,d=4096,k=2,b=2,E_P=8$, estimate EP dispatch/combine payload for
+3. For $n=8192,d=4096,k=2,b=2,N_{ep}=8$, estimate EP dispatch/combine payload for
    forward and backward. State the routing and token-ownership assumptions.
 4. Draw the rank coordinates for Case D. Identify which parameters EP distributes
    and which it replicates. Explain why multiplying by EP again is incorrect.

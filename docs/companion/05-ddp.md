@@ -124,7 +124,7 @@ Read the three numbers on each step line:
   all 64 tokens. About `1e-6` is floating-point reduction order; `1e-2` is a bug.
 - **`replica drift`** must be exactly zero: every rank applied the same update.
 - **`collectives`** is one per parameter tensor (19 here). The ring estimate is
-  $2\frac{D-1}{D}$ times the gradient bytes.
+  $2\frac{W-1}{W}$ times the gradient bytes.
 
 Notice where communication happens. The script accumulates two micro-batches
 **without any communication**, then synchronizes once. That is what `no_sync`
@@ -172,7 +172,7 @@ collective pays a fixed latency. Its tests are skipped by default; run them with
 Correctness passes; the next question is speed. Fix the model and the
 **global** tokens per update, then fill in a table for 1, 2, 4 and 8 devices:
 
-| Devices $D$ | Micro-batch $B_\mu$ | Accumulation $A$ | Tokens/update $= D\,A\,B_\mu\,T$ |
+| Devices $W$ | Micro-batch $B$ | Accumulation $K$ | Tokens/update $= B\,T\,K\,W$ |
 | ---: | ---: | ---: | ---: |
 | 1 | | | 65,536 |
 | 2 | | | 65,536 |

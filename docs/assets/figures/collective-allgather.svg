@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 235" role="img" aria-labelledby="title desc">
   <title id="title">All-Gather Collective</title>
-  <desc id="desc">Every rank begins with a local shard of size N/R. After all-gather, every rank holds the complete concatenated tensor of size N.</desc>
+  <desc id="desc">Every rank begins with a local shard of size N/W. After all-gather, every rank holds the complete concatenated tensor of size N.</desc>
   
   <defs>
     <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto">
@@ -45,7 +45,7 @@
   </defs>
   <!-- Left: Initial State -->
   <rect class="bg" x="15" y="15" width="340" height="205"/>
-  <text class="panel-title" x="35" y="42">Initial State (Local Shards [N/R])</text>
+  <text class="panel-title" x="35" y="42">Initial State (Local Shards [N/W])</text>
 
   <text class="rank-lbl" x="35" y="77">Rank 0</text>
   <rect class="c0 cell-border" x="95" y="62" width="55" height="22" rx="4"/><text class="cell-text" x="122" y="77">A</text>
@@ -62,9 +62,9 @@
   <!-- Middle: Operation -->
   <path class="flow" d="M375 118 H475"/>
   <text class="api-lbl" x="425" y="96">all_gather</text>
-  <text class="meta-lbl" x="425" y="142">Sends (R−1)/R · S</text>
-  <text class="meta-lbl" x="425" y="158">Receives (R−1)/R · S</text>
-  <text class="meta-cost" x="425" y="176">Total = (R − 1)S</text>
+  <text class="meta-lbl" x="425" y="142">Sends (W−1)/W · S</text>
+  <text class="meta-lbl" x="425" y="158">Receives (W−1)/W · S</text>
+  <text class="meta-cost" x="425" y="176">Total = (W − 1)S</text>
 
   <!-- Right: Final State -->
   <rect class="bg" x="495" y="15" width="350" height="205"/>

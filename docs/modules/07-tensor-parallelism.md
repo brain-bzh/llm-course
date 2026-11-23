@@ -192,15 +192,15 @@ operator names.
 
 ## Communication model
 
-Let \(p\) be the TP degree and let one activation at a block boundary contain
+Let \(N_{tp}\) be the TP degree and let one activation at a block boundary contain
 \(A = B T d\) elements. A ring all-reduce of an \(A\)-element tensor moves
 approximately
 
 \[
-2\frac{p-1}{p}Aq
+2\frac{N_{tp}-1}{N_{tp}}Ab
 \]
 
-bytes per rank, where \(q\) is bytes per element. A classic tensor-parallel
+bytes per rank, where \(b\) is bytes per element. A classic tensor-parallel
 Transformer has synchronization points in both attention and MLP during
 forward, with conjugate communication during backward.
 
@@ -222,7 +222,7 @@ divisibility constraints before choosing a TP degree:
 
 - query heads should divide across TP ranks;
 - with GQA, KV heads are the tighter constraint;
-- if \(p\) exceeds the number of KV heads, KV heads may need replication;
+- if \(N_{tp}\) exceeds the number of KV heads, KV heads may need replication;
 - head dimension must remain intact unless an additional communication scheme
   is introduced.
 

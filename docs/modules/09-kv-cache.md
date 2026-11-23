@@ -128,7 +128,7 @@ Let:
 - \(T\): cached tokens per sequence;
 - \(H_{kv}\): key/value heads;
 - \(d_h\): head dimension;
-- \(q\): bytes per cache element.
+- \(b\): bytes per cache element.
 
 K and V at one layer have shape
 
@@ -139,7 +139,7 @@ B \times H_{kv} \times T \times d_h.
 The total cache is therefore
 
 \[
-M_{KV} = 2BLTH_{kv}d_hq,
+M_{KV} = 2LBH_{kv}Td_hb,
 \]
 
 where the factor 2 represents K and V.

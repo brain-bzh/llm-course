@@ -14,6 +14,14 @@
     How can several GPUs compute one Transformer layer without reconstructing every intermediate tensor?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{7}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} FSDP shards stored state, but each rank still gathers a full layer and computes it alone.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} split the layer's matrix multiplication itself, so several ranks compute one layer and each holds only a slice of its weights.
+\end{frame}
 \learninggoals
 {Derive column- and row-parallel linear layers from matrix multiplication.}
 {Track replicated and sharded tensor layouts through an MLP and attention block.}
@@ -96,6 +104,7 @@
     \node[text=accentdark,font=\small\bfseries] at (2.2,-1.1) {No forward collective};
   \end{tikzpicture}
   \par\vspace{3pt}\footnotesize Filled = local shard; dashed = held by the other GPU. Both GPUs process the same tokens.
+  \par PyTorch stores $W^{\top}$ (out $\times$ in): rank $r$ holds rows $[\,r\,d_{\text{out}}/N_{tp},\ (r+1)\,d_{\text{out}}/N_{tp})$ and their biases.
 \end{frame}
 
 \begin{frame}{Row parallelism: sum partial outputs}
@@ -125,6 +134,7 @@
     \node[align=center] at (4.85,.25) {full result\\on both GPUs};
   \end{tikzpicture}
   \par\vspace{2pt}\small $Y=X_0W_0+X_1W_1$: each $Z_i$ has the full output shape but only a \emph{partial value}.
+  \par\footnotesize In the stored $W^{\top}$ (out $\times$ in), rank $r$ holds columns $[\,r\,d_{\text{in}}/N_{tp},\ (r+1)\,d_{\text{in}}/N_{tp})$. The bias is added once, after the sum; added on every rank, it would count $N_{tp}$ times.
 \end{frame}
 
 \begin{frame}{Three ways to distribute the same matmul}
@@ -239,18 +249,18 @@
   \small
   \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
     \toprule
-    Point in block & Layout & Local shape \\
+    Point in block & Layout & Local shape ($N_{tp}$: TP degree) \\
     \midrule
     residual input & replicated & $B\times T\times d$ \\
-    QKV output & head/feature sharded & $B\times T\times 3d/p$ \\
-    local attention output & head sharded & $B\times T\times d/p$ \\
+    QKV output & head/feature sharded & $B\times T\times 3d/N_{tp}$ \\
+    local attention output & head sharded & $B\times T\times d/N_{tp}$ \\
     output projection partial & partial replicated shape & $B\times T\times d$ \\
     after all-reduce & replicated & $B\times T\times d$ \\
-    MLP expansion & feature sharded & $B\times T\times 4d/p$ \\
+    MLP expansion & feature sharded & $B\times T\times 4d/N_{tp}$ \\
     \bottomrule
   \end{tabular}
   \vfill
-  Every operation must declare what is sharded, what is replicated, and what collective changes that layout.
+  Every operation must declare what is sharded, what is replicated, and what collective changes that layout. One block needs two forward all-reduces (attention, MLP) and two backward.
 \end{frame}
 
 \begin{frame}{Sequence parallelism shards the residual stream}
@@ -276,31 +286,47 @@
 
 \begin{frame}{Forward and backward collectives are conjugate}
   \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}>{\raggedright\arraybackslash}p{.29\linewidth}@{}}
+  \centering
+  \begin{tabular}{@{}lll@{}}
     \toprule
-    Forward operation & Forward layout change & Backward communication \\
+    Forward operation & Layout change & Backward \\
     \midrule
-    identity with replicated input & replicated to sharded use & all-reduce input gradient \\
-    all-reduce sum & partial to replicated & identity on matching shard flow \\
-    reduce-scatter & replicated partials to shard & all-gather \\
-    all-gather & shards to replicated & reduce-scatter \\
+    identity on replicated $X$ & replicated $\to$ sharded use & all-reduce $\partial\mathcal{L}/\partial X$ \\
+    all-reduce sum & partial $\to$ replicated & identity \\
+    reduce-scatter & partials $\to$ token shards & all-gather \\
+    all-gather & token shards $\to$ replicated & reduce-scatter \\
     \bottomrule
   \end{tabular}
+  \par\vfill\vspace{4pt}\raggedright
+  \textbf{Column input:} $\partial\mathcal{L}/\partial X=\sum_{r}(\partial\mathcal{L}/\partial Y_r)\,W_r^{\top}$; rank $r$ holds only its own term, so backward sums.\par\smallskip
+  \textbf{Row output:} every rank already holds the same $\partial\mathcal{L}/\partial Y$; a second sum would multiply it by $N_{tp}$.
   \vfill
   \begin{alertblock}{Testing rule}
-    Compare forward outputs, input gradients, and parameter gradients against an unsharded reference.
+    Compare outputs, input and weight gradients with an unsharded reference. A missing backward all-reduce breaks only the input gradient.
   \end{alertblock}
 \end{frame}
 
 \checkpoint{layout trace}
 {Trace replicated or sharded status through a column-parallel MLP expansion, activation, row-parallel contraction, and residual add. At which point is communication unavoidable?}
 
+\begin{frame}{Layout trace: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{7pt}
+    \item MLP input: replicated, $B\times T\times d$.
+    \item Column-parallel expansion: feature sharded, $B\times T\times 4d/N_{tp}$; no forward collective.
+    \item Activation: elementwise, so it runs locally and the layout stays sharded.
+    \item Row-parallel contraction: each rank holds a \emph{partial value} of full shape $B\times T\times d$.
+    \item \textbf{Unavoidable:} the all-reduce that sums the partials before the residual add, which needs the complete, replicated value. Backward mirrors it with an all-reduce of the input gradient.
+  \end{itemize}
+\end{frame}
+
 \section{Cost and placement}
 
 \begin{frame}{Communication cost depends on activation size}
   A collective over $B\times T\times d$ elements moves bytes proportional to the activation tensor, not the parameter matrix.
   \[
-    S_{\text{act}}=B\,T\,d\,s
+    S_{\text{act}}=B\,T\,d\,b
+    \qquad (b\text{: bytes per element})
   \]
   \begin{itemize}
       \setlength{\itemsep}{7pt}
@@ -340,6 +366,17 @@
 
 \checkpoint{degree selection}
 {A model fits with TP=2, but TP=8 gives lower throughput. Explain the result using local matrix shapes, collective frequency, and topology.}
+
+\begin{frame}{Degree selection: one possible answer}
+  \small
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Local matrix shapes:} each rank's share of the features falls from $1/2$ to $1/8$ (MLP expansion width $4d/2\to4d/8$). Smaller matmuls use the hardware less efficiently.
+    \item \textbf{Collective frequency:} every block still needs its activation all-reduces, each over $B\times T\times d$ elements whatever the degree. Local compute shrinks but communication does not, so more of it is exposed.
+    \item \textbf{Topology:} a two-rank group fits on the fastest links; an eight-rank group involves more ranks per collective and may reach slower links.
+    \item \textbf{Conclusion:} the model already fits at TP=2, so keep the smallest degree that solves the constraint and give the remaining GPUs to data parallelism.
+  \end{itemize}
+\end{frame}
 
 \takeaways
 {Column parallelism shards output features, while row parallelism sums partial outputs.}

@@ -16,8 +16,8 @@ and Context/Pipeline/Expert Parallelism ([Module 8](../modules/08-context-pipeli
 In distributed deep learning, a training job executes across multiple coordinated
 worker processes:
 
-- **World Size ($R$):** The total number of cooperating processes in the distributed group.
-- **Global Rank ($r$):** Unique process identifier in $[0, R-1]$.
+- **World Size ($W$):** The total number of cooperating processes in the distributed group.
+- **Global Rank ($r$):** Unique process identifier in $[0, W-1]$.
 - **Node:** A physical server housing one or more GPUs (typically 4 or 8).
 - **Local Rank:** Identifier of the process within its physical node (e.g. $[0, 7]$ on an 8-GPU node).
 - **Process Group:** An explicit subset of ranks that communicate together via a backend (e.g. NCCL).
@@ -85,12 +85,12 @@ Copies a tensor located on a designated root rank to all other ranks in the proc
 
 ### 2.3 Scatter and Gather
 
-- **Scatter:** Splits a tensor on root into $R$ equal slices and sends slice $i$ to rank $i$.
+- **Scatter:** Splits a tensor on root into $W$ equal slices and sends slice $i$ to rank $i$.
 - **Gather:** Collects slice $i$ from rank $i$ and concatenates them onto the root rank.
 
 ![Scatter splits a root tensor into rank shards; gather collects shards from all ranks to reconstruct the full tensor.](../assets/figures/collective-scatter-gather.svg){ loading=lazy }
 
-- **Tensor Shapes:** Root: $[N] \longleftrightarrow$ All ranks: $[N/R]$.
+- **Tensor Shapes:** Root: $[N] \longleftrightarrow$ All ranks: $[N/W]$.
 - **PyTorch API:** `dist.scatter(tensor, scatter_list, src=0)`, `dist.gather(tensor, gather_list, dst=0)`.
 - **Used in:** Checkpoint saving/loading, central evaluation metric logging.
 
@@ -98,12 +98,12 @@ Copies a tensor located on a designated root rank to all other ranks in the proc
 
 ### 2.4 All-Gather
 
-Every rank begins with a local shard of size $[N/R]$. All ranks communicate so that
+Every rank begins with a local shard of size $[N/W]$. All ranks communicate so that
 every rank ends up with the complete concatenated tensor $[N]$.
 
 ![All-gather collective collecting local shards from every rank and concatenating the full tensor on all ranks.](../assets/figures/collective-allgather.svg){ loading=lazy }
 
-- **Tensor Shapes:** Input on each rank: $[N/R]$. Output on each rank: $[N]$.
+- **Tensor Shapes:** Input on each rank: $[N/W]$. Output on each rank: $[N]$.
 - **PyTorch API:**
   - Modern flat buffer (recommended): `dist.all_gather_into_tensor(output_tensor, input_shard)`
   - Legacy list: `dist.all_gather(tensor_list, input_shard)`
@@ -117,11 +117,11 @@ every rank ends up with the complete concatenated tensor $[N]$.
 
 Every rank begins with a full-sized tensor $[N]$. An elementwise reduction (e.g. SUM)
 is computed across all ranks, and the reduced result is partitioned so that rank $i$
-receives only the $i$-th reduced shard $[N/R]$.
+receives only the $i$-th reduced shard $[N/W]$.
 
 ![Reduce-scatter computes an elementwise sum across full tensors and partitions the reduced shards among ranks.](../assets/figures/collective-reducescatter.svg){ loading=lazy }
 
-- **Tensor Shapes:** Input on each rank: $[N]$. Output on each rank: $[N/R]$.
+- **Tensor Shapes:** Input on each rank: $[N]$. Output on each rank: $[N/W]$.
 - **PyTorch API:**
   - Modern flat buffer (recommended): `dist.reduce_scatter_tensor(output_shard, input_tensor, op=dist.ReduceOp.SUM)`
   - Legacy list: `dist.reduce_scatter(output_shard, input_tensor_list, op=dist.ReduceOp.SUM)`
@@ -150,13 +150,13 @@ is computed across all ranks, and the complete reduced tensor $[N]$ is stored on
 
 ### 2.7 All-to-All (`all_to_all_single`)
 
-Every rank begins with $R$ distinct slices (one destined for each rank). Rank $i$ sends its
+Every rank begins with $W$ distinct slices (one destined for each rank). Rank $i$ sends its
 $j$-th slice to rank $j$, and receives from rank $j$ the slice destined for rank $i$.
 This is a **distributed matrix transpose**.
 
 ![All-to-all collective transposing row-partitioned rank slices into column-partitioned output buffers.](../assets/figures/collective-alltoall.svg){ loading=lazy }
 
-- **Tensor Shapes:** Input: $[R \times M]$. Output: $[R \times M]$ (with chunks transposed).
+- **Tensor Shapes:** Input: $[W \times M]$. Output: $[W \times M]$ (with chunks transposed).
 - **PyTorch API:** `dist.all_to_all_single(output, input, output_split_sizes=None, input_split_sizes=None)`
 - **Used in:**
   - **Expert Parallelism (EP / MoE):** Dispatching tokens from data-parallel ranks to remote expert ranks, and combining expert outputs back to originating ranks.
@@ -179,9 +179,9 @@ communication collective requires evaluating its **mathematical adjoint**.
 | **P2P Send $\to$ Recv** | Forward stage transfer | **P2P Recv $\leftarrow$ Send** | Gradients travel in the exact opposite direction. |
 
 For example, if $y_r = \sum_i x_i$ on every rank and the total loss is
-$L=\sum_r L_r(y_r)$, then $\partial L/\partial x_i =
-\sum_r \partial L_r/\partial y_r$. A mean reduction introduces the
-corresponding $1/R$ factor. The backward rule depends on the operation **and**
+$\mathcal{L}=\sum_r \mathcal{L}_r(y_r)$, then $\partial \mathcal{L}/\partial x_i =
+\sum_r \partial \mathcal{L}_r/\partial y_r$. A mean reduction introduces the
+corresponding $1/W$ factor. The backward rule depends on the operation **and**
 on the distributed loss and layout conventions.
 
 Some tensor-parallel implementations use a custom forward all-reduce with an
@@ -254,18 +254,18 @@ class _ScatterToModelParallelRegion(torch.autograd.Function):
 
 ### 4.1 Volume Transferred per Rank
 
-Let $S$ be the total payload size in bytes, and $R$ be the world size.
+Let $S$ be the total payload size in bytes, and $W$ be the world size.
 
 | Collective | Bytes Sent per Rank | Bytes Received per Rank | Total Network Transfer (Sent) |
 | :--- | :---: | :---: | :---: |
 | **Point-to-Point** | $S$ | $S$ | $S$ |
-| **Broadcast** | $S$ (root only) | $S$ (non-root) | $(R-1)S$ |
-| **All-Gather** | $\frac{R-1}{R} S$ | $\frac{R-1}{R} S$ | $(R-1)S$ |
-| **Reduce-Scatter** | $\frac{R-1}{R} S$ | $\frac{R-1}{R} S$ | $(R-1)S$ |
-| **All-Reduce** | $2 \frac{R-1}{R} S$ | $2 \frac{R-1}{R} S$ | $2(R-1)S$ |
-| **All-to-All** | $\frac{R-1}{R} S$ | $\frac{R-1}{R} S$ | $(R-1)S$ |
+| **Broadcast** | $S$ (root only) | $S$ (non-root) | $(W-1)S$ |
+| **All-Gather** | $\frac{W-1}{W} S$ | $\frac{W-1}{W} S$ | $(W-1)S$ |
+| **Reduce-Scatter** | $\frac{W-1}{W} S$ | $\frac{W-1}{W} S$ | $(W-1)S$ |
+| **All-Reduce** | $2 \frac{W-1}{W} S$ | $2 \frac{W-1}{W} S$ | $2(W-1)S$ |
+| **All-to-All** | $\frac{W-1}{W} S$ | $\frac{W-1}{W} S$ | $(W-1)S$ |
 
-Notice that as $R \to \infty$:
+Notice that as $W \to \infty$:
 - All-Gather, Reduce-Scatter, and All-to-All send roughly $S$ bytes per rank.
 - All-Reduce sends roughly $2S$ bytes per rank. Adding more ranks **does not decrease** the per-rank gradient communication volume in DDP!
 
@@ -283,20 +283,20 @@ For small payloads ($S < 100\text{ KB}$), latency $\alpha$ dominates. For large 
 
 ### 4.3 Ring vs. Tree Collective Algorithms
 
-Collectives like All-Reduce are implemented differently depending on payload size $S$ and rank count $R$:
+Collectives like All-Reduce are implemented differently depending on payload size $S$ and rank count $W$:
 
 ```
 Ring All-Reduce (Bandwidth-Optimal):
 Each rank communicates only with its immediate neighbors (rank r -> r+1):
-Total time: T_ring = 2(R - 1) * alpha + 2 * ((R - 1)/R) * beta * S
+Total time: T_ring = 2(W - 1) * alpha + 2 * ((W - 1)/W) * beta * S
 
 Tree All-Reduce (Latency-Optimal):
 Ranks form a binomial or recursive doubling tree:
-Total time: T_tree = 2 * log2(R) * alpha + 2 * log2(R) * beta * (S / tree_efficiency)
+Total time: T_tree = 2 * log2(W) * alpha + 2 * log2(W) * beta * (S / tree_efficiency)
 ```
 
-- **Ring Crossover:** When message size $S$ is large (e.g. 50 MB gradient buckets), the ring algorithm wins because its bandwidth multiplier $\frac{R-1}{R} \approx 1$ does not scale with $R$.
-- **Tree Crossover:** When message size $S$ is small (e.g. TP activation vectors), tree all-reduce wins because it finishes in $\mathcal{O}(\log R)$ steps rather than $\mathcal{O}(R)$ ring steps.
+- **Ring Crossover:** When message size $S$ is large (e.g. 50 MB gradient buckets), the ring algorithm wins because its bandwidth multiplier $\frac{W-1}{W} \approx 1$ does not scale with $W$.
+- **Tree Crossover:** When message size $S$ is small (e.g. TP activation vectors), tree all-reduce wins because it finishes in $\mathcal{O}(\log W)$ steps rather than $\mathcal{O}(W)$ ring steps.
 
 ---
 
@@ -318,7 +318,7 @@ Modern GPU clusters exhibit a steep hierarchy of communication bandwidth:
 
 1. **Tensor Parallelism (TP):** Executes 2 All-Reduces **per Transformer layer**. Must stay inside a single node across NVLink. Placing TP across an Ethernet or InfiniBand network will stall compute.
 2. **Context Parallelism (CP):** Circulates KV blocks in every attention head. Prefers NVLink or high-speed intra-rack fabrics.
-3. **Pipeline Parallelism (PP):** Passes boundary activation tensors between stages. Payloads are small ($B_\mu \times T \times d$). Can cross inter-node InfiniBand links easily.
+3. **Pipeline Parallelism (PP):** Passes boundary activation tensors between stages. Payloads are small ($B \times T \times d$). Can cross inter-node InfiniBand links easily.
 4. **Data Parallelism (DDP / FSDP):** All-reduces or reduce-scatters gradients once per step. Easily overlapped with backward pass compute across inter-node networks.
 
 ---

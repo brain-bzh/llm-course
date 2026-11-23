@@ -14,10 +14,18 @@
     When width sharding is not enough, how do we divide long contexts and deep models without losing exactness or utilization?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{8}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} data parallelism splits the batch, FSDP shards the state, tensor parallelism splits a layer's width.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} the remaining axes: sequence (CP), depth (PP) and experts (EP), then how all of them compose on one cluster.
+\end{frame}
 \learninggoals
 {Distinguish context parallelism from sequence parallelism.}
 {Explain exact ring attention through online softmax.}
-{Trace pipeline schedules, token routing, and their communication.}
+{Trace pipeline schedules and explain how expert parallelism routes tokens.}
 {Map parallel dimensions to a real cluster topology.}
 
 \section{Context parallelism}
@@ -62,7 +70,7 @@
 \end{frame}
 
 \begin{frame}{Most layers are local after token sharding}
-  With $T$ split over $C$ context ranks, each rank owns roughly $T/C$ positions.
+  With $T$ split over $N_{cp}$ context ranks, each rank owns roughly $T/N_{cp}$ positions.
   \begin{itemize}
       \setlength{\itemsep}{7pt}
     \item tokenwise normalization and MLPs operate locally
@@ -71,7 +79,7 @@
     \item some losses and metrics need global reductions
   \end{itemize}
   \begin{block}{Memory effect}
-    Token activation memory falls roughly with $1/C$, while communication appears inside every attention layer.
+    Token activation memory falls roughly with $1/N_{cp}$, while communication appears inside every attention layer.
   \end{block}
 \end{frame}
 
@@ -88,7 +96,7 @@
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r2)--(r3);
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,themebluedraw] (r3)--(r0);
     \node[draw=successdraw,fill=successbg,rounded corners,align=center,minimum width=3.1cm,minimum height=.9cm,font=\scriptsize\bfseries] at (5.4,2.0) {update online softmax\\state $(m,\ell,o)$};
-    \node[text=accentdark,font=\small\bfseries] at (5.4,-.65) {after $C$ rounds: every $Q_r$ has seen all $KV$ blocks};
+    \node[text=accentdark,font=\small\bfseries] at (5.4,-.65) {after $N_{cp}$ rounds: every $Q_r$ has seen all $KV$ blocks};
   \end{tikzpicture}
   \begin{alertblock}{Memory behavior}
     Only a few $KV$ blocks are resident per rank; no rank gathers the full context or materializes a global $T\times T$ score matrix.
@@ -109,44 +117,6 @@
     o'=e^{m-m'}o+\sum_j e^{s_j-m'}v_j
   \]
   Final attention is $o/\ell$. Rescaling preserves contributions computed under earlier maxima.
-\end{frame}
-
-\begin{frame}{Balance causal work by pairing early and late chunks}
-  \small Split a sequence into eight equal chunks; count valid causal attention tiles per query chunk as $1,2,\ldots,8$.
-  \begin{center}
-  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
-      bar/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.3cm,minimum height=.66cm},
-      paired/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.3cm,minimum height=.66cm}]
-    \node[anchor=east,font=\scriptsize\bfseries] at (0,3.95) {paired sequence};
-    \foreach \i/\col in {0/themenavy,1/accentdark,2/accentviolet,3/signaldark,4/signaldark,5/accentviolet,6/accentdark,7/themenavy}{
-      \fill[\col,draw=\col] (.3+\i*.91,3.65) rectangle (.3+\i*.91+.85,4.25);
-      \node[font=\scriptsize,text=white] at (.725+\i*.91,3.95) {\i}; }
-    \node[font=\small\bfseries] at (1.05,2.9) {GPU 0}; \node[font=\small\bfseries] at (2.9,2.9) {GPU 1};
-    \node[font=\small\bfseries] at (4.75,2.9) {GPU 2}; \node[font=\small\bfseries] at (6.6,2.9) {GPU 3};
-    \node[anchor=east,font=\small\bfseries] at (0,2.15) {contiguous};
-    \foreach \x/\chunks/\work in {1.05/{0, 1}/3,2.9/{2, 3}/7,4.75/{4, 5}/11,6.6/{6, 7}/15}{
-      \node[bar] at (\x,2.15) {\chunks}; \node[font=\scriptsize] at (\x,1.55) {\work\ tiles}; }
-    \node[anchor=east,font=\small\bfseries,text=accentdark] at (0,.65) {paired};
-    \foreach \x/\chunks in {1.05/{0, 7},2.9/{1, 6},4.75/{2, 5},6.6/{3, 4}}{
-      \node[paired] at (\x,.65) {\chunks}; \node[font=\scriptsize] at (\x,.05) {9 tiles}; }
-  \end{tikzpicture}
-  \end{center}
-  \footnotesize Tile count includes each diagonal tile once; it is an illustration, not a runtime prediction. Pairing balances useful work but adds layout/scheduling considerations.
-\end{frame}
-
-\begin{frame}{CP communication: stream KV, then synchronize gradients}
-  \small Let $C$ ranks split $T$ tokens; each local KV block contains $B(T/C)d_{kv}$ elements per K or V.
-  \begin{block}{Illustrative forward ring payload per rank}
-    \[
-      (C-1)\times 2B(T/C)d_{kv}\,b\quad\text{bytes sent}
-    \]
-    $b$ is bytes/element; $d_{kv}$ is total KV width. Assumes $C-1$ full-block sends and equal chunks.
-  \end{block}
-  \begin{itemize}
-    \item Causal skipping, GQA, block layout and implementation change actual traffic and compute.
-    \item Backward exchanges information for gradients; replicated weights require gradient synchronization across CP ranks.
-    \item Overlap can hide some transfer, but exposed cost depends on link bandwidth and latency.
-  \end{itemize}
 \end{frame}
 
 \begin{frame}{Four parallelism maps, one comparison}
@@ -189,22 +159,24 @@
 \end{frame}
 
 \begin{frame}{Pipeline bubbles shrink as micro-batches increase}
-  For $P$ balanced stages, $M$ micro-batches, and negligible communication:
+  For $N_{pp}$ balanced stages, $M$ micro-batches, and negligible communication, with AFAB or 1F1B:
   \[
-    \text{ideal utilization}\approx\frac{M}{M+P-1}
+    \text{utilization}=\frac{M}{M+N_{pp}-1},
+    \qquad
+    \text{bubble (idle) fraction}=\frac{N_{pp}-1}{M+N_{pp}-1}
   \]
   \begin{block}{Worked example}
-    $P=4$, $M=16$ gives idle fraction $3/19\approx15.8\%$.\\
-    Below $10\%$ requires $M>9(P-1)$, hence at least 28 micro-batches here.
+    $N_{pp}=4$, $M=16$ gives idle fraction $3/19\approx15.8\%$.\\
+    Below $10\%$ requires $M>9(N_{pp}-1)$, hence at least 28 micro-batches here.
   \end{block}
   \begin{alertblock}{Trade-off}
-    More micro-batches reduce bubbles but can create smaller, less efficient kernels and more activation bookkeeping.
+    More micro-batches reduce bubbles but create smaller, less efficient kernels and more activation bookkeeping.
   \end{alertblock}
 \end{frame}
 
 \begin{frame}{Two stages, three micro-batches: compare schedules}
   \centering
-  \begin{tikzpicture}[x=.75cm,y=.7cm,every node/.style={font=\tiny,align=center},
+  \begin{tikzpicture}[x=.75cm,y=.7cm,every node/.style={font=\scriptsize,align=center},
     fw/.style={draw=themebluedraw,fill=themebluebg,minimum width=.72cm,minimum height=.48cm,inner sep=1pt},
     bw/.style={draw=leafreddraw,fill=leafredbg,minimum width=.72cm,minimum height=.48cm,inner sep=1pt},
     idle/.style={draw=neutrallight,dashed,minimum width=.72cm,minimum height=.48cm,inner sep=1pt}]
@@ -239,58 +211,60 @@
     \item Track stage idle time, boundary sends and outstanding activations.
     \item Increase micro-batches; then try interleaving and compare added transfers.
   \end{enumerate}
-  \small Illustrative schedule model: real stage timings, communication, and memory must be measured.
+  \small The simulator is a teaching model of the schedule.
 \end{frame}
 
 \begin{frame}{AFAB and 1F1B trade memory for schedule complexity}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{All-forward-all-backward}
-        simple schedule\\many outstanding activations\\higher peak memory
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{One-forward-one-backward}
-        after warmup, alternate directions\\fewer stored activations\\more coordination
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  Both still have warmup and cooldown bubbles. Interleaving virtual stages can reduce them further at added complexity.
-\end{frame}
-
-\begin{frame}{The slowest stage sets pipeline throughput}
-  \[
-    t_{\text{cycle}}\approx\max_s t_s
-  \]
-  \begin{itemize}
-      \setlength{\itemsep}{7pt}
-    \item Equal layer counts need not mean equal work.
-    \item Embeddings, output projection, and activation sizes can skew stages.
-    \item Stage boundaries determine activation communication volume.
-    \item Profile stage time and memory before moving boundaries.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{PP communication: activation and gradient at each boundary}
-  \begin{center}
-  \begin{tikzpicture}[every node/.style={font=\small,align=center},
-    stage/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.3cm,minimum height=.9cm}]
-    \node[stage] (a) at (0,0) {stage $s$}; \node[stage] (b) at (5,0) {stage $s+1$};
-    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (a.20)--node[above,font=\scriptsize]{forward activation}(b.160);
-    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (b.200)--node[below,font=\scriptsize]{backward gradient}(a.340);
+  \centering
+  {\scriptsize Micro-batch activations held by stage 0 after each slot of the two-stage, three-micro-batch schedules}\par\vspace{4pt}
+  \begin{tikzpicture}[x=.58cm,y=.62cm,every node/.style={font=\scriptsize,align=center},
+    held/.style={draw=leafreddraw,fill=leafredbg}]
+    % Exact counts for the preceding schedules: +1 after each forward, -1 after each backward.
+    \begin{scope}
+      \node[font=\small\bfseries] at (4,4.9) {AFAB};
+      \node[text=neutraldark] at (4,4.2) {simple schedule};
+      \foreach \i/\h in {0/1,1/2,2/3,3/3,4/3,5/2,6/1}{\draw[held] (\i,0) rectangle (\i+1,\h);}
+      \foreach \i/\op in {0/F_0,1/F_1,2/F_2,5/B_0,6/B_1,7/B_2}{\node at (\i+.5,-.45) {$\op$};}
+      \foreach \i in {3,4}{\node[text=neutrallight] at (\i+.5,-.45) {--};}
+      \foreach \h in {1,2,3}{\draw[neutraldark] (-.12,\h)--(0,\h); \node[anchor=east] at (-.15,\h) {\h};}
+      \draw[neutraldark] (0,3.45)--(0,0)--(8.3,0);
+      \draw[signaldark,dashed,thick] (0,3)--(8.3,3);
+      \node[anchor=south east,text=signaldark,inner sep=2pt] at (8.3,3) {peak $=M$};
+    \end{scope}
+    \begin{scope}[xshift=5.75cm]
+      \node[font=\small\bfseries] at (4,4.9) {1F1B};
+      \node[text=neutraldark] at (4,4.2) {alternate after warmup: more coordination};
+      \foreach \i/\h in {0/1,1/2,2/2,3/1,4/2,5/1,6/1}{\draw[held] (\i,0) rectangle (\i+1,\h);}
+      \foreach \i/\op in {0/F_0,1/F_1,3/B_0,4/F_2,5/B_1,7/B_2}{\node at (\i+.5,-.45) {$\op$};}
+      \foreach \i in {2,6}{\node[text=neutrallight] at (\i+.5,-.45) {--};}
+      \foreach \h in {1,2,3}{\draw[neutraldark] (-.12,\h)--(0,\h); \node[anchor=east] at (-.15,\h) {\h};}
+      \draw[neutraldark] (0,3.45)--(0,0)--(8.3,0);
+      \draw[signaldark,dashed,thick] (0,2)--(8.3,2);
+      \node[anchor=south east,text=signaldark,inner sep=2pt] at (8.3,2) {peak $=$ stage count};
+    \end{scope}
   \end{tikzpicture}
-  \end{center}
-  \small For boundary shape $B_\mu\times T\times d$ and $b$ bytes/element: one forward activation and one backward gradient per micro-batch, approximately $2B_\mu Tdb$ bytes sent across the boundary.
-  \begin{alertblock}{Cost depends on placement}
-    Latency, link bandwidth, stage imbalance and overlap determine exposed time. More micro-batches increase message count; total bytes depend on batch and schedule.
-  \end{alertblock}
+  \par\vspace{8pt}
+  \small Both still have warmup and cooldown bubbles; interleaving virtual stages can reduce them at added complexity.
 \end{frame}
 
 \checkpoint{schedule arithmetic}
 {For six stages and twelve micro-batches, estimate idealized forward utilization. Name two real effects that make measured utilization lower.}
 
-\section{Expert parallelism}
+\begin{frame}{Schedule arithmetic: one possible answer}
+  With $N_{pp}=6$ stages and $M=12$ micro-batches:
+  \[
+    \frac{M}{M+N_{pp}-1}=\frac{12}{12+6-1}=\frac{12}{17}\approx70.6\%
+  \]
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item The idle fraction is $5/17\approx29.4\%$.
+    \item Real effect 1: boundary transfers of activations and gradients are not free.
+    \item Real effect 2: stages are rarely balanced, and the slowest stage sets the cycle time.
+    \item Also acceptable: smaller micro-batches run less efficient kernels.
+  \end{itemize}
+\end{frame}
+
+\section{Expert parallelism and composition}
 
 \begin{frame}{From one dense MLP to routed experts}
   \begin{columns}[c]
@@ -308,7 +282,195 @@
   \[
     y(x)=\sum_{e\in\operatorname{top-}k(x)}p_e(x)\,\operatorname{MLP}_e(x)
   \]
-  \small Total expert parameters grow with $E$; active expert work per token depends on $k$ and expert size. EP distributes expert weights across GPUs.
+  \small Total expert parameters grow with $E$; active expert work per token depends on $k$ and expert size. EP distributes expert weights across GPUs: tokens are dispatched to the GPUs owning their experts and outputs return (all-to-all).
+\end{frame}
+
+\begin{frame}{The device count factorizes across parallel groups}
+  \[
+    W=N_{dp}\times N_{tp}\times N_{cp}\times N_{pp}
+  \]
+  \par\vspace{-4pt}
+  {\centering\footnotesize $W$: world size (devices); $N_{dp},N_{tp},N_{cp},N_{pp}$: data, tensor, context and pipeline degrees\par}
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    Dimension & Splits & Communication pattern \\
+    \midrule
+    data & independent micro-batches & gradient or shard collectives \\
+    tensor & hidden width and heads & frequent activation collectives \\
+    context & sequence positions & key-value exchange per layer \\
+    pipeline & layer depth & point-to-point activations \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  Each rank has one coordinate per dimension. A group for one dimension is the set of ranks that differ only in that coordinate.
+\end{frame}
+
+\begin{frame}{Subgroups reuse existing devices}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item $N_{dp}$ counts the total data-parallel degree.
+    \item FSDP degree $N_{fsdp}$ divides $N_{dp}$: $N_{dp}/N_{fsdp}$ groups replicate state shards.
+    \item EP degree $N_{ep}$ can divide $N_{dp}$: each expert has $N_{dp}/N_{ep}$ replicas.
+    \item Shared and expert parameters use different synchronization groups.
+  \end{itemize}
+  \begin{block}{Eight-device example}
+    $N_{dp}=4$, $N_{tp}=2$, $N_{cp}=N_{pp}=1$. Setting $N_{ep}=4$ or $N_{fsdp}=4$ still uses eight devices.
+  \end{block}
+  \smallsource{Teaching layout: combined EP/FSDP requires separate expert shard-group definitions}
+\end{frame}
+
+\begin{frame}{Persistent state per rank follows the layout}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Degree & Devices & Parameters stored per rank \\
+      \midrule
+      data $N_{dp}$ & $\times N_{dp}$ & unchanged: full replicas \\
+      context $N_{cp}$ & $\times N_{cp}$ & unchanged: splits activations only \\
+      tensor $N_{tp}$ & $\times N_{tp}$ & divided by $N_{tp}$ \\
+      pipeline $N_{pp}$ & $\times N_{pp}$ & divided by $N_{pp}$ \\
+      FSDP $N_{fsdp}$ & none: divides $N_{dp}$ & divided by $N_{fsdp}$ \\
+      expert $N_{ep}$ & none: divides $N_{dp}$ & expert parameters divided by $N_{ep}$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \[
+    N_{\text{rank}}=\frac{N_{\text{shared}}+N_{\text{expert}}/N_{ep}}{N_{tp}\,N_{pp}\,N_{fsdp}},
+    \qquad
+    \text{tokens per update}=B\,T\,M\,N_{dp}
+  \]
+  \vfill
+  Persistent bytes are $N_{\text{rank}}$ times the bytes per parameter for weights, gradients and optimizer state. Only data parallelism multiplies the batch: $M$ micro-batches of $B$ sequences per replica.
+\end{frame}
+
+\begin{frame}{Map the chattiest group to the fastest fabric}
+  \begin{enumerate}
+      \setlength{\itemsep}{7pt}
+    \item Start by placing frequent TP collectives on a fast fabric.
+    \item Add context parallelism when token activations or attention exceed local memory.
+    \item Use pipeline parallelism when model depth spans nodes.
+    \item Replicate the resulting model group with data parallelism when batch and devices remain.
+  \end{enumerate}
+  \begin{alertblock}{Selection rule}
+    State the rank layout and measure exposed transfer time. Persistent state excludes activations, gathered weights, and communication buffers.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Four cases lead to different strategies}
+  \small
+  \begin{tabular}{p{.41\linewidth}p{.49\linewidth}}
+    \toprule
+    Binding constraint & First strategy to evaluate \\
+    \midrule
+    model fits, short context, more GPUs & DDP or FSDP replicas \\
+    one wide layer does not fit & tensor parallelism \\
+    weights fit, 128k-token examples do not & context parallelism plus checkpointing \\
+    model exceeds one node & pipeline across nodes, TP within node \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\checkpoint{cluster design}
+{Design a layout for 32 GPUs arranged as four 8-GPU nodes. State the memory constraint, proposed $N_{dp},N_{tp},N_{cp},N_{pp}$, and which communication crosses node boundaries.}
+
+\begin{frame}{Cluster design: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Assumed constraint:} the model's state and activations exceed one 8-GPU node but fit on two; contexts are short.
+    \item \textbf{Layout:} $N_{tp}=8$, $N_{pp}=2$, $N_{cp}=1$, $N_{dp}=2$, so $W=N_{dp}\times N_{tp}\times N_{cp}\times N_{pp}=2\times8\times1\times2=32$.
+    \item \textbf{Inside a node:} the frequent tensor-parallel activation collectives.
+    \item \textbf{Across nodes:} point-to-point pipeline activations and gradients between the two stages of a replica, and gradient synchronization between the two replicas.
+  \end{itemize}
+  \vfill
+  \small A different constraint gives a different layout: a model that fits on one GPU would use $N_{dp}=32$.
+\end{frame}
+
+\takeaways
+{Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
+{Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
+{Expert parallelism routes tokens through distributed MLPs using dispatch and return communication.}
+{Count independent axes once and test placement against measured memory and communication.}
+\begin{frame}{Explore a complete parallelism layout}
+  \begin{block}{Parallelism composer}
+    \href{https://brain-bzh.github.io/llm-course/demos/parallelism-composer.html}{\textbf{Open the parallelism composer} $\nearrow$}
+  \end{block}
+  \begin{enumerate}
+    \item Choose model, devices and network topology; map TP, CP, PP and DP groups.
+    \item For a sparse model, add EP and inspect the expert placement and all-to-all estimate.
+    \item Compare memory, exposed communication and step-time estimates; change one choice and explain the result.
+  \end{enumerate}
+  \small The composer is an analytical teaching model. Combined EP/FSDP layouts are not modeled.
+\end{frame}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{Balance causal work by pairing early and late chunks}
+  \small Split a sequence into eight equal chunks; count valid causal attention tiles per query chunk as $1,2,\ldots,8$.
+  \begin{center}
+  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+      bar/.style={draw=themebluedraw,fill=themebluebg,minimum width=1.3cm,minimum height=.66cm},
+      paired/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=1.3cm,minimum height=.66cm}]
+    \node[anchor=east,font=\scriptsize\bfseries] at (0,3.95) {paired sequence};
+    \foreach \i/\col in {0/themenavy,1/accentdark,2/accentviolet,3/signaldark,4/signaldark,5/accentviolet,6/accentdark,7/themenavy}{
+      \fill[\col,draw=\col] (.3+\i*.91,3.65) rectangle (.3+\i*.91+.85,4.25);
+      \node[font=\scriptsize,text=white] at (.725+\i*.91,3.95) {\i}; }
+    \node[font=\small\bfseries] at (1.05,2.9) {GPU 0}; \node[font=\small\bfseries] at (2.9,2.9) {GPU 1};
+    \node[font=\small\bfseries] at (4.75,2.9) {GPU 2}; \node[font=\small\bfseries] at (6.6,2.9) {GPU 3};
+    \node[anchor=east,font=\small\bfseries] at (0,2.15) {contiguous};
+    \foreach \x/\chunks/\work in {1.05/{0, 1}/3,2.9/{2, 3}/7,4.75/{4, 5}/11,6.6/{6, 7}/15}{
+      \node[bar] at (\x,2.15) {\chunks}; \node[font=\scriptsize] at (\x,1.55) {\work\ tiles}; }
+    \node[anchor=east,font=\small\bfseries,text=accentdark] at (0,.65) {paired};
+    \foreach \x/\chunks in {1.05/{0, 7},2.9/{1, 6},4.75/{2, 5},6.6/{3, 4}}{
+      \node[paired] at (\x,.65) {\chunks}; \node[font=\scriptsize] at (\x,.05) {9 tiles}; }
+  \end{tikzpicture}
+  \end{center}
+  \footnotesize Tile count includes each diagonal tile once. Pairing balances useful work but adds layout/scheduling considerations.
+\end{frame}
+
+\begin{frame}{CP communication: stream KV, then synchronize gradients}
+  \small Let $N_{cp}$ ranks split $T$ tokens; each local KV block contains $B(T/N_{cp})H_{kv}d_h$ elements per K or V.
+  \begin{block}{Forward ring payload per rank}
+    \[
+      (N_{cp}-1)\times 2B(T/N_{cp})H_{kv}d_h\,b\quad\text{bytes sent}
+    \]
+    $b$ is bytes/element; $H_{kv}d_h$ is total KV width. Assumes $N_{cp}-1$ full-block sends and equal chunks.
+  \end{block}
+  \begin{itemize}
+    \item Causal skipping, GQA, block layout and implementation change actual traffic and compute.
+    \item Backward exchanges information for gradients; replicated weights require gradient synchronization across CP ranks.
+    \item Overlap hides some transfer; link bandwidth and latency set the exposed cost.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The slowest stage sets pipeline throughput}
+  \[
+    t_{\text{cycle}}\approx\max_s t_s
+  \]
+  \begin{itemize}
+      \setlength{\itemsep}{7pt}
+    \item Equal layer counts need not mean equal work.
+    \item Embeddings, output projection, and activation sizes can skew stages.
+    \item Stage boundaries determine activation communication volume.
+    \item Move boundaries to balance stage time and memory.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{PP communication: activation and gradient at each boundary}
+  \begin{center}
+  \begin{tikzpicture}[every node/.style={font=\small,align=center},
+    stage/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.3cm,minimum height=.9cm}]
+    \node[stage] (a) at (0,0) {stage $s$}; \node[stage] (b) at (5,0) {stage $s+1$};
+    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (a.20)--node[above,font=\scriptsize]{forward activation}(b.160);
+    \draw[-{Stealth[length=4pt]},very thick,accentvioletdraw] (b.200)--node[below,font=\scriptsize]{backward gradient}(a.340);
+  \end{tikzpicture}
+  \end{center}
+  \small For boundary shape $B\times T\times d$ ($B$: micro-batch size) and $b$ bytes/element: one forward activation and one backward gradient per micro-batch, approximately $2BTdb$ bytes sent across the boundary.
+  \begin{alertblock}{Cost depends on placement}
+    Latency, link bandwidth, stage imbalance and overlap determine exposed time. More micro-batches increase message count; total bytes depend on batch and schedule.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Top-1 example: route tokens to expert MLPs}
@@ -348,7 +510,7 @@
   \begin{block}{Why all-to-all?}
     Every source rank can send different token groups to every expert rank. Backward reverses the data movement and propagates gradients through selected experts and routing weights.
   \end{block}
-  \small Group size, skew, message size and topology determine cost; implementations may use other dispatch primitives or fuse steps.
+  \small Group size, skew, message size and topology determine cost.
 \end{frame}
 
 \begin{frame}{EP communication grows with active routes}
@@ -357,12 +519,12 @@
     \[
       \text{dispatch + return}\ \approx\ 2n k d b\quad\text{bytes}
     \]
-    Counts one full vector per assignment in each direction. Uniform routing over $E_P$ ranks gives a remote fraction near $1-1/E_P$.
+    Counts one full vector per assignment in each direction. Uniform routing over $N_{ep}$ ranks gives a remote fraction near $1-1/N_{ep}$.
   \end{block}
   \begin{itemize}
     \item Backward adds traffic; metadata, padding, skew and protocol overhead are excluded.
-    \item Local routes do not traverse the network; coalescing and TP/SP layouts can alter payloads.
-    \item Measure exposed dispatch/combine time and expert GEMM efficiency, not only average bytes.
+    \item Local routes do not traverse the network.
+    \item Step time follows exposed dispatch/combine time and expert GEMM efficiency, not only average bytes.
   \end{itemize}
 \end{frame}
 
@@ -381,86 +543,5 @@
   \end{columns}
   \vfill
   \small Monitor tokens per expert and rank, maximum / mean load, dropped tokens if applicable, and all-to-all time. Balancing can affect model behavior, not just throughput.
-\end{frame}
-
-\section{Composing parallel dimensions}
-
-\begin{frame}{The device count factorizes across parallel groups}
-  \[
-    N_{\text{GPU}}=D\times T_p\times C\times P
-  \]
-  \small
-  \begin{tabular}{lll}
-    \toprule
-    Dimension & Splits & Communication pattern \\
-    \midrule
-    data & independent micro-batches & gradient or shard collectives \\
-    tensor & hidden width and heads & frequent activation collectives \\
-    context & sequence positions & key-value exchange per layer \\
-    pipeline & layer depth & point-to-point activations \\
-    \bottomrule
-  \end{tabular}
-\end{frame}
-
-\begin{frame}{Subgroups reuse existing devices}
-  \begin{itemize}
-      \setlength{\itemsep}{9pt}
-    \item $D$ counts the total data-parallel degree.
-    \item FSDP degree $F$ divides $D$: $D/F$ groups replicate state shards.
-    \item EP degree $E_P$ can divide $D$: each expert has $D/E_P$ replicas.
-    \item Shared and expert parameters use different synchronization groups.
-  \end{itemize}
-  \begin{block}{Eight-device example}
-    $D=4$, $T_p=2$, $C=P=1$. Setting $E_P=4$ still uses eight devices.\\
-    Global tokens/update: $B_\mu\,T\,A\,D$.
-  \end{block}
-  \smallsource{Teaching layout: combined EP/FSDP requires separate expert shard-group definitions}
-\end{frame}
-
-\begin{frame}{Map the chattiest group to the fastest fabric}
-  \begin{enumerate}
-      \setlength{\itemsep}{7pt}
-    \item Start by placing frequent TP collectives on a fast fabric.
-    \item Add context parallelism when token activations or attention exceed local memory.
-    \item Use pipeline parallelism when model depth spans nodes.
-    \item Replicate the resulting model group with data parallelism when batch and devices remain.
-  \end{enumerate}
-  \begin{alertblock}{Selection rule}
-    State the rank layout and measure exposed transfer time. Persistent state excludes activations, gathered weights, and communication buffers.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Four cases lead to different strategies}
-  \small
-  \begin{tabular}{p{.41\linewidth}p{.49\linewidth}}
-    \toprule
-    Binding constraint & First strategy to evaluate \\
-    \midrule
-    model fits, short context, more GPUs & DDP or FSDP replicas \\
-    one wide layer does not fit & tensor parallelism \\
-    weights fit, 128k-token examples do not & context parallelism plus checkpointing \\
-    model exceeds one node & pipeline across nodes, TP within node \\
-    \bottomrule
-  \end{tabular}
-\end{frame}
-
-\checkpoint{cluster design}
-{Design a layout for 32 GPUs arranged as four 8-GPU nodes. State the memory constraint, proposed $D,T_p,C,P$, and which communication crosses node boundaries.}
-
-\takeaways
-{Context parallelism shards tokens and uses exact blockwise attention with online softmax.}
-{Pipeline parallelism shards depth, while micro-batches trade bubble size against memory and kernel efficiency.}
-{Expert parallelism routes tokens through distributed MLPs using dispatch and return communication.}
-{Count independent axes once and test placement against measured memory and communication.}
-\begin{frame}{Explore a complete parallelism layout}
-  \begin{block}{Parallelism composer}
-    \href{https://brain-bzh.github.io/llm-course/demos/parallelism-composer.html}{\textbf{Open the parallelism composer} $\nearrow$}
-  \end{block}
-  \begin{enumerate}
-    \item Choose model, devices and network topology; map TP, CP, PP and DP groups.
-    \item For a sparse model, add EP and inspect the expert placement and all-to-all estimate.
-    \item Compare memory, exposed communication and step-time estimates; change one choice and explain the result.
-  \end{enumerate}
-  \small The composer is an analytical teaching model; check its assumptions and validate a real configuration with measurements. Combined EP/FSDP layouts are not modeled.
 \end{frame}
 \end{document}

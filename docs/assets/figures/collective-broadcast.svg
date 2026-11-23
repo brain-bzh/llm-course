@@ -64,7 +64,7 @@
   <text class="api-lbl" x="425" y="96">dist.broadcast</text>
   <text class="meta-lbl" x="425" y="142">Root sends S</text>
   <text class="meta-lbl" x="425" y="158">Non-roots receive S</text>
-  <text class="meta-cost" x="425" y="176">Total = (R − 1)S</text>
+  <text class="meta-cost" x="425" y="176">Total = (W − 1)S</text>
 
   <!-- Right: Final State -->
   <rect class="bg" x="495" y="15" width="350" height="205"/>

@@ -56,17 +56,17 @@ DDP gives every rank a complete copy of:
 
 Only the activations are naturally different, because each rank processes a
 different micro-batch. If one rank uses \(M\) bytes for persistent model state,
-\(D\) DDP ranks use roughly \(DM\) bytes in aggregate while every rank still
+\(W\) DDP ranks use roughly \(WM\) bytes in aggregate while every rank still
 needs enough memory for the full model.
 
-For \(\Psi\) parameters, a common AdamW mixed-precision accounting is:
+For \(N\) parameters, a common AdamW mixed-precision accounting is:
 
 | State | Bytes per parameter | Replicated DDP bytes |
 | --- | ---: | ---: |
-| BF16 parameters | 2 | \(2\Psi\) |
-| BF16 gradients | 2 | \(2\Psi\) |
-| FP32 master parameters + Adam moments | 12 | \(12\Psi\) |
-| **Total before activations/temporaries** | **16** | **\(16\Psi\)** |
+| BF16 parameters | 2 | \(2N\) |
+| BF16 gradients | 2 | \(2N\) |
+| FP32 master parameters + Adam moments | 12 | \(12N\) |
+| **Total before activations/temporaries** | **16** | **\(16N\)** |
 
 Some systems keep FP32 gradients, omit master parameters or use different
 optimizer-state precision. Always replace the example with the measured state
@@ -75,14 +75,14 @@ layout of the actual framework.
 ## ZeRO as progressive sharding
 
 ZeRO removes a different form of data-parallel redundancy at each stage. With
-data-parallel degree \(D\):
+data-parallel degree \(W\):
 
 | Method | Parameters | Gradients | Optimizer state | Approximate persistent bytes/rank |
 | --- | --- | --- | --- | ---: |
-| DDP / ZeRO-0 | replicated | replicated | replicated | \(16\Psi\) |
-| ZeRO-1 | replicated | replicated | sharded | \(4\Psi + 12\Psi/D\) |
-| ZeRO-2 | replicated | sharded | sharded | \(2\Psi + 14\Psi/D\) |
-| ZeRO-3 / full sharding | sharded | sharded | sharded | \(16\Psi/D\) |
+| DDP / ZeRO-0 | replicated | replicated | replicated | \(16N\) |
+| ZeRO-1 | replicated | replicated | sharded | \(4N + 12N/W\) |
+| ZeRO-2 | replicated | sharded | sharded | \(2N + 14N/W\) |
+| ZeRO-3 / full sharding | sharded | sharded | sharded | \(16N/W\) |
 
 These simplified formulas exclude activations, communication buffers,
 allocator effects and temporary full parameters. They predict the trend, not
@@ -197,11 +197,11 @@ a communication trace.
 Sharding does not make the full parameter set disappear from the computation.
 It moves parameter shards when layers need them.
 
-For a ring collective on \(P\) bytes across \(D\) ranks, a rank transfers
+For a ring collective on \(P\) bytes across \(W\) ranks, a rank transfers
 approximately
 
 \[
-\frac{D-1}{D}P
+\frac{W-1}{W}P
 \]
 
 for one all-gather or reduce-scatter. A fully sharded block normally requires:
@@ -298,11 +298,11 @@ artifact, not disposable implementation detail.
 ### Checkpoint cadence is an expected-cost decision
 
 Let \(\tau\) be the interval between checkpoints, \(S\) the exposed time to
-save one checkpoint, \(L\) the recovery load time and \(M\) the mean time
+save one checkpoint, \(R\) the recovery load time and \(M\) the mean time
 between interruptions. A useful approximation to the overhead rate is
 
 \[
-\frac{S}{\tau} + \frac{\tau}{2M} + \frac{L}{M}.
+\frac{S}{\tau} + \frac{\tau}{2M} + \frac{R}{M}.
 \]
 
 The first term penalizes saving too often. The second is the expected training
@@ -351,7 +351,7 @@ Measure:
 For a 7B-parameter model with the 16-byte example budget:
 
 1. estimate DDP persistent state per rank;
-2. estimate ZeRO-1, ZeRO-2 and full-shard state for \(D=8\);
+2. estimate ZeRO-1, ZeRO-2 and full-shard state for \(W=8\);
 3. add a declared activation budget and 10% temporary-memory margin;
 4. decide which configurations fit an 80 GB GPU;
 5. explain why the full-shard *peak* may exceed the formula.

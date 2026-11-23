@@ -14,6 +14,14 @@
     When does training on $W$ GPUs reproduce one larger-batch update, and where can that equivalence fail?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{5}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} a profiled single-GPU trainer; its throughput is capped by one device.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} $W$ ranks each process a slice of the batch and all-reduce their gradients to make the same update.
+\end{frame}
 \learninggoals
 {Explain ranks, process groups, collective communication and its costs.}
 {Derive DDP gradient averaging and connect it to accumulation.}
@@ -23,23 +31,42 @@
 \section{Distributed foundations}
 
 \begin{frame}{Why go beyond one GPU?}
-  \begin{columns}[t]
-    \begin{column}{.47\linewidth}
-      \begin{block}{Throughput}
-        Divide work across devices to process a fixed workload sooner, or increase the workload per update.
-      \end{block}
-    \end{column}
-    \begin{column}{.47\linewidth}
-      \begin{block}{Capacity}
-        Distribute model state or computation when the model and its training state do not fit on one device.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \begin{alertblock}{The new cost}
-    GPUs must exchange information. Network time, synchronization and changing the global batch can limit or change the result.
-  \end{alertblock}
-  \small DDP first: replicate the model and split the data. FSDP next: shard model state.
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      work/.style={draw=themebluedraw,fill=themebluebg},
+      comm/.style={draw=accentdarkdraw,fill=accentdarkbg},
+      state/.style={draw=themenavy,fill=themenavy!20},
+    mem/.style={draw=neutrallight,line width=.8pt}]
+    % Throughput: the same work finishes sooner on two devices.
+    \node[font=\small\bfseries,text=themenavy] at (2.35,4.45) {Throughput};
+    \node[anchor=east] at (.75,3.55) {1 GPU};
+    \draw[work] (.9,3.3) rectangle (4.7,3.8); \node at (2.8,3.55) {work};
+    \node[anchor=east] at (.75,2.5) {GPU 0};
+    \node[anchor=east] at (.75,1.9) {GPU 1};
+    \draw[work] (.9,2.25) rectangle (2.8,2.75); \node at (1.85,2.5) {half};
+    \draw[work] (.9,1.65) rectangle (2.8,2.15); \node at (1.85,1.9) {half};
+    \draw[comm] (2.8,1.65) rectangle (3.35,2.75);
+    \node[anchor=west,text=accentdark] at (3.4,2.2) {exchange};
+    \draw[-{Stealth[length=4pt]},neutraldark] (.9,1.3)--(4.9,1.3) node[below left,inner sep=2pt] {time};
+    \node[text=neutraldark] at (2.6,.45) {DDP: replicate the model,\\split the data};
+    % Capacity: state that overflows one device fits once it is divided.
+    \draw[neutrallight] (5.6,.1)--(5.6,4.6);
+    \node[font=\small\bfseries,text=themenavy] at (8.6,4.45) {Capacity};
+    \draw[mem] (6.3,1.3) rectangle (7.5,3.2);
+    \draw[state] (6.45,1.3) rectangle (7.35,3.2);
+    \draw[draw=alertdraw,fill=alertbg] (6.45,3.2) rectangle (7.35,3.95);
+    \node at (6.9,2.25) {model\\state};
+    \node[anchor=west,text=alertred] at (7.4,3.6) {does not fit};
+    \node at (6.9,1.05) {1 GPU};
+    \draw[mem] (8.75,1.3) rectangle (9.95,3.2);
+    \draw[mem] (10.15,1.3) rectangle (11.35,3.2);
+    \draw[state] (8.9,1.3) rectangle (9.8,2.63); \node at (9.35,1.95) {half};
+    \draw[state] (10.3,1.3) rectangle (11.2,2.63); \node at (10.75,1.95) {half};
+    \node at (9.35,1.05) {GPU 0}; \node at (10.75,1.05) {GPU 1};
+    \node[text=neutraldark] at (8.8,.45) {FSDP: shard model state};
+  \end{tikzpicture}
+  \par\vspace{6pt}
+  \small\textbf{The new cost:} GPUs must exchange information, and a larger global batch can change the result.
 \end{frame}
 
 \begin{frame}{A distributed job: nodes, ranks and process groups}
@@ -101,27 +128,39 @@
     \node[font=\scriptsize,text=neutraldark] at (0,-1.18) {$\Sigma a=\sum_{r=0}^{3}a_r$ \quad and \quad $\Sigma b=\sum_{r=0}^{3}b_r$};
   \end{tikzpicture}
   \par\vspace{4pt}
-  \small\textbf{DDP:} divide the sum by the world size to obtain the mean gradient.\par
+  \small\textbf{DDP:} divide the sum by the world size $W$ to obtain the mean gradient. A ring all-reduce of an $S$-byte tensor sends $2\frac{W-1}{W}S$ bytes per rank.\par
   \smallsource{NVIDIA NCCL User Guide, Collective Operations}
 \end{frame}
 
 \begin{frame}{Communication has a cost}
-  \begin{columns}[t]
-    \begin{column}{.47\linewidth}
-      \begin{block}{Startup and bandwidth}
-        Many small messages pay repeated startup costs. Large messages also depend on effective link bandwidth and topology.
-      \end{block}
-    \end{column}
-    \begin{column}{.47\linewidth}
-      \begin{block}{Overlap}
-        Communication can run while independent GPU work continues. Only the unhidden portion adds directly to the critical path.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \begin{alertblock}{Ask of every distributed design}
-    What is sent, between which ranks, how often, and what computation can overlap it?
-  \end{alertblock}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      compute/.style={draw=themebluedraw,fill=themebluebg},
+      comm/.style={draw=accentdarkdraw,fill=accentdarkbg},
+    startup/.style={draw=accentdarkdraw,fill=accentdark!55}]
+    % One message: a fixed startup plus a size-dependent transfer.
+    \node[anchor=east,font=\small\bfseries] at (1.9,4.6) {One message};
+    \draw[startup] (2.1,4.35) rectangle (2.7,4.85);
+    \draw[comm] (2.7,4.35) rectangle (5.6,4.85);
+    \node at (4.15,4.6) {bytes / bandwidth};
+    \node[anchor=north,text=accentdark] at (2.4,4.3) {startup};
+    \node[anchor=west,text=neutraldark,align=left] at (6.0,4.6) {many small messages\\pay startup every time};
+    \draw[neutrallight] (0,3.55)--(10.6,3.55);
+    % Same compute and communication; only the placement differs.
+    \node[anchor=east,font=\small\bfseries] at (1.9,2.75) {Exposed};
+    \draw[compute] (2.1,2.5) rectangle (6.1,3.0); \node at (4.1,2.75) {compute};
+    \draw[comm] (6.1,2.5) rectangle (8.6,3.0); \node at (7.35,2.75) {communication};
+    \node[anchor=east,font=\small\bfseries] at (1.9,1.2) {Overlapped};
+    \draw[compute] (2.1,.65) rectangle (6.1,1.15); \node at (4.1,.9) {compute};
+    \draw[comm] (4.4,1.25) rectangle (6.9,1.75); \node at (5.65,1.5) {communication};
+    \draw[signaldark,thick,dashed] (6.1,.35)--(6.1,3.2);
+    \draw[signaldark,thick,<->] (6.1,2.2)--(8.6,2.2) node[midway,below,text=signaldark] {added step time};
+    \draw[signaldark,thick,<->] (6.1,.5)--(6.9,.5);
+    \node[anchor=west,text=signaldark] at (6.95,.5) {exposed tail};
+    \draw[-{Stealth[length=4pt]},neutraldark] (2.1,0)--(9.6,0) node[right] {time};
+  \end{tikzpicture}
+  \par\vspace{8pt}
+  \small\textbf{Ask:} what is sent, between which ranks, how often, and what computation can overlap it?
 \end{frame}
 
 \section{The data-parallel contract}
@@ -186,24 +225,27 @@
   {\scriptsize Equal-size batches; identical initial model and optimizer state.}
 \end{frame}
 
-\begin{frame}{Each rank owns a full model and different examples}
+\begin{frame}{One data-parallel update, in order}
   \begin{columns}[c]
-    \begin{column}{0.53\linewidth}
-      \begin{itemize}
-          \setlength{\itemsep}{7pt}
-        \item one process controls one GPU
-        \item parameters begin identical on all ranks
-        \item local batches are disjoint parts of a global batch
-        \item gradients synchronize before every optimizer update
-      \end{itemize}
+    \begin{column}{0.55\linewidth}
+      \small
+      \begin{enumerate}
+          \setlength{\itemsep}{6pt}
+        \item \textbf{Broadcast} parameters and buffers from rank 0, once.
+        \item \textbf{Shard:} rank $r$ keeps rows $[\,r\,BK,\ (r+1)\,BK)$ of the global batch.
+        \item \textbf{Compute} forward and backward on the local rows.
+        \item \textbf{All-reduce} each gradient (sum), then divide by $W$.
+        \item \textbf{Step:} every rank applies the same optimizer update.
+      \end{enumerate}
     \end{column}
-    \begin{column}{0.43\linewidth}
+    \begin{column}{0.41\linewidth}
       \begin{block}{Global batch}
-        \[
-          B_{\text{global}}=W\,B_{\text{local}}\,K
-        \]
-        $K$ is the number of accumulated micro-steps.
+        $B_{\text{global}}=W\,B\,K$ sequences, $W\,B\,K\,T$ tokens per update.\\[2pt]
+        {\footnotesize $B$: micro-batch per rank; $K$: accumulated micro-steps.}
       \end{block}
+      \begin{alertblock}{Same collectives, same order}
+        A rank that skips a collective leaves the others waiting forever.
+      \end{alertblock}
     \end{column}
   \end{columns}
 \end{frame}
@@ -319,6 +361,16 @@
 \checkpoint{batch accounting}
 {With $W=8$, micro-batch 2, context 2048, and four accumulated micro-steps, compute tokens per update. How many gradient synchronizations should occur?}
 
+\begin{frame}{Batch accounting: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item Sequences per update: $W\,B\,K=8\times2\times4=64$.
+    \item Tokens per update: $64\times T=64\times2048=131{,}072$.
+    \item \textbf{One} gradient synchronization per optimizer update: the first three micro-steps accumulate locally under \texttt{no\_sync()}; the fourth triggers the bucket all-reduces.
+    \item Synchronizing at every micro-step would communicate four times for the same update.
+  \end{itemize}
+\end{frame}
+
 \section{Correctness before scaling}
 
 \begin{frame}{A five-rung correctness ladder}
@@ -331,7 +383,7 @@
     \item save and resume preserve model, optimizer, RNG, and sampler state
   \end{enumerate}
   \begin{alertblock}{Tolerance is part of the test}
-    Reduction order changes floating-point rounding. Define acceptable numerical error rather than demanding bitwise equality by accident.
+    Reduction order changes rounding: a replica matches the single-process reference to about $10^{-6}$ in FP32, not bitwise. Replicas must match \emph{each other} exactly, because they apply the same reduced gradient.
   \end{alertblock}
 \end{frame}
 
@@ -353,6 +405,8 @@
       \end{block}
     \end{column}
   \end{columns}
+  \vfill
+  \small Strong scaling keeps $W\,B\,K\,T$ tokens per update constant. Time steady-state training steps only: after warmup, with the device synchronized before reading the clock.
 \end{frame}
 
 \begin{frame}{A trace explains poor scaling}
@@ -368,6 +422,20 @@
 
 \checkpoint{equivalence failure}
 {A two-GPU run has the expected throughput, but its first update differs sharply from the single-process reference. Give a check order covering initialization, data, loss normalization, reduction, and optimizer state.}
+
+\begin{frame}{Equivalence failure: one possible answer}
+  \small
+  \begin{enumerate}
+      \setlength{\itemsep}{7pt}
+    \item \textbf{Initialization:} parameters are identical on both ranks and equal to the reference before the update.
+    \item \textbf{Data:} logged sample IDs show two disjoint local batches whose union is the reference global batch.
+    \item \textbf{Loss normalization:} both ranks have the same valid-token count; otherwise the average of rank means is not the global token mean.
+    \item \textbf{Reduction:} gradients are synchronized before the step and averaged over $W$, not summed or skipped. Compare the reduced gradient with the reference within a tolerance; AdamW partly hides a missing $1/W$.
+    \item \textbf{Optimizer state:} learning rate, schedule position and moments match the reference, and the replicas are still identical after the update.
+  \end{enumerate}
+  \vfill
+  Expected throughput is not evidence: a wrong update can be just as fast.
+\end{frame}
 
 \takeaways
 {DDP is equivalent to a global mean update only when data and normalization invariants hold.}

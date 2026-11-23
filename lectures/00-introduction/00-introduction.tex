@@ -45,45 +45,45 @@
           \small
         \item \textbf{Empirical power law}: Test loss drops predictably as training compute grows:
           \\[2pt]
-          \centering\footnotesize $\mathbf{L(C) \propto C^{-\alpha_C}}$
+          \centering\footnotesize $\mathbf{\mathcal{L}(C) \propto C^{-\alpha_C}}$
           \raggedright
         \item \textbf{Predictable returns}: More FLOPs buys lower perplexity, reasoning, and benchmark accuracy.
-        \item \textbf{Scaled performance}: Scaling compute unlocks capabilities smaller models cannot reach (e.g.~125M GPT-2 $\to$ 7B Mistral 1 $\to$ 70B+ Llama 3).
+        \item \textbf{Scaled performance}: Scaling compute unlocks capabilities smaller models cannot reach (e.g.~125M GPT-2 $\to$ Mistral 7B $\to$ 70B+ Llama 3).
       \end{itemize}
 
     \end{column}%
     \begin{column}{0.50\linewidth}
       \centering
-      \begin{tikzpicture}[x=0.88cm,y=0.74cm]
+      \begin{tikzpicture}[x=1.12cm,y=0.80cm]
         % Background zones
         \fill[themebluebg] (0.3,0.3) rectangle (1.85,3.3);
         \fill[warningbg] (1.85,0.3) rectangle (4.9,3.3);
 
         % Zone headers
-        \node[text=themenavy,font=\tiny\bfseries] at (1.07,3.1) {Single GPU};
-        \node[text=signaldark,font=\tiny\bfseries] at (3.37,3.1) {Distributed Cluster Required};
+        \node[text=themenavy,font=\scriptsize\bfseries] at (1.07,3.08) {Single GPU};
+        \node[text=signaldark,font=\scriptsize\bfseries] at (3.37,3.08) {Cluster required};
 
         % Axes
-        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.6,font=\tiny] {Training compute $C$ (FLOPs, log scale)};
-        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\tiny] {Loss $L$ (log scale)};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (5.1,0.3) node[below,pos=0.5,font=\scriptsize] {Training compute $C$ (FLOPs, log)};
+        \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (0.3,0.3) -- (0.3,3.5) node[above,rotate=90,anchor=south east,font=\scriptsize] {Loss $\mathcal{L}$ (log)};
 
         % Single GPU wall
         \draw[dashed,thick,leafreddraw] (1.85,0.3) -- (1.85,3.3);
-        \node[above,font=\tiny,text=leafreddraw] at (1.85,3.3) {$\sim 10^{21}$ wall};
+        \node[above,font=\scriptsize,text=leafreddraw] at (1.85,3.3) {$\sim 10^{21}$ wall};
 
         % Power law curve
         \draw[very thick,themenavy] (0.5,2.7) .. controls (1.6,1.8) and (3.1,1.1) .. (4.6,0.6);
-        \node[text=themenavy,font=\scriptsize\bfseries] at (3.5,2.15) {$L(C) \propto C^{-\alpha}$};
+        \node[text=themenavy,font=\scriptsize\bfseries] at (3.75,2.3) {$\mathcal{L}(C) \propto C^{-\alpha}$};
 
         % Landmark Points
         \fill[themenavy] (0.75,2.45) circle (2pt);
-        \node[above right=-2pt,font=\tiny] at (0.75,2.45) {125M (GPT-2)};
+        \node[anchor=south west,inner sep=1.5pt,font=\scriptsize] at (0.8,2.47) {GPT-2};
 
         \fill[themenavy] (2.25,1.55) circle (2pt);
-        \node[above right=-1pt,font=\tiny] at (2.25,1.55) {7B (Mistral 1)};
+        \node[anchor=south west,inner sep=1.5pt,font=\scriptsize] at (2.3,1.57) {Mistral 7B};
 
         \fill[signaldark] (4.3,0.7) circle (2.4pt);
-        \node[above=2pt,font=\tiny\bfseries,signaldark] at (4.3,0.7) {70B+ (Llama 3)};
+        \node[anchor=south east,inner sep=1.5pt,font=\scriptsize\bfseries,signaldark] at (4.88,0.98) {Llama 3 70B};
       \end{tikzpicture}
 
       \vspace{2pt}
@@ -224,8 +224,8 @@
         \begin{itemize}
             \setlength{\itemsep}{6pt}
           \item Class time is for \textbf{building, diagnosing, and measuring}.
-          \item Long-running training jobs run asynchronously on the GPU cluster between sessions.
-          \item Next class begins by analyzing the checkpoints, curves, and profiler traces.
+          \item Lab models are small: the core checks run CPU-only on your laptop within the session.
+          \item Each result is kept as evidence: a passing test, a curve, or a profiler trace.
         \end{itemize}
       \end{block}
     \end{column}
@@ -313,31 +313,32 @@
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
       \begin{itemize}
-          \setlength{\itemsep}{6pt}
-        \item \textbf{Companion repo}: \texttt{llm-course-companion}
-        \item Clean, modular PyTorch implementation for each module.
+          \setlength{\itemsep}{4pt}
+        \item \textbf{Companion repo}: \texttt{llm-course-companion}, readable PyTorch for each module.
         \item Automated test suites:
           \begin{itemize}
-            \item Tensor shape invariants
-            \item Causal masking checks
-            \item Tiny-batch overfit ($L < 0.1$)
-            \item Checkpoint resume determinism
+            \item Shapes and causal masking
+            \item One-batch overfit ($\mathcal{L} < 0.1$)
+            \item Exact checkpoint resume
+            \item Two ranks $=$ one process
+            \item Cached $=$ uncached decoding
           \end{itemize}
-        \item Fast dependency management with \texttt{uv}.
-        \item Dedicated GPU compute nodes for training runs.
+        \item Dependencies managed with \texttt{uv}.
+        \item \textbf{Hardware}: laptop CPU for small checks; lab GPUs (GTX 1080) when available; GCP for larger GPU runs.
       \end{itemize}
     \end{column}
     \begin{column}{0.44\linewidth}
       \begin{block}{Sanity check before Session 1}
         \ttfamily\scriptsize
         \# Clone \& install\\
-        git clone <repo-url>\\
+        git clone https://github.com/\\
+        \hspace*{0.4em}brain-bzh/llm-course-companion\\
         cd llm-course-companion\\
+        uv python install\\
         uv sync\\
         \vspace{4pt}
-        \# Check GPU \& tests\\
-        nvidia-smi\\
-        uv run pytest tests/
+        \# Run the tests on your CPU\\
+        uv run pytest tests/ -v
       \end{block}
     \end{column}
   \end{columns}

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 235" role="img" aria-labelledby="title desc">
   <title id="title">All-to-All Collective (Distributed Transpose)</title>
-  <desc id="desc">Every rank begins with R distinct slices. Rank i sends slice j to rank j, performing a distributed matrix transpose.</desc>
+  <desc id="desc">Every rank begins with W distinct slices. Rank i sends slice j to rank j, performing a distributed matrix transpose.</desc>
   
   <defs>
     <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto">
@@ -83,8 +83,8 @@
   <path class="flow" d="M375 118 H475"/>
   <text class="api-lbl" x="425" y="92">all_to_all</text>
   <text class="meta-lbl" x="425" y="134">Matrix Transpose</text>
-  <text class="meta-lbl" x="425" y="152">Sends (R−1)/R · S</text>
-  <text class="meta-cost" x="425" y="172">Total = (R − 1)S</text>
+  <text class="meta-lbl" x="425" y="152">Sends (W−1)/W · S</text>
+  <text class="meta-cost" x="425" y="172">Total = (W − 1)S</text>
 
   <!-- Right: Final State -->
   <rect class="bg" x="495" y="15" width="350" height="205"/>

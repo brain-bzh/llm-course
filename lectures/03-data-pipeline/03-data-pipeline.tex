@@ -45,11 +45,12 @@
   \small Fit the tokenizer on the training split; process training and validation separately.
 \end{frame}
 
-\begin{frame}{From yesterday's baseline to today's pipeline}
+\begin{frame}{Where we are: from byte tokens to learned BPE}
+  \courseroadmap{3}
   \begin{columns}[t]
     \begin{column}{.48\linewidth}
-      \begin{block}{Yesterday: byte baseline}
-        UTF-8 bytes + EOT: 257 token IDs. The supplied runner packs separate train and validation shards.
+      \begin{block}{Last time: byte baseline}
+        A training loop on UTF-8 bytes + EOT: 257 token IDs, with separate train and validation streams.
       \end{block}
     \end{column}
     \begin{column}{.48\linewidth}
@@ -86,15 +87,17 @@
 \end{frame}
 
 \begin{frame}{Filter, deduplicate, then split by document}
+  \small
   \begin{enumerate}
-      \setlength{\itemsep}{7pt}
+      \setlength{\itemsep}{3pt}
     \item \textbf{Filter:} inspect rules for empty, short, or repetitive text; record what they remove.
-    \item \textbf{Deduplicate:} group repeated documents before splitting to reduce train--validation leakage.
+    \item \textbf{Deduplicate:} group repeated documents before splitting, so no text sits in both train and validation.
     \item \textbf{Split:} assign documents to train or validation, then keep their streams separate.
   \end{enumerate}
-  \begin{block}{Fit only on training data}
-    Learn tokenizer merges on the training partition; apply the resulting tokenizer to both partitions.
+  \begin{block}{Exact deduplication: one deterministic rule}
+    Key each document by its whitespace-normalized text. In a fixed order, keep the first document of each key in its split, drop every later copy, and record (dropped ID, kept ID).
   \end{block}
+  \textbf{Fit only on training data:} learn tokenizer merges on the training split, after deduplication; apply the tokenizer to both splits.
 \end{frame}
 
 \begin{frame}{Granularity moves cost between vocabulary and sequence}
@@ -138,21 +141,24 @@
 \end{frame}
 
 \begin{frame}{A hand-worked merge exposes the algorithm}
-  Corpus: \texttt{low low lower}
-  \vspace{4pt}
+  \small
+  Corpus: \texttt{low low lower}. The space is a byte like any other, shown as \texttt{\textvisiblespace}.
+  \vspace{2pt}
   \begin{center}
-    \begin{tabular}{lll}
+    \begin{tabular}{@{}llll@{}}
       \toprule
-      Round & frequent pair & stream fragment \\
+      Round & top counts & merged pair & stream \\
       \midrule
-      0 & -- & \texttt{l o w | l o w | l o w e r} \\
-      1 & \texttt{l o} & \texttt{lo w | lo w | lo w e r} \\
-      2 & \texttt{lo w} & \texttt{low | low | low e r} \\
+      0 & -- & -- & \texttt{l o w \textvisiblespace\ l o w \textvisiblespace\ l o w e r} \\
+      1 & \texttt{(l,o)}:3\ \ \texttt{(o,w)}:3 & \texttt{(l,o)} $\to$ 257 & \texttt{lo w \textvisiblespace\ lo w \textvisiblespace\ lo w e r} \\
+      2 & \texttt{(lo,w)}:3 & \texttt{(lo,w)} $\to$ 258 & \texttt{low \textvisiblespace\ low \textvisiblespace\ low e r} \\
       \bottomrule
     \end{tabular}
   \end{center}
-  \begin{alertblock}{What the table hides}
-    Real byte-level training also defines deterministic tie-breaking, special-token policy, and merge boundaries. These are part of the tokenizer artifact.
+  \begin{alertblock}{The rules that make training deterministic}
+    \textbf{Ties:} the pair that appears first in the stream wins, so \texttt{(l,o)} beats \texttt{(o,w)}.
+    \textbf{IDs:} bytes are 0--255, end-of-text is 256, merges start at 257.
+    \textbf{Stop:} at the target vocabulary size, or when no pair occurs twice.
   \end{alertblock}
 \end{frame}
 
@@ -172,24 +178,18 @@
 \end{frame}
 
 \begin{frame}{Vocabulary size has two opposing effects}
-  \begin{columns}[c]
-    \begin{column}{0.52\linewidth}
-      \begin{block}{Larger vocabulary}
-        fewer tokens per document\\lower attention and decode length\\better compression for frequent patterns
-      \end{block}
-    \end{column}
-    \begin{column}{0.44\linewidth}
-      \begin{alertblock}{But also}
-        larger embedding and output matrices\\rarer tail tokens\\more expensive vocabulary softmax
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \[
-    \text{embedding parameters}=Vd
-    \qquad
-    \text{compression}=\frac{\text{UTF-8 bytes}}{\text{tokens}}
-  \]
-  \centering Weight tying avoids paying $Vd$ twice.
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=left}]
+    % Schematic trends only: no scale is implied.
+    \draw[-{Stealth[length=4pt]},neutraldark] (0,0)--(6.3,0) node[below left,inner sep=3pt] {vocabulary size $V$};
+    \draw[neutraldark] (0,0)--(0,3.9);
+    \draw[themenavy,line width=1.2pt] (.3,3.6) .. controls (1.1,1.3) and (3.0,.75) .. (5.9,.55);
+    \draw[leafreddraw,line width=1.2pt] (.3,.35)--(5.9,3.5);
+    \node[anchor=west,text=leafreddraw] at (6.15,3.3) {\textbf{embedding parameters $Vd$}\\larger output softmax\\rarer tail tokens};
+    \node[anchor=west,text=themenavy] at (6.15,.85) {\textbf{tokens per UTF-8 byte}\\shorter sequences\\less attention and decode work};
+  \end{tikzpicture}
+  \par\vspace{10pt}
+  \small Compression is UTF-8 bytes per token; weight tying avoids paying $Vd$ twice.
 \end{frame}
 
 \begin{frame}{Bits per byte: compare on the same text}
@@ -213,6 +213,17 @@
 \checkpoint{tokenizer choice}
 {A new tokenizer shortens a representative corpus by 20\% but adds 300 million embedding parameters.
 Which metrics on both training and inference would decide whether this is a good trade?}
+
+\begin{frame}{Tokenizer choice: one possible answer}
+  \small
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Quality:} bits per byte on the same held-out text and boundary policy. Loss per token is not comparable across tokenizers.
+    \item \textbf{Training:} 20\% fewer tokens for the same text means fewer positions and less attention work per document. Against that: 300M more embedding parameters to store and update, and rarer tail tokens.
+    \item \textbf{Inference:} fewer decode steps and a smaller KV cache for the same text. Against that: larger weights and a more expensive vocabulary softmax at every step.
+    \item \textbf{Decision:} a good trade if bits per byte is no worse at an equal training budget and the measured cost per byte of text falls. Check compression on the languages and domains that matter.
+  \end{itemize}
+\end{frame}
 
 \section{Packing documents into examples}
 
@@ -239,15 +250,15 @@ Which metrics on both training and inference would decide whether this is a good
     \end{tikzpicture}
   \end{center}
   \begin{block}{Packing}
-    Concatenate documents with explicit boundaries and slice fixed-length windows. Padding overhead depends on the model and implementation.
+    Concatenate documents with explicit boundaries and slice fixed-length windows. The padding saved is set by the document-length distribution.
   \end{block}
 \end{frame}
 
 \begin{frame}{Packing improves utilization but changes attention structure}
+  \centerline{\texttt{[doc A][EOT][doc B][EOT][doc C][EOT]}}
+  \vspace{6pt}
   \begin{columns}[c]
     \begin{column}{0.56\linewidth}
-      \texttt{[doc A][EOT][doc B][EOT][doc C]}
-      \vspace{8pt}
       \begin{itemize}
           \setlength{\itemsep}{7pt}
         \item Every non-masked target can contribute to the loss.
@@ -273,6 +284,9 @@ Which metrics on both training and inference would decide whether this is a good
     \item It preserves a recoverable boundary in a contiguous stream.
     \item It teaches the model that one document ended and another may begin.
   \end{enumerate}
+  \begin{block}{Placement and count}
+    Append it after \emph{every} document, the last one included: a stream of documents with $n_1,\dots,n_D$ tokens holds $\sum_j (n_j+1)$ tokens, and the next shard starts on a clean boundary.
+  \end{block}
   \begin{alertblock}{Special-token policy}
     Reserve its ID before training merges. Prevent ordinary text from being confused with the special marker. Test round-trip behavior explicitly.
   \end{alertblock}
@@ -280,9 +294,39 @@ Which metrics on both training and inference would decide whether this is a good
 
 \section{Storage and correctness}
 
+\begin{frame}{A shard is a flat array of token IDs}
+  \small
+  \begin{columns}[t]
+    \begin{column}{.50\linewidth}
+      \begin{center}
+        \begin{tabular}{@{}lcc@{}}
+          \toprule
+          Element type & $b$ (bytes) & largest ID \\
+          \midrule
+          \texttt{uint16} & 2 & $65{,}535$ \\
+          \texttt{uint32} & 4 & $\approx 4.3\times10^{9}$ \\
+          \bottomrule
+        \end{tabular}
+      \end{center}
+      \vspace{2pt}
+      File size $= n\,b$ bytes for $n$ tokens, with no header: the element type and tokenizer are part of the shard's schema.
+    \end{column}
+    \begin{column}{.46\linewidth}
+      \begin{block}{Memory mapping}
+        The file is not read into RAM. The operating system pages in only the slices a batch touches, so a shard can exceed host memory.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \begin{alertblock}{Check the range before writing}
+    GPT-2's $V=50{,}257$ fits \texttt{uint16}; a 100k vocabulary does not. A narrowing cast wraps silently ($70{,}000\to4{,}464$), so reject any ID outside the element type's range.
+  \end{alertblock}
+\end{frame}
+
 \begin{frame}{One contiguous slice creates inputs and targets}
-  Tokens are loaded from a large flat 1D map $s$.
-  To form an input--target pair of context length $T$, sample $T+1$ contiguous elements starting at offset $i$:
+  \small
+  Tokens are loaded from a flat 1D map $s$ of $n$ tokens.
+  To form an input--target pair of context length $T$, take $T+1$ contiguous elements starting at offset $i$:
   \[
     x = s[i:i+T]
     \qquad
@@ -297,8 +341,8 @@ Which metrics on both training and inference would decide whether this is a good
     \end{tabular}
   \end{center}
   \vfill
-  \begin{block}{Fast correctness check}
-    For every batch, $y[:,:-1]$ must equal $x[:,1:]$ exactly.
+  \begin{block}{Valid offsets and a fast check}
+    The target reads $s_{i+T}$, so $0\le i\le n-T-1$: sample $i$ uniformly from these $n-T$ offsets. Stack $B$ slices into $x,y$ of shape $(B,T)$, as 64-bit integers. For every batch, $y[:,:-1]$ must equal $x[:,1:]$ exactly.
   \end{block}
 \end{frame}
 
@@ -316,21 +360,37 @@ Which metrics on both training and inference would decide whether this is a good
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{Lab: follow a document into a batch}
-  \begin{enumerate}
-      \setlength{\itemsep}{6pt}
-    \item Identify duplicates and keep train and validation documents disjoint.
-    \item Trace two BPE merges; fit the tokenizer on training text only.
-    \item Pack each split with EOT delimiters and inspect a boundary.
-    \item Load a window and verify $y[:, :-1] = x[:, 1:]$.
-  \end{enumerate}
-  \begin{block}{If time is short}
-    Inspect a provided shard and diagnose a shifted-target error; distinguish inspection from your own implementation.
-  \end{block}
+\begin{frame}{Data bugs rarely crash: know their symptoms}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.40\linewidth}>{\raggedright\arraybackslash}p{.54\linewidth}@{}}
+      \toprule
+      Bug & Symptom \\
+      \midrule
+      No shift: $y=s[i:i+T]$ & The model copies its input: train and validation loss collapse, generation is useless \\ \addlinespace
+      Offset allowed up to $i=n-T$ & A rare target window one token short: a shape error on some batches only \\ \addlinespace
+      No end-of-text after the last document & Token count off by one; the next shard's first document is glued to this one \\ \addlinespace
+      A validation copy of a training document & Validation loss lower than it should be, by an amount set by the overlap \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \begin{alertblock}{Test invariants, not the loss curve}
+    Shift equality, offset range, token count, disjoint splits: one assertion each.
+  \end{alertblock}
 \end{frame}
 
 \checkpoint{pipeline audit}
 {A training run is fast, but validation loss is implausibly low. List three document- or token-level checks that distinguish a good model from split contamination.}
+
+\begin{frame}{Pipeline audit: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item \textbf{Document identities:} compare document IDs or content hashes across the train and validation splits. Any shared or duplicated document is contamination.
+    \item \textbf{Order of operations:} confirm that deduplication and the document-level split happened before packing, and that merges were fitted on training text only.
+    \item \textbf{Decoded windows:} decode sampled validation windows and search for them, or their boilerplate, in the training shards.
+    \item Also rule out a target bug: $y[:, :-1]$ must equal $x[:, 1:]$.
+  \end{itemize}
+\end{frame}
 
 \takeaways
 {Byte-level BPE guarantees coverage, while merges trade vocabulary size for shorter sequences.}

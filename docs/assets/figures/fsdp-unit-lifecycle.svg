@@ -11,7 +11,7 @@
   <text class="label" x="32" y="35">Parameter residency for one wrapped Transformer block</text>
   <line class="axis" x1="70" y1="230" x2="965" y2="230"/><text class="sub" x="965" y="250" text-anchor="end">time →</text>
   <line class="dash" x1="70" y1="95" x2="950" y2="95"/><text class="orange" x="58" y="100" text-anchor="end">full</text>
-  <line class="dash" x1="70" y1="185" x2="950" y2="185"/><text class="teal" x="58" y="190" text-anchor="end">1 / D</text>
+  <line class="dash" x1="70" y1="185" x2="950" y2="185"/><text class="teal" x="58" y="190" text-anchor="end">1 / W</text>
   <path class="resident" d="M80 185H190V95H360V185H520V95H700V185H940V230H80Z"/>
   <rect class="collective" x="128" y="272" width="125" height="54" rx="9"/><text class="inverse" x="190" y="296" text-anchor="middle">all-gather</text><text class="inverse" x="190" y="314" text-anchor="middle">parameters</text>
   <rect class="action" x="270" y="272" width="125" height="54" rx="9"/><text class="label" x="332" y="305" text-anchor="middle">forward</text>

@@ -9,6 +9,7 @@
 \makelecturetitle
 
 \begin{frame}{Lecture map}
+  \courseroadmap{1}
   \tableofcontents
   \vfill
   \begin{block}{Guiding question}
@@ -156,9 +157,9 @@
       head/.style={draw=warningdraw,fill=warningbg,rounded corners,text width=1.55cm,minimum width=1.65cm,minimum height=0.68cm,inner sep=2pt},
       prob/.style={draw=successdraw,fill=successbg,rounded corners,text width=1.65cm,minimum width=1.75cm,minimum height=0.68cm,inner sep=2pt}
     ]
-    \node[stage] (text) at (0,0) {Token IDs\footnotemark\\[0pt]{\scriptsize $T$}};
-    \node[stage,draw=themebluedraw,fill=themebluecard] (tokens) at (2.5,0) {Embeddings\\[0pt]{\scriptsize $T \times d$}};
-    \node[block] (decoder) at (5.0,0) {Transformer\\blocks ($\times N$)\\[0pt]{\scriptsize $T \times d$}};
+    \node[stage] (text) at (0,0) {Token IDs$^{*}$\\[0pt]{\scriptsize $T$}};
+    \node[stage,draw=themebluedraw,fill=themebluecard,text width=1.8cm] (tokens) at (2.5,0) {Embeddings\\[0pt]{\scriptsize $T \times d$}};
+    \node[block] (decoder) at (5.0,0) {Transformer\\blocks ($\times L$)\\[0pt]{\scriptsize $T \times d$}};
     \node[head] (logits) at (7.5,0) {LM head\\logits\\[0pt]{\scriptsize $T \times V$}};
     \node[prob] (probs) at (10.0,0) {Next-token\\probs\\[0pt]{\scriptsize $T \times V$}};
 
@@ -167,7 +168,8 @@
     \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (decoder)--(logits);
     \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (logits)--(probs);
   \end{tikzpicture}
-  \footnotetext{For now, 1 token = 1 word.}
+  \par\vspace{-1pt}
+  {\raggedright\scriptsize $^{*}$For now, 1 token = 1 word.\par}
 
   \vspace{-2pt}
   \begin{columns}[T]
@@ -178,9 +180,9 @@
       \end{coursebox}
     \end{column}
     \begin{column}{0.34\linewidth}
-      \begin{coursebox}{leafred}{2. Process ($\times N$)}
+      \begin{coursebox}{leafred}{2. Process ($\times L$)}
         \scriptsize
-        $N$ identical blocks alternate cross-token mixing (\textbf{attention}) and per-token reasoning (\textbf{MLP}).
+        $L$ identical blocks alternate cross-token mixing (\textbf{attention}) and per-token reasoning (\textbf{MLP}).
       \end{coursebox}
     \end{column}
     \begin{column}{0.31\linewidth}
@@ -212,8 +214,7 @@
     % Panel 1: Token ID Space
     \node[spacebox, draw=themebluedraw, fill=themebluebg, text width=2.85cm] (idbox) at (0,0) {
       \textbf{\textcolor{themenavy}{Token ID space}}\\[1pt]
-      \tiny Discrete indices $\in \{0, \dots, V-1\}$\\[2pt]
-      \scriptsize
+      $\{0,\dots,V{-}1\}$\\[2pt]
       $
       \begin{bmatrix}
         x_1 \\[-2pt]
@@ -230,8 +231,7 @@
     % Panel 2: Vocabulary Space
     \node[spacebox, draw=warningdraw, fill=warningbg, text width=2.95cm] (vocabbox) at (4.2,0) {
       \textbf{\textcolor{signaldark}{Vocabulary space}}\\[1pt]
-      \tiny Embedding table $W_E \in \mathbb{R}^{V \times d}$\\[2pt]
-      \scriptsize
+      Table $W_E \in \mathbb{R}^{V \times d}$\\[2pt]
       $
       \begin{bmatrix}
         \text{--- } w_0 \text{ ---} \\[-2pt]
@@ -247,8 +247,7 @@
     % Panel 3: Latent Space
     \node[spacebox, draw=successdraw, fill=successbg, text width=2.85cm] (latentbox) at (8.4,0) {
       \textbf{\textcolor{successgreen}{Latent space}}\\[1pt]
-      \tiny Continuous vectors in $\mathbb{R}^d$\\[2pt]
-      \scriptsize
+      Vectors in $\mathbb{R}^d$\\[2pt]
       $
       \begin{bmatrix}
         \text{--- } \mathbf{x}_1 \text{ ---} \\[-2pt]
@@ -264,12 +263,12 @@
 
     % Connecting arrows
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick,signaldark] (idbox.east) -- (vocabbox.west)
-    node[pos=0.5,above=2pt,font=\tiny\bfseries] {index}
-    node[pos=0.5,below=2pt,font=\tiny] {$\text{row } x_t$};
+    node[pos=0.5,above=2pt,font=\scriptsize\bfseries] {index}
+    node[pos=0.5,below=2pt,font=\scriptsize] {row $x_t$};
 
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick,themeteal] (vocabbox.east) -- (latentbox.west)
-    node[pos=0.5,above=2pt,font=\tiny\bfseries] {extract}
-    node[pos=0.5,below=2pt,font=\tiny] {$W_E[x_t, :]$};
+    node[pos=0.5,above=2pt,font=\scriptsize\bfseries] {extract}
+    node[pos=0.5,below=2pt,font=\scriptsize] {$W_E[x_t]$};
   \end{tikzpicture}
 
   \vspace{2pt}
@@ -296,7 +295,7 @@
     \node[tok] (t3) at (5.0,0) {\texttt{seasoned}\\$x_3$};
     \node[cur] (t4) at (7.5,0) {\texttt{the}\\$x_4$ (query)};
 
-    \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted] (t4.north) to[bend right=45] node[pos=0.55,above=1pt,font=\tiny] {low relevance} (t1.north);
+    \draw[-{Stealth[length=3.5pt,width=2.5pt]},thin,inkmuted] (t4.north) to[bend right=45] node[pos=0.55,above=1pt,font=\scriptsize] {low relevance} (t1.north);
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (t4.north) to[bend right=35] node[pos=0.52,above=1pt,font=\scriptsize\bfseries,text=signaldark] {who? (high weight)} (t2.north);
     \draw[-{Stealth[length=4.5pt,width=3.2pt]},very thick,leafreddraw] (t4.north) to[bend right=25] node[pos=0.5,above=1pt,font=\scriptsize\bfseries,text=signaldark] {did what?} (t3.north);
   \end{tikzpicture}
@@ -308,9 +307,9 @@
 \end{frame}
 
 \begin{frame}{Step 3: Scaled dot-product attention}
-  \small The core engine of the Transformer takes Query, Key, and Value matrices $Q, K, V \in \mathbb{R}^{T\times d_k}$:
+  \small The core engine of the Transformer takes Query, Key, and Value matrices $Q, K, V \in \mathbb{R}^{T\times d_h}$:
   \[
-    \operatorname{Attention}(Q,K,V) = \operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}} + M\right) V
+    \operatorname{Attention}(Q,K,V) = \operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}} + M\right) V
   \]
   \vspace{-2pt}
   \centering
@@ -319,7 +318,7 @@
       every node/.style={font=\scriptsize,align=center},
       stepbox/.style={draw=themebluedraw,fill=themebluebg,rounded corners,text width=2.20cm,inner sep=1.5pt,minimum height=1.05cm}
     ]
-    \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top / \sqrt{d_k}$\\[1pt]\textcolor{inkmuted}{scaled similarity}};
+    \node[stepbox] (s1) at (0,0) {\textbf{1. Score pairs}\\$S = QK^\top / \sqrt{d_h}$\\[1pt]\textcolor{inkmuted}{scaled similarity}};
     \node[stepbox,draw=leafreddraw,fill=leafredbg] (s2) at (3.05,0) {\textbf{2. Causal mask}\\$S + M$\\[1pt]\textcolor{signaldark}{hide future $j > i$}};
     \node[stepbox,draw=accentdarkdraw,fill=accentdarkbg] (s3) at (6.10,0) {\textbf{3. Softmax}\\$A = \operatorname{softmax}(\cdot)$\\[1pt]\textcolor{accentdark}{row weights $\sum = 1$}};
     \node[stepbox,draw=successdraw,fill=successbg] (s4) at (9.15,0) {\textbf{4. Mix values}\\$O = AV$\\[1pt]\textcolor{successgreen}{contextual states}};
@@ -329,9 +328,9 @@
     \draw[-{Stealth[length=4pt,width=3pt]},thick,neutraldark] (s3)--(s4);
   \end{tikzpicture}
   \vspace{3pt}
-  \begin{alertblock}{Why divide by $\sqrt{d_k}$? Preserving gradient flow}
+  \begin{alertblock}{Why divide by $\sqrt{d_h}$? Preserving gradient flow}
     \footnotesize
-    For independent zero-mean unit-variance components, $\operatorname{Var}(q^\top k) = d_k$. As dimension $d_k$ grows, large dot products push softmax into saturated flat regions with vanishing gradients ($\nabla \approx 0$). Dividing by $\sqrt{d_k}$ keeps $\operatorname{Var}(S) \approx 1$, maintaining healthy gradient flow.
+    For independent zero-mean unit-variance components, $\operatorname{Var}(q^\top k) = d_h$. As dimension $d_h$ grows, large dot products push softmax into saturated flat regions with vanishing gradients ($\nabla \approx 0$). Dividing by $\sqrt{d_h}$ keeps $\operatorname{Var}(S) \approx 1$, maintaining healthy gradient flow.
   \end{alertblock}
   \vspace{2pt}
   \smallsource{Vaswani et al. (2017, \emph{Attention Is All You Need})}
@@ -411,6 +410,16 @@
 \checkpoint{one query row}
 {For sequence length four, write the four logits seen by the query at position two (0-indexed). Which entries survive the mask, and across which dimension must softmax normalize?}
 
+\begin{frame}{One query row: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item Query $i=2$ scores all four keys: $S_{2,0},\ S_{2,1},\ S_{2,2},\ S_{2,3}$, with $S_{2,j}=q_2^\top k_j/\sqrt{d_h}$.
+    \item The mask keeps $j\le 2$: $S_{2,0},S_{2,1},S_{2,2}$ survive; $S_{2,3}$ receives $-\infty$.
+    \item Softmax normalizes across the key dimension $j$: along the row, the last axis of the score tensor.
+    \item The three surviving weights sum to 1; the future key gets weight $\exp(-\infty)=0$.
+  \end{itemize}
+\end{frame}
+
 \begin{frame}{One wide head or several smaller heads?}
   \centering
   \begin{tikzpicture}[
@@ -423,12 +432,12 @@
     \node[head,minimum width=3.2cm] (single) at (5.1,2.0) {one attention\\$T\times d\;\to\;T\times d$};
     \node[box,minimum width=2.8cm] (singleout) at (9.35,2.0) {output\\$T\times d$};
     \draw[arr] (singlein)--(single); \draw[arr] (single)--(singleout);
-    \node[font=\footnotesize\bfseries,anchor=west] at (-.1,1.2) {Multi-head example: $h=4$ heads, each width $d_k=d/4$};
+    \node[font=\footnotesize\bfseries,anchor=west] at (-.1,1.2) {Multi-head example: $H=4$ heads, each width $d_h=d/4$};
     \node[box,minimum width=2.5cm,minimum height=1.4cm] (multiin) at (1.25,-.12) {split $Q,K,V$\\into 4 heads};
-    \node[head] (h1) at (5.1,.70) {head 1: $T\times d_k$};
-    \node[head] (h2) at (5.1,.15) {head 2: $T\times d_k$};
-    \node[head] (h3) at (5.1,-.40) {head 3: $T\times d_k$};
-    \node[head] (h4) at (5.1,-.95) {head 4: $T\times d_k$};
+    \node[head] (h1) at (5.1,.70) {head 1: $T\times d_h$};
+    \node[head] (h2) at (5.1,.15) {head 2: $T\times d_h$};
+    \node[head] (h3) at (5.1,-.40) {head 3: $T\times d_h$};
+    \node[head] (h4) at (5.1,-.95) {head 4: $T\times d_h$};
     \node[box,minimum width=2.8cm,minimum height=1.4cm] (multiout) at (9.35,-.12) {concatenate\\$T\times d$};
     \foreach \h in {1,2,3,4} {
       \draw[arr] (multiin.east) -- ++(.70,0) |- (h\h.west);
@@ -437,7 +446,7 @@
   \end{tikzpicture}
   \vspace{2pt}
   \begin{block}{Same leading attention compute, different mixing}
-    \footnotesize Per batch: one head $O(BT^2d)$; $h$ heads $O(BhT^2d_k)=O(BT^2d)$. Heads have learned projections and can compute different attention patterns in parallel.
+    \footnotesize Per batch: one head $O(BT^2d)$; $H$ heads $O(BHT^2d_h)=O(BT^2d)$. Heads have learned projections and can compute different attention patterns in parallel.
   \end{block}
   \vspace{-3pt}
   {\scriptsize Each head receives Q, K and V from learned projections; $W_O$ mixes the concatenated heads.}
@@ -452,68 +461,20 @@
       box/.style={draw=themebluedraw,fill=themebluebg,rounded corners=3pt,minimum height=.8cm,minimum width=3.1cm,thick},
       arr/.style={-{Stealth[length=4.5pt,width=3.2pt]},thick,draw=neutraldark}]
       \node[box] (q) at (0,0) {$B\times T\times d$};
-      \node[box] (split) at (4.0,0) {$B\times T\times h\times d_k$};
-      \node[box,draw=accentdarkdraw,fill=accentdarkbg] (swap) at (8.0,0) {$B\times h\times T\times d_k$};
+      \node[box] (split) at (4.0,0) {$B\times T\times H\times d_h$};
+      \node[box,draw=accentdarkdraw,fill=accentdarkbg] (swap) at (8.0,0) {$B\times H\times T\times d_h$};
       \draw[arr] (q)--(split);
       \draw[arr] (split)--(swap);
       \node[font=\scriptsize] at (2,.8) {split $d$};
-      \node[font=\scriptsize] at (6,.8) {swap $T,h$};
+      \node[font=\scriptsize] at (6,.8) {swap $T,H$};
     \end{tikzpicture}
   \end{center}
-  Each head now sees a $T\times d_k$ sequence, so batched $QK^\top$ gives $B\times h\times T\times T$ scores. Heads can run concurrently.
+  Each head now sees a $T\times d_h$ sequence, so batched $QK^\top$ gives $B\times H\times T\times T$ scores. Heads can run concurrently.
   \begin{block}{Concrete example}
-    $d=768$, $h=12$: split $768$ into $12\times64$, then swap the token and head axes. Reverse the swap and concatenate the heads after attention.
+    $d=768$, $H=12$: split $768$ into $12\times64$, then swap the token and head axes. Reverse the swap and concatenate the heads after attention.
   \end{block}
   \vspace{-3pt}
-  {\scriptsize In PyTorch: \texttt{reshape(B, T, h, d\_k).transpose(1, 2)}.}
-\end{frame}
-
-\begin{frame}{What does multi-head attention cost?}
-  \small
-  For $B$ sequences of $T$ tokens, width $d$, and $d_k=d/h$ (with $h$ dividing $d$):
-  \begin{center}
-    \begin{tabular}{@{}lll@{}}
-      \toprule
-      Forward operation & One width-$d$ head & $h$ width-$d_k$ heads \\
-      \midrule
-      Score and value products & $4BT^2d$ & $4BhT^2d_k=4BT^2d$ \\
-      Q, K, V and output projections & $8BTd^2$ & $8BTd^2$ \\
-      Score elements, if materialized & $BT^2$ & $BhT^2$ \\
-      \bottomrule
-    \end{tabular}
-  \end{center}
-  \begin{block}{Interpretation}
-    Splitting the fixed width does not multiply the leading matrix-product FLOPs by $h$. Multiple heads learn different attention patterns; parallel execution is possible, but latency depends on kernels and hardware.
-  \end{block}
-  {\scriptsize Dense products; two FLOPs per multiply-add. Excludes masking, softmax and biases. Causal kernels may skip work and avoid materializing scores.}
-\end{frame}
-
-\begin{frame}{What does the causal mask reveal about order?}
-  \begin{columns}[t]
-    \begin{column}{.48\linewidth}
-      \begin{block}{Without a mask or positions}
-        Self-attention is \textbf{permutation equivariant}: reordering the input reorders its outputs in the same way.
-      \end{block}
-    \end{column}
-    \begin{column}{.48\linewidth}
-      \begin{block}{With a causal mask}
-        Each token sees a different prefix. Reordering tokens changes who can see whom, even without explicit positional embeddings.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering\small
-  \begin{tabular}{lll}
-    \toprule
-    Sequence & History visible to $A$ & History visible to $B$ \\
-    \midrule
-    $A\ B\ C$ & $A$ & $A, B$ \\
-    $B\ A\ C$ & $B, A$ & $B$ \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \footnotesize Earlier token representations can therefore differ; a later layer can use them to distinguish the two orders.
-  \smallsource{Haviv et al. (2022); Irie (2025)}
+  {\scriptsize In PyTorch: \texttt{view(B, T, n\_head, head\_dim).transpose(1, 2)}.}
 \end{frame}
 
 \begin{frame}{Explicit position information in GPT-2 and beyond}
@@ -539,14 +500,8 @@
       \end{tikzpicture}
     \end{column}
   \end{columns}
-  \vspace{2pt}
-  \begin{block}{Original Transformer: fixed sinusoidal positions}
-    \footnotesize For position $p$ and feature pair $2i,2i+1$ ($d=d_{\rm model}$):
-    \[
-      \operatorname{PE}(p,2i)=\sin\!\left(\frac{p}{10000^{2i/d}}\right),\qquad
-      \operatorname{PE}(p,2i+1)=\cos\!\left(\frac{p}{10000^{2i/d}}\right).
-    \]
-  \end{block}
+  \vfill
+  \footnotesize The original Transformer used fixed sinusoidal positions instead (formula in the appendix).
   \smallsource{Vaswani et al. (2017); Radford et al. (2019); Su et al. (2021)}
 \end{frame}
 
@@ -676,9 +631,9 @@
 \begin{frame}{Closing the loop: final norm, LM head, and target shift}
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
-      After $N$ Transformer blocks, normalize $X_N$ and project to vocabulary logits:
+      After $L$ Transformer blocks, normalize $X_L$ and project to vocabulary logits:
       \[
-        Z = \operatorname{Norm}_f(X_N)W_{\text{vocab}}^\top
+        Z = \operatorname{Norm}_f(X_L)W_{\text{vocab}}^\top
         \quad\in\mathbb{R}^{B\times T\times V}
       \]
       \[
@@ -704,10 +659,32 @@
   \smallsource{Press \& Wolf (2017, Weight Tying); Radford et al. (2019)}
 \end{frame}
 
+\begin{frame}{From logits to a token}
+  Generation reads the last position only: $z = Z_{b,T} \in \mathbb{R}^{V}$, picks one token, appends it, and repeats.
+  \begin{center}
+    \footnotesize
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      \textbf{Rule} & \textbf{Next token} & \textbf{Effect} \\
+      \midrule
+      Greedy & $\arg\max_i z_i$ & deterministic \\
+      Temperature $\tau$ & sample $p=\operatorname{softmax}(z/\tau)$ & $\tau<1$ sharper, $\tau>1$ flatter \\
+      Top-$k$ & sample $p$ over the $k$ largest logits & fixed candidate count \\
+      Top-$p$ & sample $p$ over the smallest set of mass $\ge P$ & adaptive candidate count \\
+      \bottomrule
+    \end{tabular}\\[3pt]
+    {\footnotesize Top-$k$ and top-$p$ (threshold $P$) renormalize $p$ over the kept tokens before sampling.}
+  \end{center}
+  \begin{block}{Perplexity}
+    $\operatorname{PPL}=\exp(\mathcal{L})$, with $\mathcal{L}$ the mean cross-entropy in nats per token. A uniform guess over the vocabulary gives $\operatorname{PPL}=V$.
+  \end{block}
+\end{frame}
+
 \begin{frame}{Interactive walkthrough: visual explorer of the Transformer}
   \begin{columns}[c]
     \begin{column}{0.54\linewidth}
-      \textbf{Session cue --- trace a live forward pass:}
+      \textbf{Trace a live forward pass:}
       \begin{enumerate}
           \setlength{\itemsep}{6pt}
         \item Follow \textbf{token + position embeddings} into the residual stream.
@@ -725,7 +702,7 @@
   \end{columns}
 \end{frame}
 
-\section{From GPT-2 to modern LLMs \& Lab 1}
+\section{From GPT-2 to modern LLMs}
 
 \begin{frame}{Three Transformer families---and why Decoder-Only won}
   \begin{columns}[t]
@@ -747,18 +724,18 @@
       \begin{block}{Decoder-only}
         \footnotesize
         \textbf{GPT / LLaMA} (Radford, 2019)\\[2pt]
-        Single causal stream unifies all tasks as prompt completion + single KV cache.
+        Single causal stream unifies all tasks as prompt completion.
       \end{block}
     \end{column}
   \end{columns}
   \begin{alertblock}{Why decoder-only dominates modern foundation models}
-    \small Any task can be framed as prompt continuation, concentrating all parameters and pretraining compute into one unified causal stack with a single KV cache.
+    \small Any task can be framed as prompt continuation, concentrating all parameters and pretraining compute into one causal stack.
   \end{alertblock}
   \smallsource{Vaswani et al. (2017); Devlin et al. (2018); Radford et al. (2019); Brown et al. (2020)}
 \end{frame}
 
 \begin{frame}{What changed since GPT-2? The modern LLM stack}
-  \small You will implement \textbf{GPT-2} in Lab 1. Modern LLMs keep the same macro-architecture while upgrading five components:
+  \small The course model is \textbf{GPT-2}. Modern LLMs keep the same macro-architecture while upgrading five components:
   \vspace{2pt}
   \centering\scriptsize
   \begin{tabular}{@{}>{\bfseries\raggedright\arraybackslash}p{1.85cm}>{\raggedright\arraybackslash}p{2.25cm}>{\raggedright\arraybackslash}p{2.85cm}>{\raggedright\arraybackslash}p{3.35cm}@{}}
@@ -766,10 +743,10 @@
     Component & GPT-2 (2019) & Modern LLM (2023+) & Primary rationale \\
     \midrule
     Positions & Learned $W_{pe}$ & \textbf{RoPE} (Su et al., 2021) & Relative distance, length extrapolation \\
-    Normalization & Pre-\textbf{LayerNorm} & Pre-\textbf{RMSNorm} (Zhang, 2019) & Drops mean-centering; 10--50\% faster \\
-    Attention & \textbf{MHA} ($H_Q = H_{KV}$) & \textbf{GQA} (Ainslie et al., 2023) & $4\times$--$8\times$ smaller KV cache in serving \\
+    Normalization & Pre-\textbf{LayerNorm} & Pre-\textbf{RMSNorm} (Zhang, 2019) & Drops mean-centering; simpler, cheaper norm \\
+    Attention & \textbf{MHA} ($H_{kv} = H$) & \textbf{GQA} (Ainslie et al., 2023) & $4\times$--$8\times$ smaller KV cache in serving \\
     MLP activation & \textbf{GELU} ($d \to 4d \to d$) & \textbf{SwiGLU} (Shazeer, 2020) & Gated linear unit improves capacity \\
-    Biases \& tying & Biases; tied $W_E$ & \textbf{Bias-free}; untied $W_{\text{vocab}}$ & Faster GEMMs; better stability at scale \\
+    Biases \& tying & Biases; tied $W_E$ & \textbf{Bias-free}; untied $W_{\text{vocab}}$ & Biases add little; untied head adds capacity \\
     \bottomrule
   \end{tabular}
   \vfill
@@ -780,7 +757,7 @@
   \centering\footnotesize
   \begin{tabular}{lll}
     \toprule
-    Tensor & Shape & Role in \texttt{nanolm/model.py} \\
+    Tensor & Shape & Role \\
     \midrule
     \texttt{idx} & $B\times T$ & input token IDs ($T \le \text{block\_size}$) \\
     \texttt{x} & $B\times T\times d$ & residual stream (token $+$ position) \\
@@ -796,42 +773,143 @@
   \end{block}
 \end{frame}
 
-\begin{frame}{Lab 1: what you have the tools to build and verify now}
+\begin{frame}{GPT-2 Small in numbers; three checks before trusting a model}
   \begin{columns}[t]
-    \begin{column}{0.50\linewidth}
-      \begin{block}{Implement in \texttt{nanolm/model.py}}
-        \footnotesize
-        \begin{enumerate}
-            \setlength{\itemsep}{2pt}
-          \item \textbf{Session 2:} embeddings, MLP and residual-block sketch.
-          \item \textbf{Session 3:} Q/K/V projections, head split, causal attention and the full block.
-          \item \textbf{Session 4:} assemble \texttt{MiniGPT}, test causality and compare GPT-2 logits.
-        \end{enumerate}
-      \end{block}
-    \end{column}
     \begin{column}{0.46\linewidth}
-      \begin{alertblock}{Three verification gates}
+      \centering\footnotesize
+      \begin{tabular}{@{}lll@{}}
+        \toprule
+        Quantity & Symbol & GPT-2 Small \\
+        \midrule
+        vocabulary & $V$ & 50{,}257 \\
+        context length & $T \le$ & 1{,}024 \\
+        width & $d$ & 768 \\
+        blocks & $L$ & 12 \\
+        heads & $H$ & 12 ($d_h=64$) \\
+        \midrule
+        parameters & $N$ & $\approx 124$M \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.50\linewidth}
+      \begin{alertblock}{Three checks, in this order}
         \footnotesize
         \begin{enumerate}
             \setlength{\itemsep}{2pt}
-          \item \textbf{Shape tests}: all intermediates match the ledger.
-          \item \textbf{Causality tests}: mutating a future token leaves earlier logits identical.
-          \item \textbf{GPT-2 parity}: compare reference logits. Cache the 124M checkpoint beforehand; if unavailable, report parity as pending.
+          \item \textbf{Shapes}: every intermediate matches the ledger.
+          \item \textbf{Causality}: changing a future token leaves all earlier logits identical.
+          \item \textbf{Parity}: with the published weights loaded, logits match the reference GPT-2.
         \end{enumerate}
       \end{alertblock}
     \end{column}
   \end{columns}
   \vfill
-  \centering\scriptsize\texttt{uv run pytest tests/test\_module\_01\_model.py -q} \quad$\rightarrow$\quad \texttt{uv run -{}-extra gpt2 python scripts/01\_gpt2\_parity.py}
+  \footnotesize A wrong mask or a swapped axis keeps every shape; parity fails on any difference.
 \end{frame}
 
 \checkpoint{debugging order}
-{Your model passes all shape tests, but \texttt{01\_gpt2\_parity.py} produces wrong logits and the causality test fails. Which lines of \texttt{CausalSelfAttention.forward} do you inspect first?}
+{Your model passes all shape tests, but its logits differ from the reference GPT-2 and the causality check fails. Which steps of the attention forward pass do you inspect first?}
+
+\begin{frame}{Debugging order: one possible answer}
+  \small
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item A failed causality test points at attention, the only place where tokens mix. Fix it before chasing parity.
+    \item \textbf{First, the mask line:} it must block $j>i$, cover the current $T$, and set logits to $-\infty$ \emph{before} softmax.
+    \item \textbf{Then the softmax line:} it must normalize over the last (key) axis of the $B\times H\times T\times T$ scores.
+    \item \textbf{Then the split and merge lines:} \texttt{view(B, T, n\_head, head\_dim).transpose(1, 2)}, and the reverse swap before the heads are concatenated. A wrong order keeps every shape but scrambles tokens and heads.
+    \item Once causality passes, a remaining parity gap suggests the $1/\sqrt{d_h}$ scale or a projection.
+  \end{itemize}
+\end{frame}
 
 \takeaways
 {Next-token prediction factorizes sequence probability; removing the $h_{t-1}\to h_t$ dependency makes training inherently parallel across positions on GPUs.}
 {Causal multi-head attention routes information across tokens ($1/3$ of params), while the causal mask and position representations supply order information.}
 {A pre-norm Transformer block pairs cross-token attention with a per-token $4d$ MLP ($2/3$ of params) along a clean residual highway.}
 {Shape invariants, causality perturbation tests, and exact GPT-2 checkpoint parity verify the model before we train it in Module 2.}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{Notation}
+  \small
+  One symbol, one meaning, in every module:
+  \begin{center}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{@{}cl@{\hspace{.6em}}cl@{}}
+      \toprule
+      Symbol & Meaning & Symbol & Meaning \\
+      \midrule
+      $B$ & batch (micro-batch per device) & $N$ & parameter count \\
+      $T$ & sequence length (tokens) & $A$ & attention weights \\
+      $V$ & vocabulary size & $K$ & accumulation micro-steps \\
+      $d$ & model width & $W$ & world size (ranks) \\
+      $L$ & number of layers (blocks) & $b$ & bytes per element \\
+      $H$, $H_{kv}$ & heads, KV heads & $\mathcal{L}$ & loss \\
+      $d_h$ & head width, $d/H$ & $N_{x}$ & a count of $x$, e.g.\ $N_{dp}$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \footnotesize Inside attention, $Q,K,V$ are the query, key and value matrices. Code keeps the companion's identifiers (\texttt{n\_layer}, \texttt{n\_head}, \texttt{head\_dim}, \texttt{block\_size}).
+\end{frame}
+
+\begin{frame}{What does multi-head attention cost?}
+  \small
+  For $B$ sequences of $T$ tokens, width $d$, and $d_h=d/H$ (with $H$ dividing $d$):
+  \begin{center}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Forward operation & One width-$d$ head & $H$ width-$d_h$ heads \\
+      \midrule
+      Score and value products & $4BT^2d$ & $4BHT^2d_h=4BT^2d$ \\
+      Q, K, V and output projections & $8BTd^2$ & $8BTd^2$ \\
+      Score elements, if materialized & $BT^2$ & $BHT^2$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \begin{block}{Interpretation}
+    Splitting the fixed width does not multiply the leading matrix-product FLOPs by $H$. Multiple heads learn different attention patterns; parallel execution is possible, but latency depends on kernels and hardware.
+  \end{block}
+  {\scriptsize Dense products; two FLOPs per multiply-add. Excludes masking, softmax and biases. Causal kernels may skip work and avoid materializing scores.}
+\end{frame}
+
+\begin{frame}{What does the causal mask reveal about order?}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Without a mask or positions}
+        Self-attention is \textbf{permutation equivariant}: reordering the input reorders its outputs in the same way.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{With a causal mask}
+        Each token sees a different prefix. Reordering tokens changes who can see whom, even without explicit positional embeddings.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering\small
+  \begin{tabular}{lll}
+    \toprule
+    Sequence & History visible to $A$ & History visible to $B$ \\
+    \midrule
+    $A\ B\ C$ & $A$ & $A, B$ \\
+    $B\ A\ C$ & $B, A$ & $B$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \footnotesize Earlier token representations can therefore differ; a later layer can use them to distinguish the two orders.
+  \smallsource{Haviv et al. (2022); Irie (2025)}
+\end{frame}
+
+\begin{frame}{Original Transformer: fixed sinusoidal positions}
+  \begin{block}{Sinusoidal position encoding}
+    \footnotesize For position $p$ and feature pair $2i,2i+1$ ($d=d_{\rm model}$):
+    \[
+      \operatorname{PE}(p,2i)=\sin\!\left(\frac{p}{10000^{2i/d}}\right),\qquad
+      \operatorname{PE}(p,2i+1)=\cos\!\left(\frac{p}{10000^{2i/d}}\right).
+    \]
+  \end{block}
+  \smallsource{Vaswani et al. (2017)}
+\end{frame}
 
 \end{document}
