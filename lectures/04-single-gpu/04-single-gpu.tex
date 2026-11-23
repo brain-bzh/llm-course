@@ -280,13 +280,13 @@
   \begin{enumerate}
       \setlength{\itemsep}{3pt}
     \item Explicit attention: $QK^\top$, mask, softmax and $AV$ are separate kernels with $T\times T$ intermediates.
-    \item Scaled dot-product attention (SDPA) is the same function of $Q,K,V$, each $(B,H,T,d_h)$:\\[1pt]
+    \item SDPA computes the same function of $Q,K,V$, each $(B,H,T,d_h)$:\\[1pt]
       {\footnotesize\texttt{y = F.scaled\_dot\_product\_attention(q, k, v, is\_causal=True)}}
-    \item The causal mask is a flag, not a tensor. Dropout is the \texttt{dropout\_p} argument: pass 0 in evaluation, SDPA does not switch it off.
-    \item PyTorch selects the backend from hardware, dtype, shapes and mask: FlashAttention, another fused kernel, or the plain math path.
+    \item The causal mask is a flag, not a tensor. SDPA never disables dropout itself: pass \texttt{dropout\_p=0} in evaluation.
+    \item PyTorch picks the backend from hardware, dtype, shapes and mask. FlashAttention needs FP16/BF16 on Ampere or newer (A100); otherwise a fused or math kernel runs.
   \end{enumerate}
   \begin{alertblock}{Same function, different kernels}
-    With identical weights, logits, loss and gradients match the explicit path within a small tolerance, not bit for bit. Check before timing.
+    With identical weights, outputs and gradients match the explicit path within tolerance, not bit for bit. Check before timing.
   \end{alertblock}
   \smallsource{PyTorch SDPA documentation; Dao et al., FlashAttention (2022)}
 \end{frame}
