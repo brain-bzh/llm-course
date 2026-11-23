@@ -169,3 +169,44 @@
 
 % Section TOC Frame
 \AtBeginSection[]{\coursesectiondivider}
+
+% ---- Course roadmap strip ----
+% \courseroadmap{<current module number 1..10>}
+% Stages Build (M1-M4) / Scale (M5-M8) / Serve (M9-M10); current module highlighted.
+\newcommand{\courseroadmap}[1]{%
+  \begin{center}
+    \begin{tikzpicture}[x=1cm,y=1cm,
+        rmstage/.style={font=\scriptsize\bfseries,minimum height=.36cm,inner sep=0pt,
+        rounded corners=1.5pt,fill=panelborder,text=themeink},
+        rmstageon/.style={rmstage,fill=themeteal,text=white},
+        rmbox/.style={font=\scriptsize,align=center,minimum width=1cm,minimum height=.82cm,
+        inner sep=1pt,rounded corners=2pt,draw=panelborder,fill=panelbg,text=inkmuted},
+      rmboxon/.style={rmbox,draw=signal,very thick,fill=themenavy,text=white,font=\scriptsize\bfseries}]
+      \ifnum#1<5\relax
+        \node[rmstageon,minimum width=4.24cm] at (1.62,.72) {Build};
+      \else
+        \node[rmstage,minimum width=4.24cm] at (1.62,.72) {Build};
+      \fi
+      \ifnum#1>4\relax\ifnum#1<9\relax
+          \node[rmstageon,minimum width=4.24cm] at (6.14,.72) {Scale};
+        \else
+          \node[rmstage,minimum width=4.24cm] at (6.14,.72) {Scale};
+      \fi\else
+        \node[rmstage,minimum width=4.24cm] at (6.14,.72) {Scale};
+      \fi
+      \ifnum#1>8\relax
+        \node[rmstageon,minimum width=2.08cm] at (9.58,.72) {Serve};
+      \else
+        \node[rmstage,minimum width=2.08cm] at (9.58,.72) {Serve};
+      \fi
+      \foreach \rmnum/\rmlabel/\rmx in {1/GPT/0,2/Loop/1.08,3/Data/2.16,4/1 GPU/3.24,
+      5/DDP/4.52,6/FSDP/5.60,7/TP/6.68,8/{CP/PP}/7.76,9/KV/9.04,10/Serving/10.12}{%
+        \ifnum\rmnum=#1\relax
+          \node[rmboxon] at (\rmx,0) {M\rmnum\\\rmlabel};
+        \else
+          \node[rmbox] at (\rmx,0) {M\rmnum\\\rmlabel};
+        \fi
+      }
+    \end{tikzpicture}
+  \end{center}%
+}

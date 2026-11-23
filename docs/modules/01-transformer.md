@@ -79,8 +79,8 @@ At each step $t$, the loss penalizes the model if it assigns low probability mas
 
 Before a neural network can process text, the text must be converted into numerical values:
 
-- **Conceptually:** A token is a discrete unit of text—typically a subword fragment, a common word, or a punctuation mark—indexed by an integer $x_t \in \{0, 1, \dots, |\mathcal{V}| - 1\}$.
-- **In Module 1:** For building the neural network architecture, tokens are treated simply as integer indices. An embedding matrix $W_E \in \mathbb{R}^{|\mathcal{V}| \times d_{\text{model}}}$ maps each integer ID to a continuous dense vector in hidden space.
+- **Conceptually:** A token is a discrete unit of text—typically a subword fragment, a common word, or a punctuation mark—indexed by an integer $x_t \in \{0, 1, \dots, V - 1\}$, with $V = |\mathcal{V}|$ the vocabulary size.
+- **In Module 1:** For building the neural network architecture, tokens are treated simply as integer indices. An embedding matrix $W_E \in \mathbb{R}^{V \times d}$ maps each integer ID to a continuous dense vector in hidden space.
 - **In Module 3:** The exact algorithms that segment unicode strings into token IDs (such as Byte-Pair Encoding and regex pre-tokenization) will be explored and implemented from scratch.
 
 ---
@@ -156,17 +156,17 @@ For a single attention head, the operation is defined as:
 
 <div class="formula-highlight" markdown>
 
-$$\operatorname{Attention}(Q, K, V) = \operatorname{softmax}\left(\frac{Q K^\top}{\sqrt{d_{\text{head}}}} + M\right) V$$
+$$\operatorname{Attention}(Q, K, V) = \operatorname{softmax}\left(\frac{Q K^\top}{\sqrt{d_h}} + M\right) V$$
 
 </div>
 
-### Why divide by $\sqrt{d_{\text{head}}}$?
+### Why divide by $\sqrt{d_h}$?
 
 Assuming the elements of $q$ and $k$ are independent random variables with zero mean and unit variance:
 
-$$q^\top k = \sum_{i=1}^{d_{\text{head}}} q_i k_i, \quad \mathbb{E}[q^\top k] = 0, \quad \operatorname{Var}(q^\top k) = d_{\text{head}}.$$
+$$q^\top k = \sum_{i=1}^{d_h} q_i k_i, \quad \mathbb{E}[q^\top k] = 0, \quad \operatorname{Var}(q^\top k) = d_h.$$
 
-As the head dimension $d_{\text{head}}$ grows large, the variance of the dot products scales as $d_{\text{head}}$, meaning typical values have magnitude $\sqrt{d_{\text{head}}}$. Without the scaling factor $1/\sqrt{d_{\text{head}}}$, large dot products push the softmax function into regions with near-zero gradients, causing training to stall. Scaling stabilizes the variance of the attention logits to 1 regardless of head width.
+As the head dimension $d_h$ grows large, the variance of the dot products scales as $d_h$, meaning typical values have magnitude $\sqrt{d_h}$. Without the scaling factor $1/\sqrt{d_h}$, large dot products push the softmax function into regions with near-zero gradients, causing training to stall. Scaling stabilizes the variance of the attention logits to 1 regardless of head width.
 
 ### Division of labor: Attention vs. MLP
 
@@ -279,9 +279,9 @@ Because SwiGLU introduces three weight matrices ($W_{\text{gate}}, W_{\text{up}}
 
 During autoregressive inference generation, tokens are generated one by one. The model must load the entire Key-Value (KV) cache from high-bandwidth GPU memory (HBM) into SRAM at every step. This makes generation severely **memory-bandwidth bound** rather than compute bound ([Shazeer, 2019](https://arxiv.org/abs/1911.02150)).
 
-- **Multi-Head Attention (MHA):** Has $H$ query, $H$ key, and $H$ value heads. The KV cache footprint scales as $2 \times B \times T \times H \times d_{\text{head}}$.
+- **Multi-Head Attention (MHA):** Has $H$ query, $H$ key, and $H$ value heads. The KV cache footprint scales as $2 \times B \times T \times H \times d_h$.
 - **Multi-Query Attention (MQA; [Shazeer, 2019](https://arxiv.org/abs/1911.02150)):** Collapses all Key and Value heads into a single head shared across all $H$ Query heads. This reduces KV cache size by a factor of $H$, but can lead to quality degradation and training instability.
-- **Grouped-Query Attention (GQA; [Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)):** Groups $H_Q$ Query heads into $G$ groups, assigning one Key and Value head per group (where $1 < G < H_Q$). For instance, with 32 Query heads and 8 Key-Value groups ($G=8$), four Query heads share each Key-Value head ($4:1$ ratio). GQA delivers nearly the full quality of MHA while slashing KV-cache memory traffic by $4\times$ to $8\times$.
+- **Grouped-Query Attention (GQA; [Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)):** Groups $H$ Query heads into $H_{kv}$ groups, assigning one Key and Value head per group (where $1 < H_{kv} < H$). For instance, with 32 Query heads and 8 Key-Value groups ($H_{kv}=8$), four Query heads share each Key-Value head ($4:1$ ratio). GQA delivers nearly the full quality of MHA while slashing KV-cache memory traffic by $4\times$ to $8\times$.
 
 ??? info "Visual comparison: MHA, GQA and MQA"
 
@@ -319,11 +319,11 @@ The table below synthesizes the structural evolution from the legacy GPT-2 basel
 | **Positional Encoding** | Absolute learned 1D ($W_{pe}$) added to input embeddings | Rotary Position Embedding (**RoPE**) applied to $Q$ and $K$ | Preserves relative distance, zero learned parameters, enables length extrapolation ([Su et al., 2021](https://arxiv.org/abs/2104.09864)) |
 | **Normalization Layer** | LayerNorm (mean subtraction + variance scaling) | **RMSNorm** (root-mean-square scaling only) | Eliminates mean calculation overhead; 10–50% faster normalization ([Zhang & Sennrich, 2019](https://arxiv.org/abs/1910.07467)) |
 | **Normalization Placement** | Pre-LayerNorm $(X + \text{Sublayer}(\text{LN}(X)))$ | **Pre-RMSNorm** | Maintains direct identity gradient highway across depth ([Xiong et al., 2020](https://arxiv.org/abs/2002.04745)) |
-| **Attention Variant** | Multi-Head Attention (**MHA**; $H_Q = H_K = H_V$) | Grouped-Query Attention (**GQA**; $H_Q > H_{KV}$) | Reduces KV cache footprint and memory bandwidth by $4\times$–$8\times$ during decode ([Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)) |
+| **Attention Variant** | Multi-Head Attention (**MHA**; $H_{kv} = H$) | Grouped-Query Attention (**GQA**; $H_{kv} < H$) | Reduces KV cache footprint and memory bandwidth by $4\times$–$8\times$ during decode ([Ainslie et al., 2023](https://arxiv.org/abs/2305.13245)) |
 | **MLP Non-Linearity** | GeLU ($\text{GeLU}(x W_1) W_2$) with $4d$ expansion | **SwiGLU** $((\text{Swish}(x W_{\text{gate}}) \odot x W_{\text{up}}) W_{\text{down}})$ with $\approx \frac{8}{3}d$ expansion | Bilinear gating mechanism provides higher capacity per parameter ([Shazeer, 2020](https://arxiv.org/abs/2002.05202)) |
 | **Input/Output Embeddings**| **Tied weights** $(W_{\text{vocab}} = W_E^\top)$ | **Untied weights** ($W_{\text{vocab}} \neq W_E$) | Decouples input semantic representation from output logit discrimination ([Touvron et al., 2023](https://arxiv.org/abs/2302.13971)) |
 | **Linear Biases** | Included in all linear and norm layers | **Bias-free** ($b = 0$ everywhere) | Reduces memory reads, avoids activation drift, stabilizes deep training ([Chowdhery et al., 2022](https://arxiv.org/abs/2204.02311)) |
-| **Attention Scaling** | Scale factor $1/\sqrt{d_{\text{head}}}$ | Scale factor $1/\sqrt{d_{\text{head}}}$ | Variance control prevents vanishing softmax gradients ([Vaswani et al., 2017](https://arxiv.org/abs/1706.03762)) |
+| **Attention Scaling** | Scale factor $1/\sqrt{d_h}$ | Scale factor $1/\sqrt{d_h}$ | Variance control prevents vanishing softmax gradients ([Vaswani et al., 2017](https://arxiv.org/abs/1706.03762)) |
 
 <figure markdown="span">
   ![Evolution of the decoder-only architecture comparing legacy GPT-2 against modern foundation models.](../assets/figures/transformer-evolution-recap.svg){ loading=lazy }
@@ -335,8 +335,8 @@ The table below synthesizes the structural evolution from the legacy GPT-2 basel
 ## From token IDs to representations
 
 The model receives integer token IDs with shape `B × T`: batch size by sequence
-length. An embedding table maps each token to a vector of width `d_model`, giving
-`X ∈ B × T × d_model`.
+length. An embedding table maps each token to a vector of width `d`, giving
+`X ∈ B × T × d`.
 
 Without positional information or a position-dependent mask, self-attention is
 **permutation equivariant**: permuting the input permutes its output in the same
@@ -372,9 +372,9 @@ Each token representation is projected into a query, a key and a value:
 Queries and keys determine which positions interact. Values carry the content
 that is mixed. For one attention head:
 
-`Attention(Q, K, V) = softmax(QKᵀ / √d_head + mask)V`.
+`Attention(Q, K, V) = softmax(QKᵀ / √d_h + mask)V`.
 
-The division by `√d_head` keeps dot products from growing with the head width.
+The division by `√d_h` keeps dot products from growing with the head width.
 The softmax acts across key positions, so every query row becomes a probability
 distribution over the context it is allowed to see.
 
@@ -395,8 +395,8 @@ unchanged.
 
 ## Multi-head attention
 
-Compare a single attention head of width $d$ with $h$ heads of width
-$d_k=d/h$, assuming $h$ divides $d$. Both start with learned Q, K and V projections from the input. The
+Compare a single attention head of width $d$ with $H$ heads of width
+$d_h=d/H$, assuming $H$ divides $d$. Both start with learned Q, K and V projections from the input. The
 single head produces one $T\times T$ attention pattern; multi-head attention
 produces one pattern per head. The heads can be computed in parallel, their
 outputs are concatenated back to width $d$, and an output projection mixes them.
@@ -404,21 +404,21 @@ outputs are concatenated back to width $d$, and an output projection mixes them.
 For each of Q, K and V, the implementation makes the head axis explicit:
 
 ```text
-B × T × d  →  B × T × h × d_k  →  B × h × T × d_k
-                split d                swap T and h
+B × T × d  →  B × T × H × d_h  →  B × H × T × d_h
+                split d                swap T and H
 ```
 
-The swap puts the full $T\times d_k$ sequence together for each head; batched
-$QK^\top$ then produces scores of shape $B\times h\times T\times T$. In
-PyTorch this is `reshape(B, T, h, d_k).transpose(1, 2)`. After attention,
+The swap puts the full $T\times d_h$ sequence together for each head; batched
+$QK^\top$ then produces scores of shape $B\times H\times T\times T$. In
+PyTorch this is `view(B, T, n_head, head_dim).transpose(1, 2)`. After attention,
 transpose back and merge the heads before applying the output projection. For
-example, $d=768$ and $h=12$ gives $d_k=64$.
+example, $d=768$ and $H=12$ gives $d_h=64$.
 
 Counting a multiply-add as two FLOPs, the two attention matrix products cost
-about $4BT^2d$ for one wide head and $4BhT^2d_k=4BT^2d$ for $h$ smaller
+about $4BT^2d$ for one wide head and $4BHT^2d_h=4BT^2d$ for $H$ smaller
 heads. In both cases, the four $d\times d$ projections cost about $8BTd^2$
 forward FLOPs. These estimates count dense matrix products and omit softmax, masking and biases; causal kernels can skip work. If score
-matrices are materialized, multi-head attention stores $BhT^2$ score elements
+matrices are materialized, multi-head attention stores $BHT^2$ score elements
 rather than $BT^2$; efficient kernels can avoid materializing them. Parallel
 heads do not by themselves guarantee lower latency: the kernel and hardware
 matter. Multi-head attention changes how information is mixed **between tokens**;
@@ -461,7 +461,7 @@ hidden vector to `V` vocabulary logits. Training compares logits at position
 
 The complete data flow is:
 
-`token IDs → embeddings → N Transformer blocks → final norm → LM head → logits → cross-entropy`
+`token IDs → embeddings → L Transformer blocks → final norm → LM head → logits → cross-entropy`
 
 The model output and target sequence are shifted by one position. Padding, if
 present, must also be excluded from the loss.

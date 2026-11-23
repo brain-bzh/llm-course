@@ -14,6 +14,14 @@
     What work and state does DDP repeat, and how could devices cooperate to reduce that redundancy?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{6}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} DDP splits the batch over $W$ ranks, but every rank keeps a full copy of parameters, gradients and optimizer state.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} shard that state so each rank stores $1/W$ of it, and pay for the saving with all-gather and reduce-scatter.
+\end{frame}
 \learninggoals
 {Identify repeated optimizer work and state in DDP.}
 {Decompose all-reduce into reduce-scatter and all-gather.}
@@ -58,7 +66,7 @@
     \bottomrule
   \end{tabular}
   \vspace{4pt}
-  \par\footnotesize Divide by world size for the mean. A ring all-reduce uses these two phases; timings depend on implementation.
+  \par\footnotesize Divide by world size for the mean. A ring all-reduce uses these two phases.
   \vfill
   \begin{block}{For a sharded update, move the gather}
     Each rank updates its own parameter shard using its reduced gradient shard. Gather updated parameters for the next forward pass; full sharding gathers each unit when needed.
@@ -76,7 +84,7 @@
     \item Shard the model too: what must be gathered to compute? Where do reduced gradient shards go?
   \end{enumerate}
   \vfill
-  \small Step through the same training phases in each strategy. The explorer is a two-rank teaching model; actual FSDP resharding and overlap depend on its configuration.
+  \small Step through the same training phases in each strategy. The explorer is a two-rank teaching model.
 \end{frame}
 
 \begin{frame}{Parallelism map: FSDP shards model state}
@@ -97,25 +105,7 @@
   \begin{minipage}{.92\linewidth}\small\raggedright
     \textbf{What changes from DDP?}     Model state is sharded. Each device gathers the active unit's full parameters to compute its batch.
   \end{minipage}\par\vspace{4pt}
-  {\scriptsize Full-shard example. Gradient shards persist after reduction; details depend on FSDP configuration.}
-\end{frame}
-
-\begin{frame}{Two collectives make sharding usable}
-  \centering\small
-  \begin{tabular}{@{}lll@{}}
-    \toprule
-    & Rank 0 & Rank 1 \\
-    \midrule
-    Start: parameter shards & $P_0$ & $P_1$ \\
-    \textbf{All-gather} parameters & $[P_0,P_1]$ & $[P_0,P_1]$ \\
-    Local forward / backward & gradient $[g_{00},g_{01}]$ & gradient $[g_{10},g_{11}]$ \\
-    \textbf{Reduce-scatter} gradients & $g_{00}+g_{10}$ & $g_{01}+g_{11}$ \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{block}{The division of work}
-    Each rank gathers the full unit to compute its own data; after reduction it retains the gradient for its owned shard. Averaging requires the appropriate world-size normalization.
-  \end{block}
+  {\scriptsize Full-shard example. Gradient shards persist after reduction.}
 \end{frame}
 
 \begin{frame}{Sharding changes when full parameters exist}
@@ -128,15 +118,15 @@
     \node[left,font=\scriptsize\bfseries,text=accentdark] at (0,1.45) {$1/W$ shard};
     \fill[themebluebg,draw=themebluedraw,very thick]
     (.2,0)--(.2,1.45)--(1.6,1.45)--(1.6,3.8)--(4.1,3.8)--(4.1,1.45)--(6.1,1.45)--(6.1,3.8)--(8.8,3.8)--(8.8,1.45)--(11.3,1.45)--(11.3,0)--cycle;
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (1.35,-.8) {all-gather\\parameters};
-    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (3.20,-.8) {forward};
-    \node[draw=warningdraw,fill=warningbg,rounded corners,font=\tiny] at (4.85,-.8) {reshard};
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center,font=\tiny] at (6.35,-.8) {all-gather\\again};
-    \node[draw=neutrallight,fill=neutralbg,rounded corners,font=\tiny] at (8.10,-.8) {backward};
-    \node[draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny] at (10.25,-.8) {reduce-scatter\\gradients};
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (1.6,-.8) {all-gather};
+    \node[font=\footnotesize] at (2.85,2.6) {forward};
+    \node[draw=warningdraw,fill=warningbg,rounded corners] at (4.1,-.8) {reshard};
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,align=center] at (6.1,-.8) {all-gather};
+    \node[font=\footnotesize] at (7.45,2.6) {backward};
+    \node[draw=successdraw,fill=successbg,rounded corners,align=center] at (8.8,-.8) {reduce-scatter};
   \end{tikzpicture}
   \par\vspace{2pt}
-  \footnotesize Full parameters are transient around compute; the local shard is persistent.\par
+  \footnotesize Full parameters are transient around compute; the local shard is persistent. Keeping the unit gathered between forward and backward removes the second all-gather and holds the full unit longer.\par
 \end{frame}
 
 \begin{frame}{DDP replicates persistent state on every rank}
@@ -145,37 +135,36 @@
     \toprule
     State & bytes / param. & DDP placement \\
     \midrule
-    BF16 parameters & 2 & replicated \\
-    BF16 gradients & 2 & replicated \\
-    FP32 master copy & 4 & replicated \\
-    FP32 Adam moment $m$ & 4 & replicated \\
-    FP32 Adam moment $v$ & 4 & replicated \\
+    FP32 parameters & 4 & replicated \\
+    FP32 gradients & 4 & replicated \\
+    FP32 moment $m$ & 4 & replicated \\
+    FP32 moment $v$ & 4 & replicated \\
     \midrule
-    total model state & about 16 & on every GPU \\
+    total model state & 16 & on every GPU \\
     \bottomrule
   \end{tabular}
-  \par\smallskip\footnotesize Example configuration; other precision and optimizer choices use different storage.
+  \par\smallskip\footnotesize FP32 training with AdamW: $16N$ bytes per rank for $N$ parameters, of which $8N$ are optimizer moments.
   \vfill
   \begin{alertblock}{The scaling limit}
-    More GPUs can improve throughput but do not reduce DDP's replicated state.
+    More GPUs improve throughput but do not reduce DDP's replicated state.
   \end{alertblock}
 \end{frame}
 
 \begin{frame}{ZeRO removes one class of redundancy at a time}
   \centering\small
-  \begin{tabular}{llll}
+  \begin{tabular}{@{}lllll@{}}
     \toprule
-    Method & optimizer state & gradients & parameters \\
+    Method & optimizer & gradients & parameters & bytes per rank \\
     \midrule
-    DDP & replicated & replicated & replicated \\
-    ZeRO-1 & sharded & replicated & replicated \\
-    ZeRO-2 & sharded & sharded & replicated \\
-    ZeRO-3 / full-shard FSDP & sharded & sharded & sharded \\
+    DDP & replicated & replicated & replicated & $16N$ \\
+    ZeRO-1 & sharded & replicated & replicated & $8N+8N/W$ \\
+    ZeRO-2 & sharded & sharded & replicated & $4N+12N/W$ \\
+    ZeRO-3 / FSDP & sharded & sharded & sharded & $16N/W$ \\
     \bottomrule
   \end{tabular}
   \vfill
-  \begin{block}{Idealized per-rank model state}
-    With full sharding and world size $W$, persistent model-state memory approaches $1/W$ of the unsharded total, before activations, buffers, and temporary materialization.
+  \begin{block}{Per-rank model state}
+    Only full sharding keeps shrinking with $W$: ZeRO-1 and ZeRO-2 saturate at their replicated terms. These bytes are persistent state, before activations, buffers, and temporary materialization.
   \end{block}
   \smallsource{Hugging Face Ultra-Scale Playbook and ZeRO}
 \end{frame}
@@ -195,55 +184,71 @@
   \begin{block}{Still data parallel}
     Each rank processes its own batch; sharding divides model-state ownership, not the batch's sequence of layers.
   \end{block}
+  \par\smallskip
+  {\footnotesize Global quantities now need a collective: the squared gradient norm is the all-reduced sum of per-shard squares.}
+\end{frame}
+
+\begin{frame}{Sharded AdamW: each rank updates only the slice it owns}
+  \small
+  View the parameters as one flat vector of $N$ elements, zero-padded to $sW$ with $s=\lceil N/W\rceil$. Rank $r$ owns elements $[\,rs,\ (r+1)s)$ and keeps moments $m,v$ for that slice only.
+  \begin{enumerate}
+    \item \textbf{Reduce-scatter} the gradients (sum), divide by $W$: mean gradient slice $\bar g$.
+    \item \textbf{AdamW on the owned slice} $\theta$, at update count $t$:\par\vspace{-8pt}
+      \begin{align*}
+        \theta&\leftarrow\theta\,(1-\eta\lambda), \qquad
+        m\leftarrow\beta_1 m+(1-\beta_1)\,\bar g, \qquad
+        v\leftarrow\beta_2 v+(1-\beta_2)\,\bar g^{2}\\
+        \theta&\leftarrow\theta-\frac{\eta}{1-\beta_1^{t}}\;
+        \frac{m}{\sqrt{v}\,/\sqrt{1-\beta_2^{t}}+\epsilon}
+      \end{align*}
+    \item \textbf{All-gather} the updated slices: full parameters on every rank.
+  \end{enumerate}
+  \vfill
+  \textbf{Per-rank optimizer state:} two FP32 moments, $8\lceil N/W\rceil$ bytes against $8N$ in DDP. Padding stays zero: zero gradient, zero moments, zero update.
 \end{frame}
 
 \begin{frame}{A memory budget: persistent is not peak}
   \begin{block}{Example: 1B parameters, four ranks, 16 bytes / parameter}
     DDP: $16$ GB per rank \quad $\longrightarrow$ \quad ideal full sharding: $16/4=4$ GB per rank
   \end{block}
-  \small Decimal GB; the subtotal assumes the preceding precision and optimizer layout.
+  \small Decimal GB.
   \vfill
   \begin{alertblock}{What else occupies the peak?}
-    Temporary full units and prefetch, activations, collective buffers, and allocator overhead. The local shard is already counted: add only the extra materialized storage.
+    Temporary full units, including a next unit gathered early (prefetch), activations, collective buffers, and allocator overhead. The local shard is already counted: add only the extra materialized storage.
   \end{alertblock}
-\end{frame}
-
-\begin{frame}{Keep or reshard after forward?}
-  \begin{columns}[t]
-    \begin{column}{.47\linewidth}
-      \begin{block}{Keep full parameters}
-        Gather $\to$ forward $\to$ backward\\[5pt]
-        More residency; avoids a backward gather.
-      \end{block}
-    \end{column}
-    \begin{column}{.47\linewidth}
-      \begin{alertblock}{Reshard after forward}
-        Gather $\to$ forward $\to$ reshard $\to$ gather $\to$ backward\\[5pt]
-        Less residency between uses; another gather.
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \vfill
-  \small The explorer uses the first policy; the preceding lifecycle shows the second. Exact scheduling depends on configuration.
 \end{frame}
 
 \section{Execution and wrapping}
 
 \begin{frame}{One FSDP unit is a materialization boundary}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Large unit}
-        fewer collectives\\larger peak all-gather\\less opportunity for overlap\\coarser memory release
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Tiny units}
-        low peak materialization\\many latency-dominated collectives\\more metadata and scheduling overhead
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \vfill
-  Wrapping each Transformer block is a common starting point because it aligns materialization with a natural compute unit.
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      full/.style={draw=themenavy,fill=themenavy!20},
+    gather/.style={fill=accentdark,draw=accentdark}]
+    \node[anchor=west,text=neutraldark] at (2.2,5.15) {height: full parameters materialized \quad \textcolor{accentdark}{$\bullet$} all-gather};
+    % Whole model: one collective, everything resident for the whole pass.
+    \node[anchor=east,font=\small\bfseries] at (1.95,3.9) {Large unit};
+    \draw[full] (2.2,3.3) rectangle (8.2,4.5);
+    \fill[gather] (2.2,3.12) circle (1.6pt);
+    \node[anchor=west,align=left] at (8.45,3.9) {few collectives\\high peak};
+    % One unit per Transformer block.
+    \node[anchor=east,font=\small\bfseries] at (1.95,2.25) {Per block};
+    \foreach \i in {0,...,3}{
+      \draw[full] (2.2+1.5*\i,2.0) rectangle (3.7+1.5*\i,2.5);
+      \fill[gather] (2.2+1.5*\i,1.82) circle (1.6pt);
+    }
+    \node[anchor=west,align=left,text=accentdark] at (8.45,2.25) {common\\starting point};
+    % Tiny units: low peak, many latency-dominated collectives.
+    \node[anchor=east,font=\small\bfseries] at (1.95,.9) {Tiny units};
+    \foreach \i in {0,...,15}{
+      \draw[full] (2.2+.375*\i,.8) rectangle (2.575+.375*\i,1.0);
+      \fill[gather] (2.2+.375*\i,.62) circle (1.6pt);
+    }
+    \node[anchor=west,align=left] at (8.45,.9) {low peak\\many small collectives};
+    \draw[-{Stealth[length=4pt]},neutraldark] (2.2,.2)--(8.5,.2) node[right] {time};
+  \end{tikzpicture}
+  \par\vspace{6pt}
+  \small Large units release memory coarsely; tiny units pay latency and scheduling overhead on every collective.
 \end{frame}
 
 \begin{frame}{Sharding buys memory with communication}
@@ -268,69 +273,56 @@
     \end{tikzpicture}
   \end{center}
   \small *If parameters were resharded after forward. This schematic separates operations; real collectives can overlap compute and run per unit or bucket.
-  \begin{block}{The question for the profiler}
-    How much of the additional parameter communication is exposed on the critical path?
+  \begin{block}{Volume, frequency and exposure are different}
+    \footnotesize
+    \textbf{Volume}: total bytes moved by all-gathers and reduce-scatters.\\
+    \textbf{Frequency}: number of collectives and their message sizes.\\
+    \textbf{Exposure}: communication time still visible after overlap with compute.
   \end{block}
-\end{frame}
-
-\begin{frame}{Communication volume and exposure are different}
-  \begin{itemize}
-      \setlength{\itemsep}{8pt}
-    \item \textbf{Volume}: total bytes transferred by all-gathers and reduce-scatters.
-    \item \textbf{Exposure}: communication time that remains visible after overlap with compute.
-    \item \textbf{Frequency}: number of collectives and their message sizes.
-  \end{itemize}
-  \begin{alertblock}{Why this matters}
-    Two wrapping policies can move similar bytes but have very different step times because one creates many small latency-bound collectives or a longer exposed tail.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Prefetching tries to move the next unit early}
-  \begin{center}
-    \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
-      \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(10.2,0) node[right]{time};
-      \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
-      \node at (2.8,.7) {compute unit $\ell$};
-      \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
-      \node at (3.8,1.55) {gather $\ell+1$};
-      \fill[themebluecard] (4.8,.4) rectangle (8.6,1.0);
-      \node at (6.7,.7) {compute unit $\ell+1$};
-    \end{tikzpicture}
-  \end{center}
-  \begin{alertblock}{Constraint}
-    Prefetching can improve overlap but raises transient memory because current and next full units may coexist.
-  \end{alertblock}
+  \footnotesize Profiler question: how much of the added parameter communication is exposed on the critical path? Similar bytes can give very different step times: many small latency-bound collectives, or a longer exposed tail.
 \end{frame}
 
 \begin{frame}{FSDP does not shard activation memory automatically}
-  \begin{columns}[c]
-    \begin{column}{0.50\linewidth}
-      Full sharding reduces persistent parameter, gradient, and optimizer-state redundancy.
-    \end{column}
-    \begin{column}{0.46\linewidth}
-      \begin{alertblock}{Still scales with batch and sequence}
-        saved activations\\attention workspaces\\temporary full parameters\\communication buffers
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \vfill
-  Combine FSDP with activation checkpointing when activations, not model state, dominate the peak.
-\end{frame}
-
-\begin{frame}{CPU offload and sharding can work together}
-  \begin{block}{A second memory lever}
-    Sharding distributes model state across ranks. Offloading places selected state in CPU memory; the two can be combined.
-  \end{block}
-  \begin{itemize}
-    \item Example: offload optimizer state and run the optimizer on CPU.
-    \item Other policies offload parameters and gradients too; the exact behavior is implementation-specific.
-    \item GPU--CPU traffic, CPU work and synchronization can reduce throughput. Measure the whole step.
-  \end{itemize}
-  \small Offload is a capacity tool, not a free speedup. See the website for API details.
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      act/.style={draw=leafreddraw,fill=leafredbg},
+      state/.style={draw=themenavy,fill=themenavy!20},
+    temp/.style={draw=accentdarkdraw,fill=accentdarkbg}]
+    \node[font=\small\bfseries] at (5.6,4.15) {Peak memory per rank};
+    \node[text=leafreddraw] at (3.1,3.45) {unchanged: scales with $B$ and $T$};
+    \draw[leafreddraw,dashed] (1.5,-.1)--(1.5,3.2);
+    \draw[leafreddraw,dashed] (4.7,-.1)--(4.7,3.2);
+    % DDP: every rank holds the complete model state.
+    \node[anchor=east,font=\small\bfseries] at (1.3,2.4) {DDP};
+    \draw[act] (1.5,2.0) rectangle (4.7,2.8);
+    \node at (3.1,2.4) {saved activations,\\attention workspaces};
+    \draw[state] (4.7,2.0) rectangle (10.3,2.8);
+    \node at (7.5,2.4) {parameters, gradients,\\optimizer state};
+    % FSDP: only the model state shrinks.
+    \node[anchor=east,font=\small\bfseries] at (1.3,.7) {FSDP};
+    \draw[act] (1.5,.3) rectangle (4.7,1.1);
+    \node at (3.1,.7) {same activations};
+    \draw[state] (4.7,.3) rectangle (6.1,1.1);
+    \node at (5.4,.7) {shard\\$1/W$};
+    \draw[temp] (6.1,.3) rectangle (7.0,1.1);
+    \node[anchor=west,align=left,text=accentdark] at (7.15,.7) {temporary full unit,\\communication buffers};
+  \end{tikzpicture}
+  \par\vspace{8pt}
+  \small Combine FSDP with activation checkpointing when activations, not model state, dominate the peak.
 \end{frame}
 
 \checkpoint{wrapping policy}
 {A run fits in memory but launches hundreds of tiny all-gathers and scales poorly. What wrapping change would you test, and which memory and timing quantities could regress?}
+
+\begin{frame}{Wrapping policy: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item Test coarser units: wrap each Transformer block (or a group of blocks) instead of small submodules. Fewer, larger all-gathers are less latency-dominated.
+    \item Memory that could regress: peak transient materialization, since a larger full unit is gathered (plus the next one when prefetching), and memory is released more coarsely.
+    \item Timing that could regress: fewer opportunities for overlap, so a longer exposed collective.
+    \item Compare peak allocated memory, collective exposure and tokens per second, with everything else fixed.
+  \end{itemize}
+\end{frame}
 
 \section{Choosing and comparing approaches}
 
@@ -353,13 +345,13 @@
 
 \begin{frame}{From the idea to a PyTorch training loop}
   \begin{enumerate}
-    \item Initialize distributed ranks and select each device.
-    \item Construct the model; wrap Transformer blocks and the root as FSDP units.
-    \item Construct the optimizer on the sharded/wrapped model parameters.
-    \item Run forward, backward, optimizer step; measure memory and throughput.
+    \item Initialize the process group and a device mesh over the ranks.
+    \item Construct the model; call \texttt{fully\_shard} on each Transformer block, then on the root.
+    \item Construct the optimizer after sharding, on the sharded parameters.
+    \item Run forward, backward, optimizer step; measure the state each rank holds.
   \end{enumerate}
   \vfill
-  \small The companion's \texttt{fsdp\_utils.py} illustrates the FSDP1 wrapper and block policy. The lab is analytical; it does not execute this loop. PyTorch's newer FSDP2 uses \texttt{fully\_shard}.
+  \small This is the FSDP2 interface (\texttt{torch.distributed.fsdp.fully\_shard}). Each wrapped block is one unit; each parameter is stored as a shard along its first dimension. The optimizer sees only local shards, so its moments are sharded with them.
 \end{frame}
 
 \begin{frame}{Choose FSDP when memory is the binding constraint}
@@ -372,8 +364,42 @@
   \end{itemize}
 \end{frame}
 
+\begin{frame}{A distributed checkpoint is a data layout}
+  \begin{columns}[t]
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Full}
+        one file, gathered on rank 0\\loads anywhere\\rank 0 memory pressure
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Sharded}
+        each rank writes its slices in parallel\\tied to the saving world size
+      \end{block}
+    \end{column}
+    \begin{column}{0.31\linewidth}
+      \begin{block}{Sharded + metadata}
+        records each slice's offset in the global tensor\\reloads at another world size
+      \end{block}
+    \end{column}
+  \end{columns}
+  \begin{alertblock}{Completion protocol}
+    Publish a checkpoint only after every shard and its metadata are durable. A directory that exists is not proof of a complete save.
+  \end{alertblock}
+\end{frame}
+
 \checkpoint{memory prediction}
-{Estimate idealized model-state memory per rank for $P$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
+{Estimate idealized model-state memory per rank for $N$ parameters, 16 bytes per parameter, and world size $W$. Then name three reasons the measured peak will be higher.}
+
+\begin{frame}{Memory prediction: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item Unsharded model state: $16N$ bytes. Ideal full sharding: $16N/W$ bytes per rank.
+    \item Check with the earlier example: $N=10^9$, $W=4$ gives $16/4=4$ GB per rank.
+    \item Higher in practice, reason 1: full units gathered temporarily, plus any prefetched unit.
+    \item Reason 2: activations, which sharding does not reduce.
+    \item Reason 3: collective buffers and allocator overhead.
+  \end{itemize}
+\end{frame}
 
 \takeaways
 {All-reduce decomposes into reduce-scatter followed by all-gather.}
@@ -381,6 +407,71 @@
 {Wrapping controls peak memory, collective size, frequency, and overlap.}
 {Checkpoint format and a matched DDP baseline are part of the system claim.}
 \appendix
+\section{Optional depth}
+\begin{frame}{Keep or reshard after forward?}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{Keep full parameters}
+        Gather $\to$ forward $\to$ backward\\[5pt]
+        More residency; avoids a backward gather.
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{alertblock}{Reshard after forward}
+        Gather $\to$ forward $\to$ reshard $\to$ gather $\to$ backward\\[5pt]
+        Less residency between uses; another gather.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \small The explorer uses the first policy; the lifecycle figure (``Sharding changes when full parameters exist'') shows the second.
+\end{frame}
+
+\begin{frame}{Two collectives make sharding usable}
+  \centering\small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    & Rank 0 & Rank 1 \\
+    \midrule
+    Start: parameter shards & $P_0$ & $P_1$ \\
+    \textbf{All-gather} parameters & $[P_0,P_1]$ & $[P_0,P_1]$ \\
+    Local forward / backward & gradient $[g_{00},g_{01}]$ & gradient $[g_{10},g_{11}]$ \\
+    \textbf{Reduce-scatter} gradients & $g_{00}+g_{10}$ & $g_{01}+g_{11}$ \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{block}{The division of work}
+    Each rank gathers the full unit to compute its own data; after reduction it retains the gradient for its owned shard. Averaging requires the appropriate world-size normalization.
+  \end{block}
+\end{frame}
+\begin{frame}{CPU offload and sharding can work together}
+  \begin{block}{A second memory lever}
+    Sharding distributes model state across ranks. Offloading places selected state in CPU memory; the two can be combined.
+  \end{block}
+  \begin{itemize}
+    \item Example: offload optimizer state and run the optimizer on CPU.
+    \item Other policies offload parameters and gradients too.
+    \item GPU--CPU traffic, CPU work and synchronization reduce throughput.
+  \end{itemize}
+  \small Offload is a capacity tool, not a free speedup.
+\end{frame}
+
+\begin{frame}{Prefetching tries to move the next unit early}
+  \begin{center}
+    \begin{tikzpicture}[x=.85cm,y=.7cm,every node/.style={font=\scriptsize}]
+      \draw[-{Stealth[length=4.5pt,width=3.2pt]},thick] (0,0)--(10.2,0) node[right]{time};
+      \fill[themebluecard] (1,.4) rectangle (4.6,1.0);
+      \node at (2.8,.7) {compute unit $\ell$};
+      \fill[warningbg] (2.8,1.25) rectangle (4.8,1.85);
+      \node at (3.8,1.55) {gather $\ell+1$};
+      \fill[themebluecard] (4.8,.4) rectangle (8.6,1.0);
+      \node at (6.7,.7) {compute unit $\ell+1$};
+    \end{tikzpicture}
+  \end{center}
+  \begin{alertblock}{Constraint}
+    Prefetching improves overlap but raises transient memory because current and next full units coexist.
+  \end{alertblock}
+\end{frame}
 \section{Optional: precision and checkpointing}
 \begin{frame}{Mixed precision has three separate decisions}
   \small
@@ -397,28 +488,6 @@
   \begin{block}{Experimental rule}
     When comparing DDP and FSDP, align precision policy. Otherwise, memory and numerical differences have multiple causes.
   \end{block}
-\end{frame}
-\begin{frame}{A distributed checkpoint is a data layout}
-  \begin{columns}[t]
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Full}
-        easy to consume\\expensive to gather\\rank 0 memory pressure
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Sharded}
-        scalable writes\\world-size coupling unless resharded
-      \end{block}
-    \end{column}
-    \begin{column}{0.31\linewidth}
-      \begin{block}{Distributed format}
-        parallel I/O\\metadata and recovery complexity
-      \end{block}
-    \end{column}
-  \end{columns}
-  \begin{alertblock}{Completion protocol}
-    Publish a checkpoint only after every shard and its metadata are durable. A directory that exists is not proof of a complete save.
-  \end{alertblock}
 \end{frame}
 \begin{frame}{Checkpoint cadence and expected overhead}
   \begin{columns}[c]
@@ -441,16 +510,16 @@
     \begin{column}{0.30\linewidth}
       \[
         \text{rate}\approx
-        \frac{S}{\tau}+\frac{\tau}{2M}+\frac{L}{M}
+        \frac{S}{\tau}+\frac{\tau}{2M}+\frac{R}{M}
       \]
       \small
       $M$: mean time between interruptions\\[4pt]
       $S$: exposed save time\\[4pt]
-      $L$: recovery load time
+      $R$: recovery load time
     \end{column}
   \end{columns}
   \vspace{3pt}
-  \footnotesize Measure durable save completion and restart time; file creation alone does not define $S$ or $L$.
+  \footnotesize Measure durable save completion and restart time; file creation alone does not define $S$ or $R$.
   \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 4 (2026)}
 \end{frame}
 \end{document}

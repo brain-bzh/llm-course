@@ -45,10 +45,10 @@ reading and do not constitute a required lecture or assignment.
 ## Speculative decoding: Breaking the memory-bandwidth wall
 
 In standard autoregressive decoding, generating each token requires reading all model
-parameters $P$ from high-bandwidth memory (HBM) into SRAM to perform a single vector-matrix
+parameters $N$ from high-bandwidth memory (HBM) into SRAM to perform a single vector-matrix
 multiplication:
 
-$$\text{Arithmetic Intensity} = \frac{2P \text{ FLOPs}}{2P \text{ Bytes}} = 1 \text{ FLOP / Byte}.$$
+$$\text{Arithmetic Intensity} = \frac{2N \text{ FLOPs}}{2N \text{ Bytes}} = 1 \text{ FLOP / Byte}.$$
 
 This estimate assumes one sequence, dense weights stored in two bytes per
 parameter, and weight traffic dominating the step. Batching amortizes weight
@@ -56,11 +56,11 @@ reads; long contexts add substantial KV traffic. Use the measured workload
 and device roofline before concluding that compute is underutilized.
 
 ```
-[ Small Draft Model ] ──(Proposes K draft tokens)──> [ x₁, x₂, ..., x_K ]
+[ Small Draft Model ] ──(Proposes γ draft tokens)──> [ x₁, x₂, ..., x_γ ]
                                                               │
                                                      (Parallel Forward)
                                                               ▼
-[ Large Target Model ] ──(Verifies all K in 1 step)──> [ Accept k ≤ K + 1 tokens ]
+[ Large Target Model ] ──(Verifies all γ in 1 step)──> [ Accept k ≤ γ + 1 tokens ]
 ```
 
 ### 1. The draft-and-verify paradigm
@@ -68,12 +68,12 @@ and device roofline before concluding that compute is underutilized.
 Speculative decoding (Leviathan et al., 2023; Chen et al., 2023) decouples draft proposal
 from target verification:
 
-1. **Draft Phase:** A small, fast draft model (e.g. 1B) autoregressively generates $K$
-   candidate tokens: $[x_1, \dots, x_K]$.
+1. **Draft Phase:** A small, fast draft model (e.g. 1B) autoregressively generates $\gamma$
+   candidate tokens: $[x_1, \dots, x_\gamma]$.
 2. **Verification Phase:** The large target model (e.g. 70B) runs a **single parallel forward pass**
-   evaluating all $K$ tokens simultaneously:
+   evaluating all $\gamma$ tokens simultaneously:
    
-   $$p_{\text{target}}(x_t \mid x_{< t}) \quad \text{for all } t \in \{1, \dots, K\}.$$
+   $$p_{\text{target}}(x_t \mid x_{< t}) \quad \text{for all } t \in \{1, \dots, \gamma\}.$$
    
    Evaluating several positions together can reuse target weights and improve
    arithmetic intensity. Verification cost still depends on draft length, context,
@@ -93,7 +93,7 @@ each draft token $x_t$ is evaluated sequentially with rejection sampling:
   
   $$p_{\text{residual}}(x) = \frac{\max(0, p_{\text{target}}(x) - p_{\text{draft}}(x))}{\sum_{x'} \max(0, p_{\text{target}}(x') - p_{\text{draft}}(x'))}.$$
 
-- If all $K$ tokens are accepted, sample one bonus token from $p_{\text{target}}(x_{K+1} \mid x_{\le K})$.
+- If all $\gamma$ tokens are accepted, sample one bonus token from $p_{\text{target}}(x_{\gamma+1} \mid x_{\le \gamma})$.
 
 ### 3. Expected speedup & advanced speculation
 
@@ -101,21 +101,21 @@ In a simplified model with constant conditional acceptance probability
 $\alpha$ at each draft position, the expected emitted tokens per verification
 step (including the replacement or bonus token) is:
 
-$$\mathbb{E}[\text{tokens per step}] = \frac{1 - \alpha^{K+1}}{1 - \alpha}.$$
+$$\mathbb{E}[\text{tokens per step}] = \frac{1 - \alpha^{\gamma+1}}{1 - \alpha}.$$
 
-For $\alpha = 0.8$ and $K=5$, $\mathbb{E} \approx 3.69$ emitted tokens.
+For $\alpha = 0.8$ and $\gamma=5$, $\mathbb{E} \approx 3.69$ emitted tokens.
 That is not yet a wall-clock speedup. Let $t_{\mathrm{base}}$ be the ordinary
-target decode time, $t_{\mathrm{draft}}(K)$ the time to propose $K$ tokens, and
-$t_{\mathrm{verify}}(K)$ the verification time. A simple cost model is
+target decode time, $t_{\mathrm{draft}}(\gamma)$ the time to propose $\gamma$ tokens, and
+$t_{\mathrm{verify}}(\gamma)$ the verification time. A simple cost model is
 
-$$S \approx \frac{\mathbb{E}[N] \, t_{\mathrm{base}}}
-{t_{\mathrm{draft}}(K) + t_{\mathrm{verify}}(K) + t_{\mathrm{overhead}}}.$$
+$$S \approx \frac{\mathbb{E}[N_{\text{tok}}] \, t_{\mathrm{base}}}
+{t_{\mathrm{draft}}(\gamma) + t_{\mathrm{verify}}(\gamma) + t_{\mathrm{overhead}}}.$$
 
 For illustrative costs of 10 ms baseline, 8 ms drafting, 12 ms verification,
 and 2 ms overhead, the speedup is about $1.68\times$. If drafting takes 30 ms,
 it falls below $1\times$. Increasing draft length is useful only while its
 extra accepted tokens outweigh its extra cost. At $\alpha=1$, use the limit
-$\mathbb{E}[N]=K+1$.
+$\mathbb{E}[N_{\text{tok}}]=\gamma+1$.
 
 - **Alternative draft mechanisms:** Auxiliary heads or feature-based draft
   networks can replace a separate standalone language model. Their training,
@@ -130,7 +130,7 @@ $\mathbb{E}[N]=K+1$.
 While autoregressive models generate text strictly left-to-right, **diffusion models**
 formulate generation as iterative denoising:
 
-$$x_T \sim \mathcal{N}(0, I) \quad \longrightarrow \quad x_{T-1} \quad \longrightarrow \quad \dots \quad \longrightarrow \quad x_0.$$
+$$x_S \sim \mathcal{N}(0, I) \quad \longrightarrow \quad x_{S-1} \quad \longrightarrow \quad \dots \quad \longrightarrow \quad x_0.$$
 
 ### Continuous vs discrete diffusion for text
 
@@ -154,7 +154,7 @@ Language is discrete (categorical tokens), creating a fundamental challenge for 
 | Dimension | Autoregressive (Causal GPT) | Diffusion / Non-Autoregressive |
 | :--- | :--- | :--- |
 | **Generation order** | Strictly sequential left-to-right | Global, bidirectional iterative refinement |
-| **Latency scaling** | $\mathcal{O}(N)$ (proportional to generated length) | $\mathcal{O}(S)$ (fixed $S$ denoising steps, independent of length) |
+| **Latency scaling** | $\mathcal{O}(T)$ (proportional to generated length) | $\mathcal{O}(S)$ (fixed $S$ denoising steps, independent of length) |
 | **Controllability** | Prefix-guided only | Infilling, attribute guidance, and arbitrary token conditioning |
 | **Per-token quality** | Gold standard (monotonic chain-rule probability) | Prone to local inconsistencies and error accumulation |
 
@@ -266,7 +266,7 @@ a shorter representation can reduce cost while losing useful detail.
 
 Standard self-attention computes:
 
-$$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{Q K^\top}{\sqrt{d}}\right) V.$$
+$$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{Q K^\top}{\sqrt{d_h}}\right) V.$$
 
 The softmax operator couples queries and keys non-linearly, enforcing quadratic $\mathcal{O}(T^2)$
 complexity and requiring the entire history to be stored in the KV cache.
@@ -340,7 +340,7 @@ the entire model has constant cache memory if other layers retain attention.
 1. **MLA memory calculation:** Derive the precise byte savings of Multi-Head Latent Attention
    versus standard MHA and GQA across sequence lengths from $4\text{k}$ to $128\text{k}$.
 2. **Speculative decoding simulation:** Model expected token acceleration $\mathbb{E}[\text{tokens/step}]$
-   and the wall-clock cost model as a function of draft length $K \in \{1, \dots, 8\}$ and empirical acceptance rate $\alpha \in [0.5, 0.95]$.
+   and the wall-clock cost model as a function of draft length $\gamma \in \{1, \dots, 8\}$ and empirical acceptance rate $\alpha \in [0.5, 0.95]$.
 3. **Linear recurrent step:** Implement a minimal Gated Delta Network update step and compare
    its memory footprint against an autoregressive KV-cache during generation.
 

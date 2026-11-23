@@ -20,6 +20,6 @@
   <text class="orange" x="650" y="132">peak compute</text>
   <text class="label" x="455" y="442" text-anchor="middle">Arithmetic intensity  I = FLOPs / HBM byte  →</text>
   <text class="label" x="28" y="235" text-anchor="middle" transform="rotate(-90 28 235)">Attained throughput  →</text>
-  <text class="label" x="455" y="470" text-anchor="middle">ridge point  C / W</text>
+  <text class="label" x="455" y="470" text-anchor="middle">ridge point  P<tspan dy="5" font-size="70%">peak</tspan><tspan dy="-5"> / BW</tspan></text>
   <text class="sub" x="238" y="383" text-anchor="middle">bandwidth-bound</text><text class="sub" x="650" y="383" text-anchor="middle">compute-bound</text>
 </svg>

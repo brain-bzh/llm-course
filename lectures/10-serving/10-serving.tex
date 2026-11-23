@@ -13,6 +13,14 @@
     How does an inference engine turn irregular requests into efficient GPU work while protecting latency objectives?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{10}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} one request decodes with a KV cache: prefill once, then one token per step.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} many requests share one GPU: batching across requests, KV memory allocation and latency metrics.
+\end{frame}
 \learninggoals
 {Trace a request through scheduler, cache manager, model runner, and output path.}
 {Explain continuous batching and chunked prefill at iteration granularity.}
@@ -40,49 +48,34 @@
 \end{frame}
 
 \begin{frame}{Prefill and decode compete for the same device}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Prefill request}
-        many prompt tokens\\high parallelism\\large temporary attention work\\drives time to first token
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Decode request}
-        one token per active sequence\\growing KV reads\\latency sensitive\\drives inter-token latency
-      \end{block}
-    \end{column}
-  \end{columns}
-  \begin{alertblock}{Scheduling tension}
-    A long prefill can increase throughput but block many decode tokens, causing visible latency spikes.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Speculative decoding}
   \centering
-  \begin{tikzpicture}[x=1cm,y=1cm,scale=.90,transform shape,every node/.style={font=\scriptsize},
-      stage/.style={rounded corners,minimum height=.78cm,align=center,font=\scriptsize\bfseries},
-    token/.style={rounded corners,minimum width=.58cm,minimum height=.58cm,font=\scriptsize\bfseries}]
-    \node[stage,draw=accentdark,fill=accentdark,text=white,minimum width=1.6cm] (ctx) at (.8,2.4) {accepted\\context};
-    \node[stage,draw=warningdraw,fill=warningbg,minimum width=1.9cm] (draft) at (3.15,3.55) {small draft\\proposes $\gamma$ tokens};
-    \node[token,draw=warningdraw,fill=warningbg] (d1) at (2.45,2.25) {$d_1$};
-    \node[token,draw=warningdraw,fill=warningbg] (d2) at (3.15,2.25) {$d_2$};
-    \node[token,draw=warningdraw,fill=warningbg] (d3) at (3.85,2.25) {$d_3$};
-    \node[stage,draw=themebluedraw,fill=themebluebg,minimum width=2.1cm] (target) at (6.1,3.55) {target model\\verifies one block};
-    \node[token,draw=successdraw,fill=successbg] at (5.4,2.25) {$\checkmark$};
-    \node[token,draw=successdraw,fill=successbg] at (6.1,2.25) {$\checkmark$};
-    \node[token,draw=alertdraw,fill=alertbg] at (6.8,2.25) {$\times$};
-    \node[stage,draw=successdraw,fill=successbg,minimum width=2.5cm] (commit) at (9.15,2.4) {commit $d_1,d_2$\\+ correction};
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (ctx)--(d1);
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (draft.south)--(d2.north);
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (d3)--(5.1,2.25);
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (target.south)--(6.1,2.55);
-    \draw[-{Stealth[length=4pt,width=3pt]},thick] (7.15,2.25)--(commit);
-    \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=8.4cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries] at (5.4,.75)
-    {speedup needs high acceptance, cheap drafting, and efficient block verification};
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      dec/.style={draw=themebluedraw,fill=themebluebg},
+      wait/.style={draw=themebluedraw,dashed},
+    pre/.style={draw=leafreddraw,fill=leafredbg}]
+    % Five engine iterations; the third carries one long prefill.
+    \foreach \x in {2.0,2.7,3.4,6.6,7.3,8.0}{\draw[neutrallight] (\x,.45)--(\x,3.75);}
+    \node[text=neutraldark] at (5.0,4.0) {one engine iteration};
+    \draw[neutraldark,<->] (3.4,3.75)--(6.6,3.75);
+    \foreach \y/\name in {3.1/A,2.3/B}{
+      \node[anchor=east,font=\small\bfseries] at (1.8,\y) {decode \name};
+      \foreach \x in {2.0,2.7,6.6,7.3}{\draw[dec] (\x+.06,\y-.25) rectangle (\x+.64,\y+.25);}
+      \draw[wait] (3.46,\y-.25) rectangle (6.54,\y+.25);
+    }
+    \node[text=themenavy] at (5.0,3.1) {one token, delivered late};
+    \node[text=themenavy] at (5.0,2.3) {one token, delivered late};
+    \node[anchor=east,font=\small\bfseries] at (1.8,1.3) {prefill C};
+    \draw[pre] (3.46,.9) rectangle (6.54,1.7);
+    \node at (5.0,1.3) {many prompt tokens\\in parallel};
+    \foreach \x in {6.6,7.3}{\draw[dec] (\x+.06,1.05) rectangle (\x+.64,1.55);}
+    \node[anchor=west,align=left,text=signaldark] at (8.2,2.7) {inter-token gap\\for A and B};
+    \node[anchor=west,align=left,text=signaldark] at (8.2,1.3) {time to first\\token for C};
+    \draw[-{Stealth[length=4pt]},neutraldark] (2.0,.3)--(8.5,.3) node[right] {time};
   \end{tikzpicture}
-  \par\vspace{2pt}
-  \footnotesize Correct rejection sampling preserves the target distribution; measure accepted tokens per target step and TPOT.\par
-  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 6 (2026)}
+  \par\vspace{4pt}
+  \small An iteration that prefills $N_{\text{prefill}}$ prompt tokens lasts, to first order,
+  $t_{\text{iter}}=t_{\text{step}}+c_{\text{prefill}}\,N_{\text{prefill}}$.\par\vspace{3pt}
+  Every request decoding in it waits $t_{\text{iter}}$ for its token: one long prompt stretches every inter-token gap.
 \end{frame}
 
 \begin{frame}{Static batching waits for the slowest request}
@@ -119,15 +112,15 @@
     \draw[neutrallight] (2.2,3.7)--(10.2,3.7); \draw[neutrallight] (2.2,4.55)--(10.2,4.55); \draw[neutrallight] (2.2,5.4)--(10.2,5.4);
     \foreach \y/\name in {1.9/slot 1,1.05/slot 2,.2/slot 3}{\node[left] at (2.05,\y+.25) {\name};}
     \foreach \x in {0,1,2}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
-    \fill[signaldark] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\tiny\bfseries] at (5.7,2.15) {D};
+    \fill[signaldark] (5.2,1.9) rectangle (6.2,2.4); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (5.7,2.15) {D};
     \foreach \x in {4,5,6,7}{\fill[themebluedraw] (2.2+\x,1.9) rectangle (3.2+\x,2.4);}
     \foreach \x in {0,...,7}{\fill[themebluedraw] (2.2+\x,1.05) rectangle (3.2+\x,1.55);}
     \foreach \x in {0,1}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
-    \fill[signaldark] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\tiny\bfseries] at (4.7,.45) {E};
+    \fill[signaldark] (4.2,.2) rectangle (5.2,.7); \node[text=white,font=\scriptsize\bfseries,inner sep=0pt] at (4.7,.45) {E};
     \foreach \x in {3,4,5,6,7}{\fill[themebluedraw] (2.2+\x,.2) rectangle (3.2+\x,.7);}
     \draw[neutrallight] (2.2,.2) rectangle (10.2,2.4);
     \foreach \x in {0,...,7}{\draw[white] (2.2+\x,.2)--(2.2+\x,2.4);}
-    \node[anchor=west,draw=successdraw,fill=successbg,rounded corners,align=center,font=\tiny\bfseries] at (10.5,1.3) {orange: prefill\\blue: decode};
+    \node[anchor=west,draw=successdraw,fill=successbg,rounded corners,align=center,font=\scriptsize\bfseries] at (10.5,1.3) {orange: prefill\\blue: decode};
   \end{tikzpicture}
   \vspace{3pt}
   \begin{block}{Scheduling unit}
@@ -176,20 +169,20 @@
   \begin{tikzpicture}[x=.85cm,y=.75cm,every node/.style={font=\scriptsize,align=center}]
     \node[anchor=east,font=\small\bfseries] at (-.4,3) {logical};
     \foreach \i/\label in {0/{0--3},1/{4--7},2/{8--9}}{
-      \fill[themebluebg,draw=themebluedraw] (\i*2,2.6) rectangle (\i*2+1.7,3.4);
+      \fill[themebluebg,draw=themebluedraw] (\i*2,2.5) rectangle (\i*2+1.7,3.5);
       \node at (\i*2+.85,3) {block \i\\tokens \label}; }
     \node[anchor=east,font=\small\bfseries] at (-.4,1.35) {physical};
-    \foreach \i in {0,...,6}{\draw[neutrallight] (\i*1.05,1) rectangle (\i*1.05+.9,1.7); \node[font=\tiny] at (\i*1.05+.45,.75) {\i};}
+    \foreach \i in {0,...,6}{\draw[neutrallight] (\i*1.05,1) rectangle (\i*1.05+.9,1.7); \node[font=\scriptsize,text=neutraldark] at (\i*1.05+.45,.72) {\i};}
     \fill[accentdarkbg,draw=accentdarkdraw] (4.2,1) rectangle (5.1,1.7); \node at (4.65,1.35) {0};
     \fill[accentdarkbg,draw=accentdarkdraw] (1.05,1) rectangle (1.95,1.7); \node at (1.5,1.35) {1};
     \fill[warningbg,draw=warningdraw] (6.3,1) rectangle (7.2,1.7); \node at (6.75,1.35) {2};
-    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.85,2.6)--(4.65,1.72);
-    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (2.85,2.6)--(1.5,1.72);
-    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (4.85,2.6)--(6.75,1.72);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (.85,2.5)--(4.65,1.72);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (2.85,2.5)--(1.5,1.72);
+    \draw[-{Stealth[length=4pt]},thick,accentvioletdraw] (4.85,2.5)--(6.75,1.72);
   \end{tikzpicture}
   \par\vspace{4pt}
-  \small Block table: $[4,1,6]$. With four token slots per block, ten cached tokens use three blocks; the last has two unused slots.
-  \par\footnotesize Conceptual blocks represent the KV storage for a token range; actual layouts organize layers and devices differently.
+  \small Block table: $[4,1,6]$. A cached length $T$ with $N_{\text{slot}}$ token slots per block needs $N_{\text{blocks}}=\lceil T/N_{\text{slot}}\rceil$ blocks: here $\lceil 10/4\rceil=3$, with two unused slots.
+  \par\footnotesize One conceptual block holds the K and V of its token range for every layer.
 \end{frame}
 
 \begin{frame}{Explore batching and paged allocation}
@@ -221,38 +214,42 @@
   Measure hit rate, tokens avoided, retained-block cost, and eviction behavior together.
 \end{frame}
 
-\begin{frame}{Admission control prevents memory collapse}
-  Before admitting work, estimate required blocks from prompt length, current cache, and maximum generation policy.
+\begin{frame}{Admission control: reserve the worst case or grow on demand}
+  \small
+  A request with prompt length $P$, output cap $N_{\max}$ and current cached length $T$:
+  \begin{center}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.17\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.44\linewidth}@{}}
+      \toprule
+      Policy & Blocks held & Price \\
+      \midrule
+      reserve & $\lceil (P+N_{\max})/N_{\text{slot}}\rceil$ from admission & idle reserved blocks; fewer concurrent requests \\
+      \addlinespace[3pt]
+      on demand (paged) & $\lceil T/N_{\text{slot}}\rceil$, one more block when the last fills & memory can run out mid-generation: preempt \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
   \begin{itemize}
-      \setlength{\itemsep}{7pt}
-    \item queue when safe cache capacity is unavailable
-    \item reject or cap requests outside the service contract
-    \item preempt lower-priority work only under a declared policy
-    \item distinguish recomputation preemption from host-memory swapping
+      \setlength{\itemsep}{3pt}
+    \item Allocation is all-or-nothing: every requested block, or none and the request waits.
+    \item Preemption by recomputation frees the victim's blocks; the victim later repeats its prefill. Swapping instead moves its cache to host memory.
   \end{itemize}
-  \begin{alertblock}{Overcommit is not free}
-    Preemption can recover capacity but adds wasted compute, extra latency, and tail-risk amplification.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{CUDA graphs reward stable execution shapes}
-  Capturing a repeated GPU execution removes CPU launch overhead, but dynamic batches change shapes and memory addresses.
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Engine strategy}
-        capture a set of padded batch shapes\\reuse stable buffers\\fall back for unsupported shapes
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Trade-off}
-        More capture sizes reduce padding but consume memory and operational complexity.
-      \end{alertblock}
-    \end{column}
-  \end{columns}
+  \vspace{2pt}
+  \textbf{\textcolor{signaldark}{Overcommit is not free:}} preemption recovers capacity but adds wasted compute and tail latency.
 \end{frame}
 
 \checkpoint{schedule by hand}
 {An iteration budget is 16 tokens. Ten sequences need decode, one waiting prompt has length 20, and cache capacity is available. Propose the next two iterations under a decode-first chunked-prefill policy.}
+
+\begin{frame}{Schedule by hand: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{9pt}
+    \item Decode first: ten sequences take ten tokens, leaving $16-10=6$ tokens for prefill.
+    \item Iteration 1: 10 decode tokens + prompt tokens 1--6; 14 prompt tokens remain.
+    \item Iteration 2: 10 decode tokens + prompt tokens 7--12; 8 prompt tokens remain.
+    \item If no sequence finishes, the prompt completes in iteration 4 ($6+6+6+2=20$); only then can its first token be sampled.
+    \item Each iteration also reserves KV blocks for the tokens it schedules.
+  \end{itemize}
+\end{frame}
 
 \section{Measure the service, not a toy loop}
 
@@ -268,10 +265,30 @@
     \draw[<->,thick,accentvioletdraw] (0,-1.75)--node[above]{end-to-end}(9,-1.75);
   \end{tikzpicture}
   \par\vspace{6pt}
-  \small TTFT includes queueing and prefill; ITL is one gap between streamed tokens. TPOT often summarizes the mean gap per request.
+  \small TTFT includes queueing and prefill; ITL is one gap between streamed tokens; TPOT is the mean gap of one request.
   \begin{block}{Service goal}
-    Report throughput alongside p50/p95/p99 latency; goodput counts requests satisfying the declared latency objectives.
+    Report throughput alongside p50/p95/p99 latency: a mean hides the requests that waited longest.
   \end{block}
+\end{frame}
+
+\begin{frame}{Metrics are formulas over timestamps}
+  \small
+  Request $r$ arrives at $a_r$ and emits its $N_r$ output tokens at times $t_{r,1}<\cdots<t_{r,N_r}$. The run lasts $t_{\text{run}}$.
+  \begin{center}
+    \renewcommand{\arraystretch}{1.45}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Metric & Definition & Scope \\
+      \midrule
+      time to first token & $\mathrm{TTFT}_r=t_{r,1}-a_r$ & request; queue, prefill \\
+      inter-token latency & $\mathrm{ITL}_{r,i}=t_{r,i}-t_{r,i-1},\ i\ge 2$ & one gap \\
+      time per output token & $\mathrm{TPOT}_r=\dfrac{t_{r,N_r}-t_{r,1}}{N_r-1}$ & request; mean ITL \\
+      throughput & $\sum_r N_r\,/\,t_{\text{run}}$ & system; tokens/s \\
+      goodput & $\bigl|\{r:\ \text{$r$ meets the SLO}\}\bigr|\,/\,t_{\text{run}}$ & system; req./s \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  End-to-end latency: $t_{r,N_r}-a_r=\mathrm{TTFT}_r+(N_r-1)\,\mathrm{TPOT}_r$. An SLO bounds per-request values, for example $\mathrm{TTFT}_r\le 1$ s and $\mathrm{TPOT}_r\le 50$ ms.
 \end{frame}
 
 \begin{frame}{Open-loop and closed-loop loads answer different questions}
@@ -293,14 +310,42 @@
 \end{frame}
 
 \begin{frame}{A useful benchmark sweeps the operating curve}
-  \begin{enumerate}
-      \setlength{\itemsep}{7pt}
-    \item choose a representative request-length distribution
-    \item increase arrival rate or concurrency gradually
-    \item record TTFT, inter-token latency, throughput, cache occupancy, and preemptions
-    \item identify the saturation knee and tail-latency cliff
-    \item compare policies at matched service-level objectives
-  \end{enumerate}
+  \begin{columns}[c]
+    \begin{column}{0.47\linewidth}
+      \small
+      \begin{enumerate}
+          \setlength{\itemsep}{3pt}
+        \item fix a representative length distribution
+        \item raise arrival rate step by step
+        \item record TTFT, ITL, throughput, cache occupancy, preemptions
+        \item locate the knee and the tail cliff
+        \item compare policies at a matched SLO
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.51\linewidth}
+      \centering
+      \begin{tikzpicture}[x=.62cm,y=.5cm,every node/.style={font=\scriptsize}]
+        % schematic only: no measured data
+        % upper panel: throughput
+        \begin{scope}[yshift=1.41cm]
+          \draw[-{Stealth[length=4pt]},thick] (0,0)--(8.3,0);
+          \draw[-{Stealth[length=4pt]},thick] (0,0)--(0,2.5);
+          \node[anchor=west] at (0.15,2.3) {throughput};
+          \draw[very thick,themebluedraw] (0,0)--(4.4,1.65) .. controls (5.0,1.87) and (5.4,1.9) .. (7.8,1.9);
+          \draw[dashed,neutraldark] (5,-2.82)--(5,2.3);
+          \node[anchor=west,text=signaldark] at (5.1,0.5) {saturation knee};
+        \end{scope}
+        % lower panel: tail latency
+        \draw[-{Stealth[length=4pt]},thick] (0,0)--(8.3,0);
+        \draw[-{Stealth[length=4pt]},thick] (0,0)--(0,2.5);
+        \node[anchor=west] at (0.15,2.3) {p99 TTFT};
+        \draw[very thick,leafreddraw] (0,0.3)--(3.6,0.38) .. controls (5.0,0.45) and (5.7,0.8) .. (6.5,2.3);
+        \draw[dotted,thick,neutraldark] (0,1.0)--(7.8,1.0) node[above left,inner sep=1.5pt]{SLO};
+        \node[below] at (4.6,-0.05) {arrival rate (requests/s)};
+      \end{tikzpicture}
+      \par{\scriptsize\itshape Schematic, not measured data.}
+    \end{column}
+  \end{columns}
   \begin{block}{The right conclusion}
     ``Policy A delivers more tokens/s while keeping p99 TTFT below the declared threshold for workload W.''
   \end{block}
@@ -320,9 +365,67 @@
 \checkpoint{serving report}
 {Define a workload, one service-level objective, the policy under test, a baseline, and the five measurements needed to explain both throughput and tail latency.}
 
+\begin{frame}{Serving report: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Workload:} open-loop arrivals at a swept rate, with declared prompt and output length distributions and fixed sampling settings.
+    \item \textbf{Objective:} p99 TTFT below a declared threshold, for example 1 s.
+    \item \textbf{Policy under test:} continuous batching with decode-first chunked prefill.
+    \item \textbf{Baseline:} static batching on the same model, hardware and workload.
+    \item \textbf{Five measurements:} TTFT, inter-token latency, throughput in tokens per second, cache occupancy, and preemptions; report p50, p95 and p99 for the latencies.
+  \end{itemize}
+\end{frame}
+
 \takeaways
 {An inference engine schedules token work and cache state at every iteration.}
 {Continuous batching removes static slots, while chunked prefill controls head-of-line blocking.}
 {Paged memory, prefix reuse, admission, and preemption jointly determine capacity.}
 {Serving claims require representative arrivals plus throughput and tail-latency evidence.}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{Speculative decoding}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,scale=.90,transform shape,every node/.style={font=\scriptsize},
+      stage/.style={rounded corners,minimum height=.78cm,align=center,font=\scriptsize\bfseries},
+    token/.style={rounded corners,minimum width=.58cm,minimum height=.58cm,font=\scriptsize\bfseries}]
+    \node[stage,draw=accentdark,fill=accentdark,text=white,minimum width=1.6cm] (ctx) at (.8,2.4) {accepted\\context};
+    \node[stage,draw=warningdraw,fill=warningbg,minimum width=1.9cm] (draft) at (3.15,3.55) {small draft\\proposes $\gamma$ tokens};
+    \node[token,draw=warningdraw,fill=warningbg] (d1) at (2.45,2.25) {$d_1$};
+    \node[token,draw=warningdraw,fill=warningbg] (d2) at (3.15,2.25) {$d_2$};
+    \node[token,draw=warningdraw,fill=warningbg] (d3) at (3.85,2.25) {$d_3$};
+    \node[stage,draw=themebluedraw,fill=themebluebg,minimum width=2.1cm] (target) at (6.1,3.55) {target model\\verifies one block};
+    \node[token,draw=successdraw,fill=successbg] at (5.4,2.25) {$\checkmark$};
+    \node[token,draw=successdraw,fill=successbg] at (6.1,2.25) {$\checkmark$};
+    \node[token,draw=alertdraw,fill=alertbg] at (6.8,2.25) {$\times$};
+    \node[stage,draw=successdraw,fill=successbg,minimum width=2.5cm] (commit) at (9.15,2.4) {commit $d_1,d_2$\\+ correction};
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (ctx)--(d1);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (draft.south)--(d2.north);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (d3)--(5.1,2.25);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (target.south)--(6.1,2.55);
+    \draw[-{Stealth[length=4pt,width=3pt]},thick] (7.15,2.25)--(commit);
+    \node[draw=themebluedraw,fill=themebluebg,rounded corners,minimum width=8.4cm,minimum height=.72cm,align=center,font=\scriptsize\bfseries] at (5.4,.75)
+    {speedup needs high acceptance, cheap drafting, and efficient block verification};
+  \end{tikzpicture}
+  \par\vspace{2pt}
+  \footnotesize Correct rejection sampling preserves the target distribution; measure accepted tokens per target step and TPOT.\par
+  \smallsource{MVA Training and Deploying Large-Scale Models, Lecture 6 (2026)}
+\end{frame}
+
+\begin{frame}{CUDA graphs reward stable execution shapes}
+  Capturing a repeated GPU execution removes CPU launch overhead, but dynamic batches change shapes and memory addresses.
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Engine strategy}
+        capture a set of padded batch shapes\\reuse stable buffers\\fall back for unsupported shapes
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Trade-off}
+        More capture sizes reduce padding but consume memory and operational complexity.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
 \end{document}

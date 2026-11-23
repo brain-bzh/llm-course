@@ -83,12 +83,12 @@
   <path class="flow" d="M375 118 H475"/>
   <text class="api-lbl" x="425" y="96">reduce_scatter</text>
   <text class="meta-lbl" x="425" y="142">op = SUM</text>
-  <text class="meta-lbl" x="425" y="158">Sends (R−1)/R · S</text>
-  <text class="meta-cost" x="425" y="176">Total = (R − 1)S</text>
+  <text class="meta-lbl" x="425" y="158">Sends (W−1)/W · S</text>
+  <text class="meta-cost" x="425" y="176">Total = (W − 1)S</text>
 
   <!-- Right: Final State -->
   <rect class="bg" x="495" y="15" width="350" height="205"/>
-  <text class="panel-title" x="515" y="42">After Reduce-Scatter (Owned Shard [N/R])</text>
+  <text class="panel-title" x="515" y="42">After Reduce-Scatter (Owned Shard [N/W])</text>
 
   <text class="rank-lbl" x="515" y="77">Rank 0</text>
   <rect class="c0 cell-border" x="575" y="62" width="210" height="22" rx="4"/><text class="cell-text-sm" x="680" y="77">ΣA = A₀ + A₁ + A₂ + A₃</text>

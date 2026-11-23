@@ -75,6 +75,23 @@
 \setbeamertemplate{sidebar right}{}
 
 % ---- Footline: hairline, short title left, logo + page number right ----
+% Main-body and optional (appendix) slides are counted separately: the main
+% total stops at \appendix, and optional slides restart from 1.
+\newif\ifcourse@inappendix
+\def\course@maintotal{\inserttotalframenumber}
+\def\course@optionaltotal{\inserttotalframenumber}
+\let\course@beamerappendix\appendix
+\renewcommand{\appendix}{%
+  \course@beamerappendix
+  \immediate\write\@auxout{\string\gdef\string\course@maintotal{\the\c@framenumber}}%
+  \setcounter{framenumber}{0}%
+  \global\course@inappendixtrue
+}
+\AtEndDocument{%
+  \ifcourse@inappendix
+    \immediate\write\@auxout{\string\gdef\string\course@optionaltotal{\the\c@framenumber}}%
+  \fi
+}
 \newcommand{\frameofframes}{/}
 \newcommand{\setframeofframes}[1]{\renewcommand{\frameofframes}{#1}}
 \setbeamertemplate{footline}{%
@@ -91,8 +108,14 @@
         \hfill
         \insertlogo
         \hskip8pt
-        {\usebeamerfont{footline}\bfseries\color{themeteal}\insertframenumber}%
-        {\usebeamerfont{footline}\color{inkmuted}\,\frameofframes\,\inserttotalframenumber}%
+        \ifcourse@inappendix
+          {\usebeamerfont{footline}\color{inkmuted}optional\,}%
+          {\usebeamerfont{footline}\bfseries\color{themeteal}\insertframenumber}%
+          {\usebeamerfont{footline}\color{inkmuted}\,\frameofframes\,\course@optionaltotal}%
+        \else
+          {\usebeamerfont{footline}\bfseries\color{themeteal}\insertframenumber}%
+          {\usebeamerfont{footline}\color{inkmuted}\,\frameofframes\,\course@maintotal}%
+        \fi
       }%
       \vskip5pt
     }%

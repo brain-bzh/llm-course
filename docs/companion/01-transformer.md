@@ -88,7 +88,7 @@ For an input `x` with shape `B × T × d_model`:
    `d_head = d_model / n_head`.
 3. Compute the attention scores:
 
-   $$S = \frac{QK^\top}{\sqrt{d_{\text{head}}}}.$$
+   $$S = \frac{QK^\top}{\sqrt{d_h}}.$$
 
 4. Before the softmax, replace scores above the causal diagonal with
    $-\infty$.

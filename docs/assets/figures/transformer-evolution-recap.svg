@@ -48,7 +48,7 @@
 
   <!-- Repeated Block Box -->
   <rect x="42" y="144" width="276" height="204" fill="none" stroke="#94a3b8" stroke-dasharray="3,3" stroke-width="1.2" rx="8"/>
-  <text class="repeat" x="54" y="160">× N blocks</text>
+  <text class="repeat" x="54" y="160">× L blocks</text>
 
   <!-- 3. Pre-LayerNorm -->
   <rect class="node" x="72" y="165" width="216" height="24"/><text class="lbl" x="180" y="181">LayerNorm (with bias)</text>
@@ -93,7 +93,7 @@
 
   <!-- Repeated Block Box -->
   <rect x="382" y="144" width="276" height="204" fill="none" stroke="#007f86" stroke-dasharray="3,3" stroke-width="1.2" rx="8"/>
-  <text class="repeat lbl-t" x="394" y="160">× N blocks</text>
+  <text class="repeat lbl-t" x="394" y="160">× L blocks</text>
 
   <!-- 3. Pre-RMSNorm -->
   <rect class="accent" x="412" y="165" width="216" height="24"/><text class="lbl-t" x="520" y="181">Pre-RMSNorm (no bias)</text>

@@ -16,6 +16,14 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{Where we are}
+  \courseroadmap{4}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} verified BPE shards that feed shifted input/target batches to the training loop.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} make one update fast on one GPU: locate the bottleneck, then measure one change at a time.
+\end{frame}
+
 \learninggoals
 {Connect the GPT training step to CPU dispatch and GPU kernels.}
 {Use memory hierarchy and arithmetic intensity to reason about bottlenecks.}
@@ -79,24 +87,6 @@
   \small The same model and batch can run on both CPU or GPU. The results should be identical but the difference lies in how the workload is executed.
 \end{frame}
 
-\begin{frame}{CPU and GPU: different ways to execute work}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.18\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
-    \toprule
-    & CPU & GPU \\
-    \midrule
-    Design & Fewer complex cores; strong per-thread latency & Many execution lanes; high throughput on parallel work \\
-    Good fit & Python, I/O, control flow; small or irregular work & Large batches of regular tensor operations \\
-    Memory & Host memory and caches & Device memory and on-chip caches \\
-    Trade-off & Less transfer/launch overhead for small work & Launch, transfer and synchronization costs \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{alertblock}{Measure the actual workload}
-    A GPU can lose on small shapes or transfer-heavy work.
-  \end{alertblock}
-\end{frame}
-
 \begin{frame}{What happens when PyTorch runs on CUDA?}
   \begin{enumerate}
       \setlength{\itemsep}{7pt}
@@ -106,48 +96,16 @@
     \item Backward launches more kernels; the optimizer updates weights.
   \end{enumerate}
   \begin{alertblock}{Timing trap}
-    A Python timer around an asynchronous launch can stop before the GPU finishes. Synchronize at timing boundaries or use CUDA events.
+    A Python timer around an asynchronous launch measures the launches, not the work. Synchronize (wait for the GPU queue to drain) before reading the clock, at the start and at the end of the timed region.
   \end{alertblock}
 \end{frame}
 
 \section{The machine beneath the tensor}
 
-\begin{frame}{A GPU is a throughput machine with many lanes}
-  \begin{columns}[c]
-    \begin{column}{0.43\linewidth}
-      \begin{itemize}
-          \setlength{\itemsep}{6pt}
-        \item A kernel launches many threads, grouped into blocks.
-        \item An SM schedules threads in warps of 32.
-        \item Lanes execute work from a warp in parallel.
-        \item Many warps keep the GPU busy.
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.55\linewidth}
-      \centering
-      \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
-          lane/.style={draw=themebluedraw,fill=themebluebg,rounded corners=2pt,inner sep=1pt,minimum width=.54cm,minimum height=.65cm},
-        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
-        \node[font=\small\bfseries] at (2.05,2.1) {One warp: 32 threads};
-        \foreach \x/\n in {0/0,1/1,2/2,3/3,4/4,5/5} {
-          \node[lane] (t\x) at (\x*.66,1.45) {\n};
-          \node[lane,fill=successbg,draw=successdraw] (l\x) at (\x*.66,.15) {lane};
-          \draw[arr] (t\x)--(l\x);
-        }
-        \node at (4.05,1.45) {$\cdots$};
-        \node at (4.05,.15) {$\cdots$};
-        \node[font=\small\bfseries] at (1.7,-.5) {Parallel execution on an SM};
-      \end{tikzpicture}
-      \par\vspace{3pt}\scriptsize Schematic: six of 32 threads shown.
-    \end{column}
-  \end{columns}
-  \smallsource{JAX Scaling Book, How to Think About GPUs}
-\end{frame}
-
 \begin{frame}{GEMM: the matrix multiplication behind our model}
   \begin{block}{General matrix--matrix multiplication}
-    $C \leftarrow \alpha AB + \beta C$, with $A\in\mathbb{R}^{M\times K}$,
-    $B\in\mathbb{R}^{K\times N}$ and $C\in\mathbb{R}^{M\times N}$.
+    $Z \leftarrow \alpha XY + \beta Z$, with $X\in\mathbb{R}^{m\times k}$,
+    $Y\in\mathbb{R}^{k\times n}$ and $Z\in\mathbb{R}^{m\times n}$.
     A plain matrix product is the case $\alpha=1,\ \beta=0$.
   \end{block}
   \begin{columns}[t]
@@ -158,47 +116,12 @@
     \end{column}
     \begin{column}{.48\linewidth}
       \begin{block}{In attention}
-        Per-head $QK^\top$ forms scores; $PV$ mixes values. These are batched matrix products around a softmax.
+        Per-head $QK^\top$ forms scores; $AV$ mixes values. These are batched matrix products around a softmax.
       \end{block}
     \end{column}
   \end{columns}
   \vfill
   \small GEMMs dominate much of the model's arithmetic; shape, dtype and data movement determine speed.
-\end{frame}
-
-\begin{frame}{Tensor Cores and the rest of the GPU}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.34\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}@{}}
-    \toprule
-    Unit & Typical work & Transformer examples \\
-    \midrule
-    Tensor Cores & Specialized in matrix multiplication & Linear layers; attention products \\[5pt]
-    CUDA cores & General scalar / vector arithmetic & Residual adds; optimizer updates \\[5pt]
-    Other execution paths & Reductions and special functions & Norm statistics; softmax; GELU \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  \begin{alertblock}{These are typical mappings, not guarantees}
-    Kernels combine work across units. Tensor Core use depends on GPU, dtype, shapes and backend; non-matmul operations and HBM traffic still matter.
-  \end{alertblock}
-  \smallsource{NVIDIA, Matrix Multiplication Background; GPU Performance Background}
-\end{frame}
-
-\begin{frame}{Warps reward regular work}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Good utilization}
-        contiguous access\\similar control flow\\enough active warps\\tile-aligned matrix dimensions
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{alertblock}{Lost utilization}
-        branch divergence\\strided loads\\register pressure\\tiny or awkward shapes
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-  \vfill
-  \centering A mathematically identical operation can run much faster when its layout and dimensions match the hardware tiles.
 \end{frame}
 
 \begin{frame}{The memory hierarchy trades capacity for speed}
@@ -218,42 +141,6 @@
   \begin{alertblock}{Performance principle}
     Moving a value often costs more time and energy than performing one arithmetic operation on it. Reuse data near the compute units.
   \end{alertblock}
-\end{frame}
-
-\begin{frame}{CPU offload: capacity depends on the link}
-  \begin{columns}[t]
-    \begin{column}{.47\linewidth}
-      \begin{block}{GPU memory}
-        Active weights and activations\\GPU forward and backward
-      \end{block}
-    \end{column}
-    \begin{column}{.47\linewidth}
-      \begin{block}{CPU memory}
-        Offloaded state\\possibly a CPU optimizer step
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vspace{5pt}
-  Tensors cross the host--device link when needed. Transfer time depends on bytes, link bandwidth, and synchronization.
-  \begin{alertblock}{Inspect the trace}
-    Transfers that overlap useful compute may be partly hidden; exposed copies or CPU work can lengthen the step. Measure peak memory and tokens/s together.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Map GPT operations to hardware questions}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
-    \toprule
-    In our training step & Typical work & Diagnostic \\
-    \midrule
-    QKV and MLP & Matrix multiplications & Are shapes large enough? \\[4pt]
-    Attention & Products and softmax & Which backend ran? \\[4pt]
-    Norm, GELU, residual & Reductions and pointwise ops & Are launches or intermediates costly? \\[4pt]
-    Data, loss, optimizer & Copies and updates & Is the GPU waiting? \\
-    \bottomrule
-  \end{tabular}
-  \vfill
-  Kernel choices depend on shape, dtype, hardware and implementation. Measure before drawing a conclusion.
 \end{frame}
 
 \section{Roofline reasoning}
@@ -281,7 +168,7 @@
   \end{columns}
   \vspace{3pt}
   \begin{alertblock}{Arithmetic intensity = FLOPs per byte transferred}
-    Higher intensity can help when memory bandwidth limits performance; compare measured runtime as well.
+    Higher intensity helps when memory bandwidth limits performance.
   \end{alertblock}
 \end{frame}
 
@@ -322,42 +209,15 @@
       \end{alertblock}
     \end{column}
   \end{columns}
-  \smallsource{JAX Scaling Book, How to Think About GPUs}
-\end{frame}
-
-\begin{frame}{Vector addition: a bandwidth-bound model}
-  For $C=A+B$ with FP32 elements:
-  \[
-    \text{FLOPs}=1,\qquad \text{bytes}=4+4+4=12
-  \]
-  \[
-    I\approx 0.083\ \text{FLOP/byte}
-  \]
-  \begin{block}{Prediction}
-    For a large vector under this traffic model, bandwidth can dominate. Small vectors can instead be launch-limited.
-  \end{block}
-  \begin{alertblock}{Benchmark check}
-    Doubling peak FLOPs should barely change runtime if memory bandwidth stays fixed.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Large matrix multiplication creates reuse}
-  For square $C=AB$, matrices of width $n$:
-  \[
-    \text{FLOPs}\approx2n^3,\qquad \text{minimum bytes}\approx3n^2s
-  \]
-  \[
-    I\approx\frac{2n}{3s}
-  \]
-  This idealized intensity assumes each matrix element is transferred once. Tiling increases reuse; actual traffic may be higher.
-  \begin{alertblock}{Small matrices behave differently}
-    Launch overhead, poor tile occupancy, and insufficient reuse can keep small GEMMs far below peak compute.
-  \end{alertblock}
+  \vspace{2pt}
+  {\footnotesize\textbf{NVIDIA H100 SXM:} $P_{\mathrm{peak}}\approx 989$ TFLOP/s (dense BF16), $BW=3.35$ TB/s
+  $\Rightarrow$ ridge $\approx 295$ FLOP/byte.\par}
+  \smallsource{JAX Scaling Book, How to Think About GPUs; NVIDIA H100 specifications (1{,}979 TFLOP/s with sparsity, half without)}
 \end{frame}
 
 \begin{frame}{Fusion: the same math, fewer intermediates}
   \small
-  Consider an illustrative pointwise chain $y=\operatorname{ReLU}(x+b)+r$, with equal-sized tensors:
+  Consider the pointwise chain $y=\operatorname{ReLU}(x+b)+r$, with equal-sized tensors:
   \vspace{3pt}
   \begin{columns}[t]
     \begin{column}{.48\linewidth}
@@ -370,24 +230,24 @@
     \begin{column}{.48\linewidth}
       \begin{block}{One fused kernel}
         Read $x,b,r$; compute the chain; write $y$.\\[5pt]
-        $u$ and $v$ can stay in registers instead of being written and re-read.
+        $u$ and $v$ stay in registers instead of being written and re-read.
       \end{block}
     \end{column}
   \end{columns}
   \vfill
-  Idealized traffic: 8 versus 4 element transfers. Cache reuse, broadcasting and actual kernels change the result; measure the trace.
+  HBM traffic: 8 versus 4 element transfers.
 \end{frame}
 
 \begin{frame}{Why is attention difficult to run fast?}
   \small
   \[
     S=QK^\top/\sqrt{d_h}\quad\longrightarrow\quad
-    P=\operatorname{softmax}(S+\text{mask})\quad\longrightarrow\quad O=PV
+    A=\operatorname{softmax}(S+\text{mask})\quad\longrightarrow\quad O=AV
   \]
   \begin{itemize}
       \setlength{\itemsep}{5pt}
-    \item The two matrix products can use fast matrix hardware; masking and row-wise softmax add reductions and elementwise work.
-    \item Writing and rereading $S$ and $P$, each $T\times T$ per head, costs quadratic storage and HBM traffic.
+    \item The two matrix products use fast matrix hardware; masking and row-wise softmax add reductions and elementwise work.
+    \item Writing and rereading $S$ and $A$, each $T\times T$ per head, costs quadratic storage and HBM traffic.
     \item Irregular tiles, causal masking and limited on-chip memory complicate efficient GPU execution.
   \end{itemize}
   \begin{alertblock}{The target}
@@ -401,7 +261,7 @@
       \begin{alertblock}{Straightforward attention}
         $QK^\top$ $\to$ write scores\\[3pt]
         softmax $\to$ write probabilities\\[3pt]
-        $PV$ $\to$ write output
+        $AV$ $\to$ write output
       \end{alertblock}
     \end{column}
     \begin{column}{.48\linewidth}
@@ -411,23 +271,38 @@
     \end{column}
   \end{columns}
   \vfill
-  \small It avoids materializing the full $T\times T$ scores and probabilities in HBM; backward recomputes tiles using saved statistics. Dense attention still has quadratic arithmetic. Results can differ slightly from rounding.
+  \small It avoids materializing the full $T\times T$ scores and probabilities in HBM; backward recomputes tiles using saved statistics. Dense attention still has quadratic arithmetic.
   \smallsource{Dao et al., FlashAttention (2022)}
 \end{frame}
 
-\begin{frame}{Using efficient attention in this course}
+\begin{frame}{Fused attention behind one call}
+  \small
   \begin{enumerate}
-      \setlength{\itemsep}{7pt}
-    \item Module 1 implements $QK^\top$, masking, softmax and $PV$ explicitly.
-    \item In the GPU lab, switch to PyTorch \texttt{scaled\_dot\_product\_attention} (SDPA) and compare outputs and gradients.
-    \item SDPA selects an eligible backend; it may use FlashAttention, another fused kernel, or the math implementation.
-    \item Inspect the actual backend and profile the update: hardware, dtype, shapes and mask affect eligibility and performance.
+      \setlength{\itemsep}{3pt}
+    \item Explicit attention: $QK^\top$, mask, softmax and $AV$ are separate kernels with $T\times T$ intermediates.
+    \item Scaled dot-product attention (SDPA) is the same function of $Q,K,V$, each $(B,H,T,d_h)$:\\[1pt]
+      {\footnotesize\texttt{y = F.scaled\_dot\_product\_attention(q, k, v, is\_causal=True)}}
+    \item The causal mask is a flag, not a tensor. Dropout is a probability, zero outside training.
+    \item PyTorch selects the backend from hardware, dtype, shapes and mask: FlashAttention, another fused kernel, or the plain math path.
   \end{enumerate}
+  \begin{alertblock}{Same function, different kernels}
+    With identical weights, logits, loss and gradients match the explicit path within a small tolerance, not bit for bit. Check before timing.
+  \end{alertblock}
   \smallsource{PyTorch SDPA documentation; Dao et al., FlashAttention (2022)}
 \end{frame}
 
 \checkpoint{roofline diagnosis}
 {An optimization halves the FLOP count of a normalization kernel but runtime barely moves. Which roofline quantity explains the result, and what change is more promising?}
+
+\begin{frame}{Roofline diagnosis: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item The quantity is \textbf{arithmetic intensity}: FLOPs per byte transferred. Normalization is reductions and pointwise work, so its intensity is low and it sits left of the ridge: bandwidth-bound.
+    \item There, runtime is roughly bytes moved divided by memory bandwidth. Halving the FLOPs halves the intensity but moves the same bytes.
+    \item More promising: move fewer bytes through HBM. Fuse the normalization with neighbouring pointwise operations so intermediates stay on chip, or test a supported lower precision.
+    \item Confirm with a trace and repeated timings, not with the FLOP count.
+  \end{itemize}
+\end{frame}
 
 \section{Memory, compilation and profiling}
 
@@ -435,21 +310,312 @@
   \small
   \begin{tabular}{lll}
     \toprule
-    Component & Typical scaling & Lifetime \\
+    Component & Scaling & Lifetime \\
     \midrule
-    parameters & $P\times$ dtype bytes & whole run \\
-    gradients & roughly $P$ & until update/reset \\
-    Adam moments & roughly $2P$ in FP32 & whole run \\
-    master weights & optional FP32 copy & whole run \\
-    activations & $B,T,L,d$ dependent & forward to backward \\
-    temporary buffers & kernel dependent & operation lifetime \\
-    allocator reserve & fragmentation dependent & process lifetime \\
+    parameters & $N\,b$ bytes & whole run \\
+    gradients & $N\,b$ (trainable parameters) & until update/reset \\
+    AdamW moments $m,v$ & $2N\times4$ bytes (FP32) & whole run \\
+    \midrule
+    activations & grows with $B\,T\,L\,d$ & forward to backward \\
+    temporary buffers & set by each kernel & operation lifetime \\
+    allocator reserve & cached free blocks & process lifetime \\
     \bottomrule
   \end{tabular}
   \vfill
-  \begin{block}{Useful distinction}
-    Report allocated and reserved memory. Out-of-memory behavior depends on peaks and fragmentation, not only steady-state tensor sizes.
+  \begin{block}{Static memory: the part you can predict exactly}
+    FP32 with AdamW: $4N+4N+8N=16N$ bytes, tied weights counted once. For $N=124$M: $1.98\times10^{9}$ bytes $=1{,}892$ MiB (1 MiB $=2^{20}$ bytes).
   \end{block}
+  \footnotesize Measured peak $-$ static $=$ activations, buffers and allocator cache. Report peak allocated and peak reserved memory.
+\end{frame}
+
+\begin{frame}{Training FLOPs per token for a GPT}
+  \small
+  Count matrix multiplications only: each weight costs 2 FLOPs per token forward, 4 backward.
+  \begin{center}
+    \begin{tabular}{@{}lll@{}}
+      \toprule
+      Term & Matrix weights & FLOPs / token \\
+      \midrule
+      $Q,K,V$, output projections & $4d^2$ per layer & \\
+      MLP $d\to4d\to d$ & $8d^2$ per layer & \\
+      Vocabulary head (tied) & $Vd$ & \\
+      \midrule
+      All projections & $M=12Ld^2+Vd$ & $6M$ \\
+      $QK^\top$ and $AV$ products & none & $12\,L\,d\,T$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \vspace{-8pt}
+  \[
+    F_{\text{token}} = 6\,(12Ld^2+Vd)+12\,L\,d\,T
+  \]
+  \footnotesize The embedding lookup is not a multiplication. Each attention product costs $2Td$ FLOPs per token and layer forward; training triples the forward cost.\par
+  \vspace{3pt}
+  \textbf{GPT-2 small} ($L=12$, $d=768$, $V=50{,}257$, $T=1024$): $6M\approx7.41\times10^{8}$ plus attention $1.13\times10^{8}$ gives $F_{\text{token}}\approx8.5\times10^{8}$. The $6N$ shortcut gives $7.44\times10^{8}$.
+\end{frame}
+
+\begin{frame}{Performance metrics answer different questions}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}ll@{}}
+      \toprule
+      Metric & Question it answers \\
+      \midrule
+      tokens/s & how much training work is delivered? \\
+      step time & how often does the model update? \\
+      time-to-target & how fast is a given quality reached? \\[3pt]
+      $\mathrm{MFU}=\dfrac{\text{model FLOPs/s}}{\text{peak FLOPs/s}}$ & how much of the hardware peak is used? \\[6pt]
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \footnotesize Model FLOPs/s $=$ tokens/s $\times\,F_{\text{token}}$. Use the dense peak of the device at the measured precision; report MFU in percent.
+  \begin{exampleblock}{Worked example: GPT-2 small on one H100 SXM}
+    \footnotesize
+    Model work: $F_{\text{token}}\approx 8.5\times10^{8}$ FLOPs per token.\\
+    Assumed rate: $2\times10^{5}$ tokens/s
+    $\Rightarrow 1.7\times10^{14}$ FLOP/s $=170$ TFLOP/s.\\
+    Peak, dense BF16: $989$ TFLOP/s
+    $\Rightarrow \mathrm{MFU}=170/989\approx 17\%$.
+  \end{exampleblock}
+  \smallsource{NVIDIA H100 specifications (1{,}979 TFLOP/s BF16 with sparsity, half without)}
+\end{frame}
+
+\begin{frame}{Mixed precision: a performance and numerical trade-off}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\scriptsize,align=center},
+      hi/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.25cm,minimum height=1.15cm},
+      lo/.style={draw=accentdarkdraw,fill=accentdarkbg,minimum width=2.25cm,minimum height=1.15cm},
+    arr/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
+    \node[hi] (w) at (0,0) {parameters\\\textbf{FP32}};
+    \node[lo] (a) at (2.85,0) {supported ops\\\textbf{BF16}};
+    \node[hi] (s) at (5.7,0) {sensitive ops\\\textbf{higher precision}};
+    \node[hi] (u) at (8.55,0) {optimizer update\\\textbf{FP32}};
+    \draw[arr] (w)--(a); \draw[arr] (a)--(s); \draw[arr] (s)--(u);
+    \draw[decorate,decoration={brace,amplitude=4pt},neutraldark] (1.72,.8)--(6.83,.8)
+    node[midway,above=5pt,font=\small\bfseries,text=themeink] {autocast region};
+    \node[text=accentdark] at (2.85,-1.15) {faster matrix operations\\fewer activation bytes};
+    \node[text=neutraldark] at (7.1,-1.15) {same objective and update};
+  \end{tikzpicture}
+  \par\vspace{12pt}
+  \small\textbf{Check:} hardware support, loss and gradients. FP16 loss scaling is a separate consideration.
+\end{frame}
+
+\begin{frame}{What does \texttt{torch.compile} do?}
+  \begin{enumerate}
+      \setlength{\itemsep}{6pt}
+    \item Wrap a model or function: \texttt{compiled = torch.compile(model)}.
+    \item On execution, TorchDynamo captures supported PyTorch operations in graphs with guards on assumptions such as shapes.
+    \item For training, PyTorch captures forward and backward regions. The default TorchInductor backend generates optimized code and fuses eligible operations.
+    \item Later calls reuse compiled code when the guards hold.
+  \end{enumerate}
+  \begin{block}{Goal}
+    Reduce Python/launch overhead and memory traffic, and choose efficient kernels. Some operations remain library calls.
+  \end{block}
+  \smallsource{PyTorch torch.compile documentation}
+\end{frame}
+
+\begin{frame}{Read one training update on a timeline}
+  \small
+  \begin{tabular}{@{}p{.20\linewidth}p{.66\linewidth}@{}}
+    \toprule
+    CPU lane & prepare / launch kernels \hfill next work \\
+    GPU lane & copy (if needed) $\to$ forward $\to$ backward $\to$ optimizer \\
+    \bottomrule
+  \end{tabular}
+  \vspace{6pt}
+  \begin{itemize}
+    \item Zoom from the whole update to a long gap or expensive kernel; link it back to attention, MLP, normalization, loss or optimizer.
+    \item Many short kernels point to missing fusion or launch overhead.
+    \item A copy or CPU gap costs end-to-end time even when model-only device timings look fast.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{A timing protocol you can defend}
+  \small
+  \begin{enumerate}
+      \setlength{\itemsep}{2pt}
+    \item \textbf{One change:} explicit FP32 $\to$ SDPA FP32 $\to$ SDPA BF16; compiled vs eager.
+    \item \textbf{Correct first:} outputs, loss and gradients match the baseline within tolerance.
+    \item \textbf{Warm up:} exclude the first steps (compilation, allocator growth).
+    \item \textbf{Synchronize} before reading the clock, at both ends of the timed region.
+    \item \textbf{Repeat:} report the median and the spread, not one sample.
+    \item \textbf{Profile separately:} tracing adds overhead; keep it out of timed samples.
+    \item \textbf{Report:} device, shapes, tokens/s, peak allocated and reserved memory.
+  \end{enumerate}
+  \begin{block}{Scope}
+    Batches already on the device isolate model execution, not the input pipeline.
+  \end{block}
+\end{frame}
+
+\checkpoint{one-change ablation}
+{In the eager trace of one GPT-2 Small update, every block runs LayerNorm, GELU and the residual add as separate short kernels, with idle gaps between launches. State the bottleneck hypothesis, the single intervention, the expected profiler change, and the correctness check that must remain unchanged.}
+
+\begin{frame}{One-change ablation: one possible answer}
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Hypothesis:} launch overhead and intermediate HBM traffic, not arithmetic, limit this part of the step.
+    \item \textbf{Single intervention:} \texttt{torch.compile}, with the same model, input, shapes and precision.
+    \item \textbf{Expected profiler change:} fewer, longer fused kernels and less CPU launch time; a lower median step time after warmup.
+    \item \textbf{Unchanged:} loss and gradients match the eager run within tolerance.
+  \end{itemize}
+\end{frame}
+
+\takeaways
+{The course GPT update becomes CPU dispatch, GPU kernels and memory traffic.}
+{Roofline reasoning separates bandwidth-bound from compute-bound operations.}
+{Fusion reduces intermediate traffic; \texttt{torch.compile} is one way to get fused kernels.}
+{A trustworthy speedup needs stable shapes, warmup, synchronization, correctness checks and profiling evidence.}
+
+\appendix
+\section{Optional depth}
+
+\begin{frame}{CPU and GPU: different ways to execute work}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.18\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}>{\raggedright\arraybackslash}p{.35\linewidth}@{}}
+    \toprule
+    & CPU & GPU \\
+    \midrule
+    Design & Fewer complex cores; strong per-thread latency & Many execution lanes; high throughput on parallel work \\
+    Good fit & Python, I/O, control flow; small or irregular work & Large batches of regular tensor operations \\
+    Memory & Host memory and caches & Device memory and on-chip caches \\
+    Trade-off & Less transfer/launch overhead for small work & Launch, transfer and synchronization costs \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{The GPU is not always faster}
+    Small shapes and transfer-heavy work favor the CPU.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{A GPU is a throughput machine with many lanes}
+  \begin{columns}[c]
+    \begin{column}{0.43\linewidth}
+      \begin{itemize}
+          \setlength{\itemsep}{6pt}
+        \item A kernel launches many threads, grouped into blocks.
+        \item An SM schedules threads in warps of 32.
+        \item Lanes execute work from a warp in parallel.
+        \item Many warps keep the GPU busy.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.55\linewidth}
+      \centering
+      \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+          lane/.style={draw=themebluedraw,fill=themebluebg,rounded corners=2pt,inner sep=1pt,minimum width=.54cm,minimum height=.65cm},
+        arr/.style={-{Stealth[length=4pt,width=3pt]},thick,draw=accentdark}]
+        \node[font=\small\bfseries] at (2.05,2.1) {One warp: 32 threads};
+        \foreach \x/\n in {0/0,1/1,2/2,3/3,4/4,5/5} {
+          \node[lane] (t\x) at (\x*.66,1.45) {\n};
+          \node[lane,fill=successbg,draw=successdraw] (l\x) at (\x*.66,.15) {lane};
+          \draw[arr] (t\x)--(l\x);
+        }
+        \node at (4.05,1.45) {$\cdots$};
+        \node at (4.05,.15) {$\cdots$};
+        \node[font=\small\bfseries] at (1.7,-.5) {Parallel execution on an SM};
+      \end{tikzpicture}
+      \par\vspace{3pt}\scriptsize Schematic: six of 32 threads shown.
+    \end{column}
+  \end{columns}
+  \smallsource{JAX Scaling Book, How to Think About GPUs}
+\end{frame}
+
+\begin{frame}{Warps reward regular work}
+  \begin{columns}[t]
+    \begin{column}{0.47\linewidth}
+      \begin{block}{Good utilization}
+        contiguous access\\similar control flow\\enough active warps\\tile-aligned matrix dimensions
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\linewidth}
+      \begin{alertblock}{Lost utilization}
+        branch divergence\\strided loads\\register pressure\\tiny or awkward shapes
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vfill
+  \centering A mathematically identical operation runs much faster when its layout and dimensions match the hardware tiles.
+\end{frame}
+
+\begin{frame}{Tensor Cores and the rest of the GPU}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.23\linewidth}>{\raggedright\arraybackslash}p{.34\linewidth}>{\raggedright\arraybackslash}p{.31\linewidth}@{}}
+    \toprule
+    Unit & Typical work & Transformer examples \\
+    \midrule
+    Tensor Cores & Specialized in matrix multiplication & Linear layers; attention products \\[5pt]
+    CUDA cores & General scalar / vector arithmetic & Residual adds; optimizer updates \\[5pt]
+    Other execution paths & Reductions and special functions & Norm statistics; softmax; GELU \\
+    \bottomrule
+  \end{tabular}
+  \vfill
+  \begin{alertblock}{Tensor Cores are not the whole step}
+    Non-matmul operations and HBM traffic still matter.
+  \end{alertblock}
+  \smallsource{NVIDIA, Matrix Multiplication Background; GPU Performance Background}
+\end{frame}
+
+\begin{frame}{CPU offload: capacity depends on the link}
+  \begin{columns}[t]
+    \begin{column}{.47\linewidth}
+      \begin{block}{GPU memory}
+        Active weights and activations\\GPU forward and backward
+      \end{block}
+    \end{column}
+    \begin{column}{.47\linewidth}
+      \begin{block}{CPU memory}
+        Offloaded state\\possibly a CPU optimizer step
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{5pt}
+  Tensors cross the host--device link when needed. Transfer time depends on bytes, link bandwidth, and synchronization.
+  \begin{alertblock}{Exposed transfers cost step time}
+    Transfers that overlap useful compute are hidden; exposed copies or CPU work lengthen the step.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Map GPT operations to hardware questions}
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.29\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
+    \toprule
+    In our training step & Work & Diagnostic \\
+    \midrule
+    QKV and MLP & Matrix multiplications & Are shapes large enough? \\[4pt]
+    Attention & Products and softmax & Which backend ran? \\[4pt]
+    Norm, GELU, residual & Reductions and pointwise ops & Are launches or intermediates costly? \\[4pt]
+    Data, loss, optimizer & Copies and updates & Is the GPU waiting? \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Vector addition: a bandwidth-bound model}
+  For $z=x+y$ with FP32 elements:
+  \[
+    \text{FLOPs}=1,\qquad \text{bytes}=4+4+4=12
+  \]
+  \[
+    I\approx 0.083\ \text{FLOP/byte}
+  \]
+  \begin{block}{Prediction}
+    A large vector add is bandwidth-bound. A small one is launch-limited instead.
+  \end{block}
+  \begin{alertblock}{Benchmark check}
+    Doubling peak FLOPs should barely change runtime if memory bandwidth stays fixed.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Large matrix multiplication creates reuse}
+  For square $Z=XY$, matrices of width $n$, $b$ bytes per element:
+  \[
+    \text{FLOPs}\approx2n^3,\qquad \text{minimum bytes}\approx3n^2b
+  \]
+  \[
+    I\approx\frac{2n}{3b}
+  \]
+  The minimum transfers each matrix element once; tiling supplies the reuse that approaches it.
+  \begin{alertblock}{Small matrices behave differently}
+    Launch overhead, poor tile occupancy, and insufficient reuse keep small GEMMs far below peak compute.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Example: save attention inputs, recompute the matrix}
@@ -458,7 +624,7 @@
       box/.style={draw=themebluedraw,fill=themebluebg,minimum height=.8cm},
     arr/.style={-{Stealth[length=4pt]},thick,accentdark}]
     \node[box,minimum width=2.1cm] (qkv) at (0,1.4) {$Q,K,V$};
-    \node[box,draw=warningdraw,fill=warningbg,minimum width=3cm] (scores) at (4,1.4) {attention matrix\\$L\times L$ per head};
+    \node[box,draw=warningdraw,fill=warningbg,minimum width=3cm] (scores) at (4,1.4) {attention matrix\\$T\times T$ per head};
     \node[box,minimum width=2.4cm] (out) at (8,1.4) {output};
     \draw[arr] (qkv)--(scores); \draw[arr] (scores)--(out);
     \node[box,draw=successdraw,fill=successbg,minimum width=3cm] (cpu) at (0,-.5) {save inputs on CPU};
@@ -473,83 +639,34 @@
 \end{frame}
 
 \begin{frame}{Attention: when is the matrix larger than its inputs?}
-  \small One sequence, one head: length $L$, head dimension $d_k$, $b$ bytes per element.
+  \small One sequence, one head: length $T$, head width $d_h$, $b$ bytes per element.
   \vspace{5pt}
   \begin{center}
     \begin{tabular}{@{}lcc@{}}
       \toprule
       Retained tensor & elements & bytes \\
       \midrule
-      $Q,K,V$ ($L\times d_k$ each) & $3Ld_k$ & $3Ld_kb$ \\
-      Attention matrix ($L\times L$) & $L^2$ & $L^2b$ \\
+      $Q,K,V$ ($T\times d_h$ each) & $3Td_h$ & $3Td_hb$ \\
+      Attention matrix ($T\times T$) & $T^2$ & $T^2b$ \\
       \bottomrule
     \end{tabular}
   \end{center}
-  \begin{block}{Equal dtypes: crossover at $L=3d_k$}
-    For $d_k=64$, the matrix is larger once $L>192$. At $L=1024$ in BF16: $Q,K,V$ occupy $0.375$ MiB; one matrix occupies $2$ MiB per head.
+  \begin{block}{Equal dtypes: crossover at $T=3d_h$}
+    For $d_h=64$, the matrix is larger once $T>192$. At $T=1024$ in BF16: $Q,K,V$ occupy $0.375$ MiB; one matrix occupies $2$ MiB per head.
   \end{block}
-  \footnotesize This compares selected tensors, not total training peak. Batch size and head count multiply both; actual implementations save other state and may use different dtypes.
-\end{frame}
-
-\begin{frame}{Performance metrics answer different questions}
-  \begin{columns}[t]
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Throughput}
-        tokens/s measures delivered training work\\step time exposes update cadence\\time-to-target includes optimization quality
-      \end{block}
-    \end{column}
-    \begin{column}{0.47\linewidth}
-      \begin{block}{Hardware efficiency}
-        \[\mathrm{MFU}=\frac{\text{model FLOPs/s}}{\text{peak FLOPs/s}}\]
-        MFU depends on the FLOP model and quoted peak precision.
-      \end{block}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-\begin{frame}{Mixed precision: a performance and numerical trade-off}
-  \begin{columns}[t]
-    \begin{column}{.48\linewidth}
-      \begin{block}{What changes?}
-        Autocast runs supported operations in BF16 and retains higher precision where appropriate. The same training objective and update remain.
-      \end{block}
-    \end{column}
-    \begin{column}{.48\linewidth}
-      \begin{block}{Why try it?}
-        Supported hardware may run matrix operations faster and store some activations in fewer bytes. The gain depends on the workload.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \begin{alertblock}{Measure before claiming a speedup}
-    Check hardware support, loss and gradients; compare identical shapes and attention paths. FP16 loss scaling is a separate consideration.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{What does \texttt{torch.compile} do?}
-  \begin{enumerate}
-      \setlength{\itemsep}{6pt}
-    \item Wrap a model or function: \texttt{compiled = torch.compile(model)}.
-    \item On execution, TorchDynamo captures supported PyTorch operations in graphs with guards on assumptions such as shapes.
-    \item For training, PyTorch captures forward and backward regions. The default TorchInductor backend generates optimized code, potentially fusing operations.
-    \item Later calls reuse compiled code when the guards hold.
-  \end{enumerate}
-  \begin{block}{Goal, not guarantee}
-    Reduce Python/launch overhead and memory traffic, and choose efficient kernels. Some operations remain library calls; measure the whole step.
-  \end{block}
-  \smallsource{PyTorch torch.compile documentation}
+  \footnotesize Batch size and head count multiply both.
 \end{frame}
 
 \begin{frame}{Compilation: costs, breaks and correctness}
   \begin{columns}[t]
     \begin{column}{.48\linewidth}
-      \begin{alertblock}{Why might it not help?}
-        First calls include compilation. Graph breaks split regions; changing shapes can trigger recompilation. Some workloads are already dominated by optimized library kernels.
+      \begin{alertblock}{When it does not help}
+        First calls include compilation. Graph breaks split regions; changing shapes trigger recompilation. Some workloads are already dominated by optimized library kernels.
       \end{alertblock}
     \end{column}
     \begin{column}{.48\linewidth}
       \begin{block}{How to evaluate}
-        Compare eager and compiled with the same model, input and precision. Warm up; synchronize; check loss and gradients within tolerances; inspect the trace.
+        Compare eager and compiled with the same model, input and precision. Exclude the first calls; check loss and gradients within tolerances.
       \end{block}
     \end{column}
   \end{columns}
@@ -557,21 +674,20 @@
   \small \texttt{torch.compile} and efficient SDPA are complementary: SDPA selects an attention implementation; compilation optimizes captured regions around it.
 \end{frame}
 
-\begin{frame}{Read one training update on a timeline}
-  \small
-  \begin{tabular}{@{}p{.20\linewidth}p{.66\linewidth}@{}}
-    \toprule
-    CPU lane & prepare / launch kernels \hfill next work \\
-    GPU lane & copy (if needed) $\to$ forward $\to$ backward $\to$ optimizer \\
-    \bottomrule
-  \end{tabular}
-  \vspace{6pt}
-  \begin{itemize}
-    \item Zoom from the whole update to a long gap or expensive kernel; link it back to attention, MLP, normalization, loss or optimizer.
-    \item Many short kernels suggest a fusion or launch-overhead hypothesis; confirm by comparing traces and timings.
-    \item A copy or CPU gap may matter end to end even if model-only device timings look fast.
-  \end{itemize}
-  \small The lab uses fixed synthetic batches already on the device; it does not time the data loader or host-to-device copies.
+\begin{frame}{Apply optimizations in an evidence-driven order}
+  \begin{enumerate}
+      \setlength{\itemsep}{2pt}
+    \item verify correctness and stabilize the benchmark
+    \item keep the input pipeline ahead of the GPU
+    \item test a supported lower precision with numerical checks
+    \item compare manual attention with SDPA
+    \item investigate unfused pointwise chains
+    \item compare eager with \texttt{torch.compile}
+    \item checkpoint activations only when memory is the constraint
+  \end{enumerate}
+  \begin{alertblock}{One change per measurement}
+    Warm up, synchronize, use enough repeated steps, and report median plus dispersion. This lecture's unit mappings and traffic counts are models: hardware, dtype, shapes and backend decide the actual kernels, so confirm each gain in the trace.
+  \end{alertblock}
 \end{frame}
 
 \begin{frame}{Read a profiler trace as a causal story}
@@ -584,43 +700,5 @@
     \item Are unexpected synchronizations present? Find scalar reads and host barriers.
   \end{enumerate}
 \end{frame}
-
-\begin{frame}{Apply optimizations in an evidence-driven order}
-  \begin{enumerate}
-      \setlength{\itemsep}{5pt}
-    \item verify correctness and stabilize the benchmark
-    \item keep the input pipeline ahead of the GPU
-    \item test a supported lower precision with numerical checks
-    \item compare manual attention with SDPA
-    \item investigate unfused pointwise chains
-    \item compare eager with \texttt{torch.compile}
-    \item checkpoint activations only when memory is the constraint
-  \end{enumerate}
-  \begin{alertblock}{One change per measurement}
-    Warm up, synchronize, use enough repeated steps, and report median plus dispersion.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Lab: measure one change in a GPT update}
-  \begin{enumerate}
-      \setlength{\itemsep}{5pt}
-    \item Start with manual FP32 attention; form a bottleneck hypothesis.
-    \item Verify the SDPA path exists and compare outputs and gradients before timing it.
-    \item Compare supported BF16 or compiled execution against the matching eager baseline.
-    \item Report device, shapes, warmup, repeated timings, memory and one limitation.
-  \end{enumerate}
-  \begin{block}{Scope of the experiment}
-    Synthetic batches already on the device isolate model execution. They do not measure the Module 3 loader or end-to-end baseline throughput.
-  \end{block}
-\end{frame}
-
-\checkpoint{one-change ablation}
-{Choose one slow trace pattern. State the bottleneck hypothesis, the single intervention, the expected profiler change, and the correctness check that must remain unchanged.}
-
-\takeaways
-{The course GPT update becomes CPU dispatch, GPU kernels and memory traffic.}
-{Roofline reasoning separates bandwidth-bound from compute-bound operations.}
-{Fusion can reduce intermediate traffic; \texttt{torch.compile} may generate fused kernels.}
-{A trustworthy speedup needs stable shapes, warmup, synchronization, correctness checks and profiling evidence.}
 
 \end{document}

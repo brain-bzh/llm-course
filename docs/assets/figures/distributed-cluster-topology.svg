@@ -41,7 +41,7 @@
   <!-- Header line -->
   <text class="top-title" x="25" y="26">Process Topology Hierarchy</text>
   <rect class="world-tag" x="655" y="10" width="180" height="24"/>
-  <text class="world-text" x="745" y="26">Global World Size R = 8</text>
+  <text class="world-text" x="745" y="26">Global World Size W = 8</text>
 
   <!-- Node 0 -->
   <rect class="node-bg" x="25" y="42" width="390" height="170"/>

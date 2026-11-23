@@ -105,17 +105,17 @@ Consider a standard linear layer mapping an input vector $X \in \mathbb{R}^{B \t
 
 $$Y = X W^T$$
 
-In Tensor Parallelism (TP), we divide $W$ across $P$ ranks (our tensor-parallel world size). There are two complementary ways to partition the matrix.
+In Tensor Parallelism (TP), we divide $W$ across $N_{tp}$ ranks (our tensor-parallel world size). There are two complementary ways to partition the matrix.
 
 #### Column parallelism (Partitioning Output Features)
 
 We split $W$ along its output dimension (the columns of $W^T$):
 
-$$W = \begin{bmatrix} W_0 \\ W_1 \\ \vdots \\ W_{P-1} \end{bmatrix}, \quad \text{where each } W_p \in \mathbb{R}^{\frac{d_{\text{out}}}{P} \times d_{\text{in}}}$$
+$$W = \begin{bmatrix} W_0 \\ W_1 \\ \vdots \\ W_{N_{tp}-1} \end{bmatrix}, \quad \text{where each } W_p \in \mathbb{R}^{\frac{d_{\text{out}}}{N_{tp}} \times d_{\text{in}}}$$
 
 Every rank receives the **full, replicated input** $X$ and multiplies it by its local weight shard $W_p$:
 
-$$Y_p = X W_p^T \in \mathbb{R}^{B \times \frac{d_{\text{out}}}{P}}$$
+$$Y_p = X W_p^T \in \mathbb{R}^{B \times \frac{d_{\text{out}}}{N_{tp}}}$$
 
 <figure markdown="span">
   ![Column parallelism partitions the output features across ranks.](../assets/figures/tp-column-linear.svg){ loading=lazy }
@@ -124,15 +124,15 @@ $$Y_p = X W_p^T \in \mathbb{R}^{B \times \frac{d_{\text{out}}}{P}}$$
 
 - **Input:** Replicated across all ranks ($B \times d_{\text{in}}$).
 - **Computation:** Completely independent (zero communication).
-- **Output:** Sharded across ranks along the feature dimension ($B \times \frac{d_{\text{out}}}{P}$).
+- **Output:** Sharded across ranks along the feature dimension ($B \times \frac{d_{\text{out}}}{N_{tp}}$).
 
 #### Row parallelism (Partitioning Input Features)
 
 We split $W$ along its input dimension (the rows of $W^T$):
 
-$$W = \begin{bmatrix} W_0 & W_1 & \cdots & W_{P-1} \end{bmatrix}, \quad \text{where each } W_p \in \mathbb{R}^{d_{\text{out}} \times \frac{d_{\text{in}}}{P}}$$
+$$W = \begin{bmatrix} W_0 & W_1 & \cdots & W_{N_{tp}-1} \end{bmatrix}, \quad \text{where each } W_p \in \mathbb{R}^{d_{\text{out}} \times \frac{d_{\text{in}}}{N_{tp}}}$$
 
-Each rank $p$ receives a **sharded input** $X_p \in \mathbb{R}^{B \times \frac{d_{\text{in}}}{P}}$ matching its slice of the weights:
+Each rank $p$ receives a **sharded input** $X_p \in \mathbb{R}^{B \times \frac{d_{\text{in}}}{N_{tp}}}$ matching its slice of the weights:
 
 $$\hat{Y}_p = X_p W_p^T \in \mathbb{R}^{B \times d_{\text{out}}}$$
 
@@ -143,7 +143,7 @@ $$\hat{Y}_p = X_p W_p^T \in \mathbb{R}^{B \times d_{\text{out}}}$$
 
 Notice that each $\hat{Y}_p$ has the full output dimension $d_{\text{out}}$, but represents only a **partial sum**. To recover the complete output $Y$, all ranks must sum their contributions:
 
-$$Y = \sum_{p=0}^{P-1} \hat{Y}_p = \sum_{p=0}^{P-1} X_p W_p^T$$
+$$Y = \sum_{p=0}^{N_{tp}-1} \hat{Y}_p = \sum_{p=0}^{N_{tp}-1} X_p W_p^T$$
 
 This summation is performed using an **All-Reduce** collective with the `SUM` operator.
 
@@ -163,10 +163,10 @@ The breakthrough insight of Megatron-LM (Shoeybi et al., 2019) is that **Column 
 </figure>
 
 1. **First projection ($W_1$, Column-Parallel):**
-   $$H_p = X W_{1, p}^T \in \mathbb{R}^{B \times \frac{4d}{P}}$$
+   $$H_p = X W_{1, p}^T \in \mathbb{R}^{B \times \frac{4d}{N_{tp}}}$$
 2. **Pointwise activation ($\text{GELU}$):**
    Because $\text{GELU}$ is an elementwise non-linearity, rank $p$ applies it directly to its local hidden shard:
-   $$Z_p = \text{GELU}(H_p) \in \mathbb{R}^{B \times \frac{4d}{P}}$$
+   $$Z_p = \text{GELU}(H_p) \in \mathbb{R}^{B \times \frac{4d}{N_{tp}}}$$
    **Zero communication is required.**
 3. **Second projection ($W_2$, Row-Parallel):**
    $W_2$ partitions its input features along the exact same dimension that $Z_p$ is sharded along:
@@ -185,13 +185,13 @@ other's conjugate:
 
 | Boundary | Forward | Backward |
 | --- | --- | --- |
-| Replicated $X$ → column-parallel layer (`_CopyToTP`) | identity | **sum** $\partial L/\partial X$ over ranks |
+| Replicated $X$ → column-parallel layer (`_CopyToTP`) | identity | **sum** $\partial \mathcal{L}/\partial X$ over ranks |
 | Row-parallel partial sums → replicated $Y$ (`_ReduceFromTP`) | **sum** over ranks | identity |
 
 Implement `_CopyToTP.backward` and `_ReduceFromTP.forward`. `dist.all_reduce`
 works **in place**, so clone first. Skip the collective when `world_size == 1`.
 Why does `_ReduceFromTP.backward` *not* all-reduce? Every rank already holds
-the same $\partial L/\partial Y$. Summing it again would multiply it by the TP degree.
+the same $\partial \mathcal{L}/\partial Y$. Summing it again would multiply it by the TP degree.
 
 ### Step 2 — The layers (20 minutes)
 
@@ -211,7 +211,7 @@ PASS: TP outputs, input gradients and both parameter shards match the reference.
 ```
 
 `verify_sharded_mlp` (in your file, provided) copies **slices** of one dense MLP
-into the two ranks. Rank $r$ gets rows $[r\frac{4d}{P}, (r+1)\frac{4d}{P})$ of
+into the two ranks. Rank $r$ gets rows $[r\frac{4d}{N_{tp}}, (r+1)\frac{4d}{N_{tp}})$ of
 `fc1` and the matching **columns** of `fc2`. It then compares the output, the
 input gradient and both weight-gradient shards with the dense model.
 
@@ -222,11 +222,11 @@ script. Before reading the error, predict which comparison fails first:
 
 - the forward output?
 - `fc1`'s and `fc2`'s weight gradients?
-- the input gradient $\partial L/\partial X$?
+- the input gradient $\partial \mathcal{L}/\partial X$?
 
 Only the input gradient is wrong: each rank returns the contribution of its own
 columns. The forward pass and both local weight gradients are still correct.
-In a full model, that wrong $\partial L/\partial X$ flows into the attention
+In a full model, that wrong $\partial \mathcal{L}/\partial X$ flows into the attention
 block, the LayerNorm and the embeddings, so **every earlier layer** trains on
 a corrupted gradient while the loss can still go down. Restore the all-reduce
 and write the lesson in your log.

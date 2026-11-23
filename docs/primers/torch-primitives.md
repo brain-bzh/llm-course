@@ -63,24 +63,24 @@ y_flat = y.reshape(6)              # Calls .contiguous() internally if needed
 ### Attention head splitting pattern
 
 In multi-head attention, you project an input `x` of shape $[B, T, d]$ into $Q, K, V$
-and split the hidden dimension into $h$ heads of dimension $d_h = d / h$:
+and split the hidden dimension into $H$ heads of dimension $d_h = d / H$:
 
 ```python
 B, T, d = 4, 1024, 768
-h = 12
-d_h = d // h  # 64
+n_head = 12
+head_dim = d // n_head  # 64
 
 # Linear projection output: [B, T, d]
 q = torch.randn(B, T, d)
 
-# 1. Unpack head dimension: [B, T, h, d_h] (contiguous view)
-q = q.view(B, T, h, d_h)
+# 1. Unpack head dimension: [B, T, n_head, head_dim] (contiguous view)
+q = q.view(B, T, n_head, head_dim)
 
-# 2. Permute heads before sequence: [B, h, T, d_h] (strided view, NOT contiguous)
+# 2. Permute heads before sequence: [B, n_head, T, head_dim] (strided view, NOT contiguous)
 q = q.transpose(1, 2)
 
 # When merging heads back after attention:
-# q is [B, h, T, d_h] -> transpose to [B, T, h, d_h] -> view to [B, T, d]
+# q is [B, n_head, T, head_dim] -> transpose to [B, T, n_head, head_dim] -> view to [B, T, d]
 # You MUST call .contiguous() before .view():
 out = q.transpose(1, 2).contiguous().view(B, T, d)
 ```
@@ -110,17 +110,17 @@ Starting from the **trailing (rightmost) dimensions** and working backwards:
 ### Common Transformer broadcasting patterns
 
 #### 1. Causal attention mask addition
-Attention scores have shape $[B, h, T, T]$. A triangular causal mask has shape $[1, 1, T, T]$:
+Attention scores have shape $[B, H, T, T]$. A triangular causal mask has shape $[1, 1, T, T]$:
 
 ```python
-B, h, T = 2, 8, 4
-scores = torch.randn(B, h, T, T)
+B, n_head, T = 2, 8, 4
+scores = torch.randn(B, n_head, T, T)
 
 # Upper triangular mask filled with -inf
 mask = torch.triu(torch.full((T, T), float("-inf")), diagonal=1)  # [T, T]
 mask = mask.view(1, 1, T, T)                                      # [1, 1, T, T]
 
-# Broadcast: [1, 1, T, T] expands to [B, h, T, T] with 0 memory allocation
+# Broadcast: [1, 1, T, T] expands to [B, n_head, T, T] with 0 memory allocation
 masked_scores = scores + mask
 ```
 
@@ -219,15 +219,15 @@ Repeated indices not present in the output label are summed over.
 
 ### Attention dot-product with einsum
 
-Given Query $Q$ of shape $[B, h, T_q, d]$ and Key $K$ of shape $[B, h, T_k, d]$:
+Given Query $Q$ of shape $[B, H, T_q, d_h]$ and Key $K$ of shape $[B, H, T_k, d_h]$:
 
 ```python
-# Contract over head dimension 'd', output attention matrix [B, h, T_q, T_k]
+# Contract over head dimension 'd', output attention matrix [B, H, T_q, T_k]
 scores = torch.einsum("b h q d, b h k d -> b h q k", Q, K)
 
-# Multiply attention probabilities P [B, h, T_q, T_k] with Value V [B, h, T_k, d]
-# Contract over sequence dimension 'k', output [B, h, T_q, d]
-context = torch.einsum("b h q k, b h k d -> b h q d", P, V)
+# Multiply attention weights A [B, H, T_q, T_k] with Value V [B, H, T_k, d_h]
+# Contract over sequence dimension 'k', output [B, H, T_q, d_h]
+context = torch.einsum("b h q k, b h k d -> b h q d", A, V)
 ```
 
 *Note: In production training loops, use `F.scaled_dot_product_attention` to leverage

@@ -13,6 +13,14 @@
     What can autoregressive decoding reuse exactly, and how does that reuse turn compute into a memory-management problem?
   \end{block}
 \end{frame}
+
+\begin{frame}{Where we are}
+  \courseroadmap{9}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} training at scale: the batch, state, width, sequence and depth of one model spread over a cluster.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} generate from the trained model one token at a time, and cache keys and values instead of recomputing the prefix.
+\end{frame}
 \learninggoals
 {Explain the redundant work removed by a KV cache.}
 {Compute cache shapes and memory for MHA, GQA, and MQA.}
@@ -77,12 +85,12 @@
     \node[input] (xt) at (0,1.45) {new token\\$x_t$};
     \node[proj] (qt) at (2.25,2.35) {new $q_t$};
     \node[proj] (kvt) at (2.25,.55) {$k_t,v_t$};
-    \node[cache] (cache) at (5.55,.55) {layer-local cache\\$K_{1:t-1},\ \color{leafreddraw}k_t$\\$V_{1:t-1},\ \color{leafreddraw}v_t$};
+    \node[cache] (cache) at (5.9,.55) {layer-local cache\\$K_{1:t-1},\ \color{leafreddraw}k_t$\\$V_{1:t-1},\ \color{leafreddraw}v_t$};
     \node[attn] (attention) at (8.55,2.35) {attention\\$q_t$ with $K,V$};
     \node[proj] (out) at (10.9,2.35) {output\\$o_t$};
     \draw[arrow] (xt)--(qt); \draw[arrow] (xt)--(kvt);
     \draw[arrow] (kvt)--(cache);
-    \node[font=\tiny,text=accentdark] at (3.35,.05) {append};
+    \node[font=\scriptsize,text=accentdark] at (3.56,.3) {append};
     \draw[arrow] (qt)--(attention);
     \draw[arrow,accentdarkdraw] (cache.north) -- ++(0,.35) -| (attention.south);
     \draw[arrow] (attention)--(out);
@@ -91,7 +99,30 @@
   \[
     o_t=\operatorname{softmax}\!\left(q_tK_{1:t}^{\top}/\sqrt{d_h}\right)V_{1:t}
   \]
-  \footnotesize Append this token's K/V once; its query still scans all visible cached positions.
+  \footnotesize\raggedright Per layer, the cache is a pair $K,V$ of shape $[B,H,T,d_h]$, here with $T=t-1$. Only the new token is projected: its $k_t,v_t$ of shape $[B,H,1,d_h]$ are concatenated along the $T$ axis, and its query scans all $t$ positions.
+\end{frame}
+
+\begin{frame}{Generating $n$ tokens: one prefill, $n-1$ decode steps}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}llll@{}}
+      \toprule
+      Forward pass & Input & Cache in & Cache out \\
+      \midrule
+      prefill & prompt, $[B,P]$ & none & $T=P$ \\
+      decode step $i=1,\ldots,n-1$ & $y_i$ alone, $[B,1]$ & $T=P+i-1$ & $T=P+i$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \begin{enumerate}
+      \setlength{\itemsep}{4pt}
+    \item Prefill the whole prompt once and keep the $L$ per-layer $(K,V)$ pairs.
+    \item Select $y_i$ from the logits of the \textbf{last} position: temperature, top-$k$, then sample (argmax at temperature 0), exactly as without a cache.
+    \item Feed $y_i$ alone with the cache to obtain the logits for $y_{i+1}$.
+  \end{enumerate}
+  \begin{block}{The last token is never fed back}
+    $y_n$ is emitted without a forward pass, so the final cached length is $T=P+n-1$, and this must fit in the context window.
+  \end{block}
 \end{frame}
 
 \begin{frame}{The cache changes asymptotic projection work}
@@ -136,14 +167,14 @@
 \end{frame}
 
 \begin{frame}{Cache shape determines capacity}
-  For $L$ layers, batch $B$, $H_{kv}$ key-value heads, cached length $T$, head width $d_h$, and element size $s$:
+  For $L$ layers, batch $B$, $H_{kv}$ key-value heads, cached length $T$, head width $d_h$, and $b$ bytes per element:
   \[
-    M_{KV}=2\,L\,B\,H_{kv}\,T\,d_h\,s
+    M_{KV}=2\,L\,B\,H_{kv}\,T\,d_h\,b
   \]
-  The factor 2 stores both keys and values.
+  The factor 2 stores both keys and values. After a prompt of $P$ tokens and $n$ emitted tokens, $T=P+n-1$.
   \begin{block}{Per-token, per-request growth}
     \[
-      m_{\text{token}}=2L H_{kv}d_hs
+      m_{\text{token}}=2L H_{kv}d_hb
     \]
     This number links model architecture directly to serving concurrency.
   \end{block}
@@ -220,18 +251,60 @@
 \checkpoint{capacity calculation}
 {Recompute the worked example with eight KV heads. How many 4096-token requests fit in 32 GiB if 24 GiB is available for cache after weights and workspaces?}
 
-\section{Correctness and benchmarking}
-
-\begin{frame}{The cache must preserve logical positions}
+\begin{frame}{Capacity calculation: one possible answer}
+  Only $H_{kv}$ changes, from 32 to 8:
+  \[
+    M_{KV}=2\cdot32\cdot1\cdot8\cdot4096\cdot128\cdot2
+    =536{,}870{,}912\ \text{bytes}=0.5\ \text{GiB per request}
+  \]
   \begin{itemize}
       \setlength{\itemsep}{8pt}
-    \item The new token uses its absolute or rotary position $t$.
-    \item The causal mask covers the valid cached prefix and current token.
-    \item Padding and per-request lengths cannot expose uninitialized cache entries.
-    \item Reordered or paged blocks must reconstruct the same logical sequence.
+    \item A quarter of the KV heads gives a quarter of the 2 GiB in the worked example.
+    \item Capacity: $24\ \text{GiB}/0.5\ \text{GiB}=48$ concurrent requests.
+    \item With 32 KV heads the same budget holds only $24/2=12$ requests.
+    \item This is an upper bound: block slack and fragmentation reduce it.
   \end{itemize}
+\end{frame}
+
+\section{Correctness and benchmarking}
+
+\begin{frame}{Positions and mask continue from the cached length}
+  \begin{columns}[c]
+    \begin{column}{0.60\linewidth}
+      \footnotesize
+      $T$ cached tokens, $N_{\text{new}}$ new ones, indices from 0:
+      \begin{itemize}
+          \setlength{\itemsep}{3pt}
+        \item \textbf{Positions:} new tokens take $T,\ldots,T+N_{\text{new}}-1$; they never restart at 0.
+        \item \textbf{Mask:} rows $T,\ldots,T+N_{\text{new}}-1$ of the causal matrix, all $T+N_{\text{new}}$ columns.
+        \item \textbf{One new token:} its row is all ones; no mask is needed.
+        \item \textbf{Square causal mask:} correct only when queries and keys start together, that is with an empty cache.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.38\linewidth}
+      \centering
+      \begin{tikzpicture}[x=.36cm,y=.36cm,every node/.style={font=\scriptsize}]
+        % 7x7 causal matrix; T=4 cached, 3 new queries (rows 4..6)
+        \foreach \r in {0,...,6}{\foreach \c in {0,...,6}{
+            \pgfmathtruncatemacro{\vis}{\c<=\r ? 1 : 0}
+            \pgfmathtruncatemacro{\isnew}{\r>=4 ? 1 : 0}
+            \ifnum\isnew=1
+              \ifnum\vis=1 \fill[accentdarkdraw,draw=accentdarkdraw] (\c,-\r) rectangle (\c+1,-\r-1);
+              \else \fill[white,draw=accentdarkdraw] (\c,-\r) rectangle (\c+1,-\r-1); \fi
+            \else
+              \ifnum\vis=1 \fill[neutralbg,draw=neutrallight] (\c,-\r) rectangle (\c+1,-\r-1);
+              \else \draw[neutrallight] (\c,-\r) rectangle (\c+1,-\r-1); \fi
+            \fi
+        }}
+        \draw[decorate,decoration={brace,amplitude=3pt}] (0,.25)--(4,.25) node[midway,above=3pt]{cached $T$};
+        \draw[decorate,decoration={brace,amplitude=3pt}] (4,.25)--(7,.25) node[midway,above=3pt]{new};
+        \draw[decorate,decoration={brace,amplitude=3pt,mirror}] (-.25,-4)--(-.25,-7) node[midway,left=3pt]{queries};
+        \node[text=neutraldark] at (3.5,-7.6) {keys (columns)};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
   \begin{alertblock}{Common failure}
-    Correct key-value values at the wrong positions produce plausible but divergent text.
+    \small Correct keys and values at wrong positions give plausible but divergent text.
   \end{alertblock}
 \end{frame}
 
@@ -242,32 +315,46 @@
     \item run a full-prefix forward pass for each step
     \item run cached prefill plus single-token decode
     \item compare next-token logits at every step
-    \item repeat across batch sizes, prompt lengths, and cache boundaries
+    \item feed a prompt in two chunks: a wrong mask offset passes every single-token step and fails here
+    \item repeat across batch sizes, prompt lengths, and up to the full context window
   \end{enumerate}
   \begin{block}{Then test generation}
-    Compare logits within dtype tolerance. Greedy tokens should match when the argmax is stable; sampling also needs matching probabilities and random state.
+    \small Compare logits within dtype tolerance. Greedy tokens then match exactly; sampling also needs matching random state.
   \end{block}
 \end{frame}
 
 \begin{frame}{Benchmark prefill and decode separately}
   \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.14\linewidth}>{\raggedright\arraybackslash}p{.44\linewidth}>{\raggedright\arraybackslash}p{.32\linewidth}@{}}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{.17\linewidth}>{\raggedright\arraybackslash}p{.43\linewidth}>{\raggedright\arraybackslash}p{.30\linewidth}@{}}
     \toprule
     Phase & Primary metrics & Sweep \\
     \midrule
     prefill & latency, prompt tokens/s, peak memory & prompt length, batch \\
-    decode & ms/token, output tokens/s, cache bytes & cached length, batch \\
+    decode & median interval per token, output tokens/s, cache bytes & cached length, batch \\
     end-to-end & TTFT, total latency & prompt/output distribution \\
     \bottomrule
   \end{tabular}
+  \par\vspace{9pt}
+  Model TTFT $=$ prefill $+$ first token selection: it grows with $P$. The decode interval grows only slowly with $T$.
   \vfill
-  \begin{alertblock}{Warm and synchronize}
-    Kernel compilation, allocation, and asynchronous timing can otherwise dominate or under-report short decode steps.
+  \begin{alertblock}{Verify, warm, synchronize}
+    Time only after cached and uncached tokens match. Kernel compilation, allocation, and asynchronous timing otherwise dominate or under-report short decode steps.
   \end{alertblock}
 \end{frame}
 
 \checkpoint{cache debugging}
 {Cached logits match for short prompts but diverge immediately after a page boundary. Which state and indexing checks isolate layout bugs from positional-encoding bugs?}
+
+\begin{frame}{Cache debugging: one possible answer}
+  \small
+  \begin{itemize}
+      \setlength{\itemsep}{8pt}
+    \item \textbf{Localize:} compare cached and full-prefix logits step by step; note the first divergent step and layer.
+    \item \textbf{Remove the layout:} rerun the same prompt with a contiguous cache, or a block larger than the sequence. If the logits now match, positions are correct and the paged layout is at fault.
+    \item \textbf{State check:} rebuild $K,V$ in logical order through the block table and compare them with the full-prefix $K,V$. Inspect the new table entry, the in-block offset, the per-request length and the mask at the boundary.
+    \item \textbf{Position check:} if the gathered $K,V$ match but logits differ, verify that the new token's position $t$ continues across the boundary instead of restarting inside the new block.
+  \end{itemize}
+\end{frame}
 
 \takeaways
 {KV caching reuses past key and value projections exactly.}

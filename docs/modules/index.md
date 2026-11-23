@@ -117,7 +117,7 @@ reference within the expected numerical tolerance.
 ## 8. Context, pipeline, and expert parallelism
 
 **Understand:** ring attention with online softmax, AFAB vs 1F1B pipeline schedules,
-expert routing and All-to-All communication, multidimensional composition ($G = P \times T_P \times C \times D$),
+expert routing and All-to-All communication, multidimensional composition ($W = N_{dp} \times N_{tp} \times N_{cp} \times N_{pp}$),
 and the physical placement based on exposed communication and topology.
 
 **Practice:** solve multidimensional memory and network communication cases across multi-node topologies.

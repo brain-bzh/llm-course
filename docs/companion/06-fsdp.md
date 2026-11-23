@@ -22,18 +22,18 @@ The checkpoint-format part of this module runs in
 ## The idea in one picture
 
 DDP all-reduces gradients, then every rank runs the **same** AdamW update on the
-**whole** model, holding every moment. That is $D$ identical copies of the
+**whole** model, holding every moment. That is $W$ identical copies of the
 optimizer state. An all-reduce is a reduce-scatter followed by an all-gather,
 so the update can be split in the middle:
 
 ```text
            DDP                               ZeRO-1/2 (this lab)
 full grad ─ all-reduce ─ full grad      full grad ─ reduce-scatter ─ grad of MY slice
-AdamW on everything (full moments)      AdamW on MY slice (1/D of the moments)
+AdamW on everything (full moments)      AdamW on MY slice (1/W of the moments)
                                         my slice ─ all-gather ─ full parameters
 ```
 
-The total communication volume is the same. Each rank now stores only $1/D$ of
+The total communication volume is the same. Each rank now stores only $1/W$ of
 the optimizer state. FSDP (ZeRO-3) goes further and shards the parameters and
 gradients too, at the price of gathering each unit's parameters when it runs.
 
@@ -41,7 +41,7 @@ gradients too, at the price of gathering each unit's parameters when it runs.
 
 Read [ZeRO as progressive sharding](../modules/06-fsdp.md#zero-as-progressive-sharding)
 and [One fully sharded unit, step by step](../modules/06-fsdp.md#one-fully-sharded-unit-step-by-step).
-Then compute, for $N$ fp32 parameters trained with AdamW on $D$ ranks, the bytes
+Then compute, for $N$ fp32 parameters trained with AdamW on $W$ ranks, the bytes
 per rank for parameters, gradients and optimizer state under DDP, ZeRO-1,
 ZeRO-2 and ZeRO-3. Write the four formulas down; you will check them twice.
 
@@ -62,7 +62,7 @@ implementation.
 | Time | Activity | Evidence |
 | --- | --- | --- |
 | 0–10 min | Part 1: run the calculator and reconcile it with your formulas | Four formulas checked against one printed row |
-| 10–40 min | Part 2: implement the three sharded-update methods; two-rank run | `PASS:`; measured state = $8\lceil N/D\rceil$ bytes |
+| 10–40 min | Part 2: implement the three sharded-update methods; two-rank run | `PASS:`; measured state = $8\lceil N/W\rceil$ bytes |
 | 40–60 min | Part 3: run FSDP2; read the lifecycle and the measured bytes | Annotated lifecycle; measured/predicted table |
 | 60–75 min | Compare `--keep-after-forward`; answer the transient-memory questions | Two sentences on what peak memory adds to the table |
 
@@ -84,14 +84,14 @@ FSDP/ZeRO-3  |    5410.0 MB |  1352.5 MB |   676.3 MB |    84.5 MB
 ```
 
 Reproduce the `ZeRO-1, N=8` cell from your formula. Why does ZeRO-1 stop
-improving beyond a certain $D$, while ZeRO-3 keeps shrinking? None of these
+improving beyond a certain $W$, while ZeRO-3 keeps shrinking? None of these
 numbers includes activations or the temporarily gathered weights.
 
 ### Part 2 — Implement a sharded AdamW (30 minutes)
 
 `ShardedAdamW` views all parameters as one flat vector of $N$ elements, padded
-with zeros to a multiple of $D$. Rank $r$ owns elements
-$[r\,s, (r+1)\,s)$ where $s = \lceil N/D\rceil$. Its `step()` is provided and
+with zeros to a multiple of $W$. Rank $r$ owns elements
+$[r\,s, (r+1)\,s)$ where $s = \lceil N/W\rceil$. Its `step()` is provided and
 calls three methods you implement:
 
 ```python
@@ -195,7 +195,7 @@ not the transient peak.
 ## Definition of done
 
 - `tests/test_module_06_zero.py` passes with your `nanolm/zero.py`;
-- `06_zero_manual.py` passes on 2 and 3 ranks, with measured state equal to $8\lceil N/D\rceil$ bytes;
+- `06_zero_manual.py` passes on 2 and 3 ranks, with measured state equal to $8\lceil N/W\rceil$ bytes;
 - an annotated FSDP2 lifecycle that marks every all-gather, reshard and reduce-scatter for one step;
 - a table of predicted vs measured per-rank parameter, gradient and optimizer
   bytes, plus the list of terms it **excludes**: gathered unit weights,

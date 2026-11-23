@@ -98,7 +98,7 @@ examine the internal state transitions:
 3. **The loss function:**
     Computes a scalar loss from model predictions and ground-truth targets. For
     causal language models, this is categorical cross-entropy:
-    $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\log p_\theta(x_i \mid x_{< i}).$$
+    $$\mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T}\log p_\theta(x_t \mid x_{< t}).$$
     The returned tensor is the root of the computation graph (`loss.grad_fn` points to the last node).
 4. **The backward pass (`loss.backward()`):**
    Traverses the DAG backwards from `loss` to every leaf parameter. It computes
@@ -131,12 +131,14 @@ boundary; none changes the fundamental forward → loss → backward → step se
   <figcaption>Three equal-size micro-batches contribute to one update. Each backward pass adds a third of its gradient; weights and optimizer state stay fixed until the step.</figcaption>
 </figure>
 
-An effective batch may not fit in memory at once. Split it into $M$ micro-batches, run forward and backward on each, and update the weights once after their gradients have accumulated:
+An effective batch may not fit in memory at once. Split it into $K$ micro-batches, run forward and backward on each, and update the weights once after their gradients have accumulated:
 
-$$\text{Tokens per update} = B_{\text{micro}} \times T \times M \times N_{\text{GPUs}}$$
+$$\text{Tokens per update} = B\,T\,K\,W$$
 
-Because autograd accumulates gradients additively, we must **scale the loss down by $M$**
-before calling `.backward()`. Otherwise, the accumulated gradient will be $M$ times
+where $B$ is the micro-batch per device and $W$ the number of devices ($W=1$ until Module 5).
+
+Because autograd accumulates gradients additively, we must **scale the loss down by $K$**
+before calling `.backward()`. Otherwise, the accumulated gradient will be $K$ times
 too large:
 
 ```python
@@ -162,7 +164,7 @@ divergent regime from which recovery is impossible.
 
 We compute the global $L_2$ norm of all parameter gradients combined:
 
-$$\|g\|_2 = \sqrt{\sum_{i=1}^P \|g_i\|_2^2}$$
+$$\|g\|_2 = \sqrt{\sum_i \|g_i\|_2^2}$$
 
 If $\|g\|_2 > M_{\text{clip}}$, every gradient tensor is rescaled by
 $\frac{M_{\text{clip}}}{\|g\|_2 + 10^{-6}}$:
@@ -181,14 +183,14 @@ The learning rate need not stay fixed. Warmup starts with smaller updates, while
 A standard LLM schedule incorporates two phases:
 
 1. **Linear warmup:** Linearly increases the learning rate from $0$ to $\eta_{\text{max}}$
-   over $T_{\text{warmup}}$ steps.
+   over $t_w$ steps.
 2. **Cosine decay:** Anneals the learning rate from $\eta_{\text{max}}$ down to
    $\eta_{\text{min}} \approx 0.1 \times \eta_{\text{max}}$ over the remaining steps:
 
 $$\eta_t = \begin{cases}
-\eta_{\text{max}} \cdot \frac{t + 1}{T_{\text{warmup}} + 1}, & t < T_{\text{warmup}} \\
-\eta_{\text{min}} + \frac{1}{2} \left(1 + \cos\left(\pi \frac{t - T_{\text{warmup}}}{T_{\text{max}} - T_{\text{warmup}}}\right)\right) (\eta_{\text{max}} - \eta_{\text{min}}), & T_{\text{warmup}} \le t \le T_{\text{max}} \\
-\eta_{\text{min}}, & t > T_{\text{max}}
+\eta_{\text{max}} \cdot \frac{t + 1}{t_w + 1}, & t < t_w \\
+\eta_{\text{min}} + \frac{1}{2} \left(1 + \cos\left(\pi \frac{t - t_w}{t_{\max} - t_w}\right)\right) (\eta_{\text{max}} - \eta_{\text{min}}), & t_w \le t \le t_{\max} \\
+\eta_{\text{min}}, & t > t_{\max}
 \end{cases}$$
 
 ```python
@@ -271,8 +273,8 @@ memory by using smaller micro-batches, but it does not remove the persistent
 parameter, gradient, or optimizer-state storage.
 
 **A first activation estimate.** One saved hidden-state tensor of shape
-$B\times L\times d$ uses $BLdb$ bytes, where $b$ is bytes per element. For
-$B=4$, $L=512$, $d=768$ and BF16 ($b=2$), that is **3 MiB**. Doubling the
+$B\times T\times d$ uses $BTdb$ bytes, where $b$ is bytes per element. For
+$B=4$, $T=512$, $d=768$ and BF16 ($b=2$), that is **3 MiB**. Doubling the
 micro-batch or sequence length doubles this tensor. This is one tensor, not the
 training peak: the number and lifetime of saved tensors depend on the model and
 implementation. How would this estimate change for your own batch and model?

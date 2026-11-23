@@ -93,18 +93,18 @@ Suppose rank \(r\) processes \(m\) examples and computes a mean local loss:
 \mathcal{L}_r = \frac{1}{m}\sum_{i=1}^{m} \ell_{r,i}.
 \]
 
-With \(D\) ranks, the global batch mean is
+With \(W\) ranks, the global batch mean is
 
 \[
 \mathcal{L}_{\text{global}}
-= \frac{1}{D}\sum_{r=1}^{D}\mathcal{L}_r.
+= \frac{1}{W}\sum_{r=1}^{W}\mathcal{L}_r.
 \]
 
 By linearity,
 
 \[
 \nabla\mathcal{L}_{\text{global}}
-= \frac{1}{D}\sum_{r=1}^{D}\nabla\mathcal{L}_r.
+= \frac{1}{W}\sum_{r=1}^{W}\nabla\mathcal{L}_r.
 \]
 
 Therefore DDP can compute local backward passes independently, then all-reduce
@@ -116,31 +116,31 @@ the counts or construct equal-token batches.
 
 Let:
 
-- \(B_\mu\): samples per local micro-batch;
-- \(S\): tokens per sample;
-- \(A\): accumulation steps;
-- \(D\): data-parallel world size.
+- \(B\): samples per local micro-batch;
+- \(T\): tokens per sample;
+- \(K\): accumulation steps;
+- \(W\): data-parallel world size.
 
 Then
 
 \[
-B_{\text{global,samples}} = B_\mu A D
+B_{\text{global,samples}} = B K W
 \]
 
 and
 
 \[
-B_{\text{global,tokens}} = B_\mu S A D.
+B_{\text{global,tokens}} = B T K W.
 \]
 
-Moving a single-GPU run to \(D\) GPUs while keeping \(B_\mu\) and \(A\)
-unchanged multiplies the global batch by \(D\). That is a new optimization
+Moving a single-GPU run to \(W\) GPUs while keeping \(B\) and \(K\)
+unchanged multiplies the global batch by \(W\). That is a new optimization
 experiment, not an equivalent faster run.
 
 To preserve a fixed global batch, trade sequential accumulation for parallel
 replicas where divisibility and memory allow. For example:
 
-| GPUs \(D\) | local micro-batch \(B_\mu\) | accumulation \(A\) | global samples |
+| GPUs \(W\) | local micro-batch \(B\) | accumulation \(K\) | global samples |
 | ---: | ---: | ---: | ---: |
 | 1 | 4 | 8 | 32 |
 | 2 | 4 | 4 | 32 |
@@ -165,15 +165,15 @@ implementation can be understood as:
   <figcaption>The colors represent fully reduced chunks. Each panel shows the result of one phase; arrows indicate the ring direction, not individual steps.</figcaption>
 </figure>
 
-For a gradient payload of \(G\) bytes and \(D\) ranks, each rank transfers
+For a gradient payload of \(G\) bytes and \(W\) ranks, each rank transfers
 approximately
 
 \[
-2\frac{D-1}{D}G
+2\frac{W-1}{W}G
 \]
 
 bytes, ignoring latency and protocol details. The payload per rank approaches
-\(2G\) as \(D\) grows; adding ranks does not make gradient communication vanish.
+\(2G\) as \(W\) grows; adding ranks does not make gradient communication vanish.
 
 ### Optional depth: latency, bandwidth and collective algorithms
 
@@ -231,8 +231,8 @@ bandwidth, late buckets, input imbalance or idle ranks.
 
 ## Gradient accumulation and `no_sync`
 
-With \(A\) micro-steps, synchronizing after every backward pass is unnecessary.
-Local gradients can accumulate for the first \(A-1\) micro-steps; the final
+With \(K\) micro-steps, synchronizing after every backward pass is unnecessary.
+Local gradients can accumulate for the first \(K-1\) micro-steps; the final
 backward triggers one reduction of the accumulated result.
 
 Conceptually:
@@ -241,7 +241,7 @@ Conceptually:
 micro-step 1: forward + backward, local only
 micro-step 2: forward + backward, local only
 ...
-micro-step A: forward + backward + gradient all-reduce
+micro-step K: forward + backward + gradient all-reduce
 clip → optimizer step → zero gradients
 ```
 
@@ -319,12 +319,12 @@ Strong scaling holds the global workload fixed and asks whether more GPUs finish
 it faster. Weak scaling holds per-GPU work fixed and grows the global workload.
 Do not mix the two.
 
-For throughput \(Q_D\) on \(D\) GPUs relative to one-GPU throughput \(Q_1\):
+For throughput \(Q_W\) on \(W\) GPUs relative to one-GPU throughput \(Q_1\):
 
 \[
-\text{speedup} = \frac{Q_D}{Q_1},
+\text{speedup} = \frac{Q_W}{Q_1},
 \qquad
-\text{scaling efficiency} = \frac{Q_D}{D Q_1}.
+\text{scaling efficiency} = \frac{Q_W}{W Q_1}.
 \]
 
 Report useful global tokens/s, step time and validation behavior. Also inspect
@@ -335,7 +335,7 @@ per-rank times: the collective proceeds at the pace of the slowest participant.
 ### Part A — batch invariants
 
 For a target of 524,288 tokens/update at sequence length 1024, construct valid
-\((B_\mu, A, D)\) settings for 1, 2, 4 and 8 GPUs. State which setting is likely
+\((B, K, W)\) settings for 1, 2, 4 and 8 GPUs. State which setting is likely
 to have the best matrix shapes and which has the least accumulation latency.
 
 ### Part B — all-reduce estimate

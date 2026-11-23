@@ -45,7 +45,7 @@
   </defs>
   <!-- Top Panel: Scatter -->
   <rect class="bg" x="15" y="15" width="830" height="112"/>
-  <text class="panel-title" x="35" y="40">Scatter (root = 0): Splits tensor [N] into R equal shards [N/R]</text>
+  <text class="panel-title" x="35" y="40">Scatter (root = 0): Splits tensor [N] into W equal shards [N/W]</text>
   
   <text class="rank-lbl" x="35" y="74">Root (Rank 0):</text>
   <g transform="translate(130, 58)">
@@ -68,7 +68,7 @@
 
   <!-- Bottom Panel: Gather -->
   <rect class="bg" x="15" y="142" width="830" height="112"/>
-  <text class="panel-title" x="35" y="167">Gather (root = 0): Collects shard [N/R] from each rank into full tensor [N]</text>
+  <text class="panel-title" x="35" y="167">Gather (root = 0): Collects shard [N/W] from each rank into full tensor [N]</text>
 
   <text class="rank-lbl" x="35" y="201">All Ranks:</text>
   <g transform="translate(110, 185)">

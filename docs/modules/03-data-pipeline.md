@@ -97,14 +97,14 @@ model effects as hypotheses to measure.
 
 Neural networks cannot directly process variable-length character strings; they
 require vectors retrieved from a parameter embedding table
-$E \in \mathbb{R}^{V \times d_{\text{model}}}$, where $V$ is the vocabulary size.
+$E \in \mathbb{R}^{V \times d}$, where $V$ is the vocabulary size.
 Choosing how text maps to vocabulary IDs represents a fundamental engineering
 compromise:
 
 | Granularity | Vocabulary Size ($V$) | Sequence Length ($T$) | Out-of-Vocabulary Handling | Main Bottleneck |
 | :--- | :--- | :--- | :--- | :--- |
 | **Character-level** | Very small ($\sim 256$) | Extremely long ($4\times\text{--}5\times$ words) | Zero OOV (all ASCII/bytes covered) | Self-attention scales as $O(T^2)$; long sequences exhaust context windows and inflate FLOPs per word. |
-| **Word-level** | Enormous ($> 10^6$) | Short ($\sim 1\times$ word count) | Catastrophic OOV; unseen words, typos, and inflections become `<unk>` | Massive embedding parameters ($V \times d_{\text{model}}$); tail words are seen too rarely to learn good embeddings. |
+| **Word-level** | Enormous ($> 10^6$) | Short ($\sim 1\times$ word count) | Catastrophic OOV; unseen words, typos, and inflections become `<unk>` | Massive embedding parameters ($V \times d$); tail words are seen too rarely to learn good embeddings. |
 | **Subword (BPE)** | Tunable ($32\text{k}\text{--}128\text{k}$) | Balanced ($1.2\text{--}1.4\times$ word count) | Zero OOV with byte-level fallback; morphemes are shared across words | Requires a learned merge table and pre-tokenization rules. |
 
 Subword tokenization via **Byte-Pair Encoding** is a common compromise:
@@ -139,17 +139,17 @@ BPE builds its vocabulary through iterative greedy pair merging:
 
 1. **Initialize:** The vocabulary contains the 256 base bytes plus any reserved special
    tokens (such as `<|endoftext|>`):
-   $$V_0 = \{ \text{bytes}([i]) \mid i \in [0, 255] \} \cup \{ \text{"<|endoftext|>"} \}$$
+   $$\mathcal{V}_0 = \{ \text{bytes}([i]) \mid i \in [0, 255] \} \cup \{ \text{"<|endoftext|>"} \}$$
 2. **Convert text to byte sequence:** Encode the training corpus into a list of integers
-   $S = [b_0, b_1, \dots, b_N]$ where $b_i \in [0, 255]$.
+   $S = [b_0, b_1, \dots, b_{N_{\text{bytes}}-1}]$ where $b_i \in [0, 255]$.
 3. **Count adjacent pairs:** Compute frequencies of all consecutive pairs $(S_i, S_{i+1})$.
 4. **Select top pair:** Identify the pair $(p_0, p_1)$ with the highest frequency.
-5. **Assign new token:** Allocate the next integer ID $v_{\text{new}} = |V|$ and map
+5. **Assign new token:** Allocate the next integer ID $v_{\text{new}} = |\mathcal{V}|$ and map
    its representation:
    $$\text{repr}(v_{\text{new}}) = \text{repr}(p_0) + \text{repr}(p_1)$$
    Record the merge rule $(p_0, p_1) \mapsto v_{\text{new}}$ in the merge table.
 6. **Replace:** Substitute every occurrence of $(p_0, p_1)$ in $S$ with $v_{\text{new}}$.
-7. **Iterate:** Repeat steps 3–6 until $|V|$ reaches the target `vocab_size`.
+7. **Iterate:** Repeat steps 3–6 until $|\mathcal{V}|$ reaches the target `vocab_size`.
 
 ### 3. Encoding new text
 
@@ -243,8 +243,8 @@ resulting symbols are learnable with the available model and data.
 ### Parameter footprint vs attention FLOPs
 
 1. **Memory cost:** The token embedding table $E$ and language-model head
-   $W_{\text{head}}$ consume $2 \times V \times d_{\text{model}}$ parameters (or
-   $V \times d_{\text{model}}$ if weights are tied). For $d_{\text{model}} = 4096$,
+   $W_{\text{head}}$ consume $2 \times V \times d$ parameters (or
+   $V \times d$ if weights are tied). For $d = 4096$,
    increasing $V$ from $32\text{k}$ to $128\text{k}$ adds $\sim 393\text{M}$ parameters
    purely in the embedding layer.
 2. **Compute savings:** A higher compression ratio means the same document requires

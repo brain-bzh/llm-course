@@ -91,16 +91,16 @@ Calling all of these pieces “GPU compute” hides the questions that matter:
 **GEMM** means general matrix–matrix multiplication:
 
 \[
-C \leftarrow \alpha AB + \beta C,
-\quad A\in\mathbb{R}^{M\times K},\quad
-B\in\mathbb{R}^{K\times N},\quad C\in\mathbb{R}^{M\times N}.
+Z \leftarrow \alpha XY + \beta Z,
+\quad X\in\mathbb{R}^{m\times k},\quad
+Y\in\mathbb{R}^{k\times n},\quad Z\in\mathbb{R}^{m\times n}.
 \]
 
-Ordinary `A @ B` is the case \(\alpha=1,\beta=0\). In the course GPT,
+Ordinary `X @ Y` is the case \(\alpha=1,\beta=0\). In the course GPT,
 linear projections flatten batch and token positions into rows: Q, K and V,
 the attention output projection, the two MLP projections, and the vocabulary
 head all involve matrix products. Attention also performs batched products
-\(QK^\top\) and \(PV\) per head. These operations account for much of the
+\(QK^\top\) and \(AV\) per head. These operations account for much of the
 model's arithmetic, so their shape, dtype and implementation matter.
 
 Tensor Cores accelerate supported matrix-tile multiply–accumulate operations;
@@ -177,7 +177,7 @@ on the critical path, and report peak GPU memory alongside end-to-end tokens/s.
 See [Module 6](06-fsdp.md) for offload combined with sharding.
 
 **Attention and saved activations.** A checkpointed attention operation can save
-$Q,K,V$ rather than retaining the $N\times N$ intermediate for backward, and
+$Q,K,V$ rather than retaining the $T\times T$ intermediate for backward, and
 recompute the intermediate when gradients are needed. Optionally offload the
 saved inputs to CPU and reload them before recomputation. The extra computation
 and host–device transfers may be exposed in the step time; actual saved tensors
@@ -185,9 +185,9 @@ and peak memory depend on the implementation. FlashAttention instead tiles
 attention and uses recomputation to avoid materializing the full matrix in GPU
 memory; CPU offload is not required for that benefit.
 
-For one sequence and head, with equal element sizes, $Q,K,V$ occupy $3Ld_kb$
-bytes while the matrix occupies $L^2b$ bytes. The matrix is larger for
-$L>3d_k$: with $d_k=64$, this starts above 192 tokens. At $L=1024$ with BF16
+For one sequence and head, with equal element sizes, $Q,K,V$ occupy $3Td_hb$
+bytes while the matrix occupies $T^2b$ bytes. The matrix is larger for
+$T>3d_h$: with $d_h=64$, this starts above 192 tokens. At $T=1024$ with BF16
 ($b=2$), the inputs total 0.375 MiB versus 2 MiB for one matrix per head.
 These are selected tensors, not a peak-memory estimate; dtypes and saved tensors
 can differ in a real kernel.
@@ -200,23 +200,23 @@ For an operation:
 I = \frac{\text{FLOPs}}{\text{bytes transferred}}
 \]
 
-is its arithmetic intensity. Let \(C\) be peak compute throughput and \(W\)
+is its arithmetic intensity. Let \(P_{\text{peak}}\) be peak compute throughput and \(BW\)
 memory bandwidth. The roofline bound is
 
 \[
-P_{\max} = \min(C, I W),
+P \le \min(P_{\text{peak}}, I\,BW),
 \]
 
 or equivalently
 
 \[
 t \ge \max\left(
-\frac{\text{FLOPs}}{C},
-\frac{\text{bytes}}{W}
+\frac{\text{FLOPs}}{P_{\text{peak}}},
+\frac{\text{bytes}}{BW}
 \right).
 \]
 
-The **ridge point** is \(C/W\). Below it, the operation is bandwidth-bound;
+The **ridge point** is \(P_{\text{peak}}/BW\). Below it, the operation is bandwidth-bound;
 above it, it can be compute-bound.
 
 <figure markdown="span">
@@ -239,12 +239,12 @@ intermediate to device memory; caches and the chosen kernels affect actual traff
 
 ### Worked example 2 — matrix multiplication
 
-For \(A\in\mathbb{R}^{M\times K}\) and
-\(B\in\mathbb{R}^{K\times N}\), the product performs approximately
-\(2MKN\) FLOPs. A simple BF16 byte estimate is
+For \(X\in\mathbb{R}^{m\times k}\) and
+\(Y\in\mathbb{R}^{k\times n}\), the product performs approximately
+\(2mkn\) FLOPs. A simple BF16 byte estimate is
 
 \[
-2(MK + KN + MN)\ \text{bytes}.
+2(mk + kn + mn)\ \text{bytes}.
 \]
 
 Larger matrices reuse each loaded element many times, raising arithmetic
@@ -254,8 +254,8 @@ bandwidth- or latency-bound even though its large-batch form is compute-bound.
 ## Why attention needs a specialized implementation
 
 Scaled dot-product attention is
-\(P=\operatorname{softmax}(QK^\top/\sqrt{d_h}+\text{mask})\), followed by
-\(O=PV\). The two products are matrix operations, but masking and softmax add
+\(A=\operatorname{softmax}(QK^\top/\sqrt{d_h}+\text{mask})\), followed by
+\(O=AV\). The two products are matrix operations, but masking and softmax add
 pointwise work and row-wise reductions. A straightforward implementation also
 materializes the \(T\times T\) scores and probabilities for each head. Writing
 and rereading those intermediates costs HBM bandwidth and grows quadratically
@@ -302,7 +302,7 @@ but $16N$ is a useful planning estimate.
 ### 2. Dynamic memory: activation accounting per layer
 
 Let $B$ be the **resident micro-batch**, $T$ the sequence length, $d$ the hidden
-width, $h$ the number of attention heads, and $L$ the layer count. Consider
+width, $H$ the number of attention heads, and $L$ the layer count. Consider
 ordinary multi-head attention and a two-linear-layer GELU MLP of width $4d$.
 
 Assume standard unfused attention with dropout, 16-bit activations and
@@ -314,19 +314,19 @@ one-byte dropout masks. We count the main tensors saved for backward
 | Two normalization inputs | $4BTd$ |
 | Shared input to Q/K/V projections, counted once | $2BTd$ |
 | Q, K, V for attention backward | $6BTd$ |
-| Softmax probabilities and attention-dropout output | $4BhT^2$ |
-| Attention-dropout mask | $BhT^2$ |
+| Softmax probabilities and attention-dropout output | $4BHT^2$ |
+| Attention-dropout mask | $BHT^2$ |
 | Output-projection input and residual-dropout mask | $3BTd$ |
 | MLP up-projection input | $2BTd$ |
 | GELU input and down-projection input | $16BTd$ |
 | MLP residual-dropout mask | $BTd$ |
-| **Total** | **$34BTd + 5BhT^2$** |
+| **Total** | **$34BTd + 5BHT^2$** |
 
 Softmax backward needs the probabilities, not the pre-softmax logits.
 Across $L$ layers, the estimate is
 
 \[
-M_{\text{activations}} \approx LBT(34d+5hT)\text{ bytes}.
+M_{\text{activations}} \approx LBT(34d+5HT)\text{ bytes}.
 \]
 
 The key distinction is **linear growth with $B$** and a **quadratic attention
@@ -356,16 +356,16 @@ workspaces as well as the tensors in these estimates.
 
 To compute hardware utilization (MFU) and arithmetic intensity, we must count the theoretical floating-point operations required by the model.
 
-In digital arithmetic, a matrix multiply-accumulate (MAC) operation involves **1 multiplication and 1 addition**, which counts as **$2\text{ FLOPs}$**. Therefore, multiplying a matrix of shape $(M \times K)$ by a matrix of shape $(K \times N)$ requires:
+In digital arithmetic, a matrix multiply-accumulate (MAC) operation involves **1 multiplication and 1 addition**, which counts as **$2\text{ FLOPs}$**. Therefore, multiplying a matrix of shape $(m \times k)$ by a matrix of shape $(k \times n)$ requires:
 
 \[
-\text{FLOPs}_{\text{GEMM}} = 2 M K N.
+\text{FLOPs}_{\text{GEMM}} = 2 m k n.
 \]
 
 ### 1. Forward pass FLOPs per token
 
 Count the dense matrix products for a training sequence and divide by its
-$BT$ tokens. Assume ordinary multi-head attention with $d_h=d/h$, a $4d$ GELU
+$BT$ tokens. Assume ordinary multi-head attention with $d_h=d/H$, a $4d$ GELU
 MLP, and count full $T\times T$ attention products. We focus on matrix
 multiplications, which dominate the FLOPs:
 
@@ -374,13 +374,13 @@ multiplications, which dominate the FLOPs:
 | Q/K/V projections | Three $d\times d$ projections | $6d^2$ |
 | Attention output projection | One $d\times d$ projection | $2d^2$ |
 | Attention scores | $QK^\top$ across all heads | $2Td$ |
-| Attention over values | $SV$ across all heads | $2Td$ |
+| Attention over values | $AV$ across all heads | $2Td$ |
 | GELU MLP, width $4d$ | $d\to4d\to d$ | $16d^2$ |
 | SwiGLU MLP, width $8d/3$ | Two up projections, one down projection | $16d^2$ |
 
 For example, the batched Q/K/V projections cost $3(2BTd^2)$ FLOPs.
 The score product has shapes $(T\times d_h)(d_h\times T)$ per head;
-over $B$ sequences and $h$ heads it costs $2BhT^2d_h=2BT^2d$ FLOPs.
+over $B$ sequences and $H$ heads it costs $2BHT^2d_h=2BT^2d$ FLOPs.
 Divide each by $BT$ to obtain its table entry.
 
 The SwiGLU row is an **alternative** to the GELU row, with
@@ -403,7 +403,7 @@ For every linear layer $Y = X W$ in the forward pass, the backward pass must com
 \[
 \frac{\partial \mathcal{L}}{\partial X}
 = \frac{\partial \mathcal{L}}{\partial Y} W^\top
-\quad \implies 2MKN\text{ FLOPs}.
+\quad \implies 2mkn\text{ FLOPs}.
 \]
 
 **Gradient with respect to layer weights:**
@@ -411,7 +411,7 @@ For every linear layer $Y = X W$ in the forward pass, the backward pass must com
 \[
 \frac{\partial \mathcal{L}}{\partial W}
 = X^\top \frac{\partial \mathcal{L}}{\partial Y}
-\quad \implies 2MKN\text{ FLOPs}.
+\quad \implies 2mkn\text{ FLOPs}.
 \]
 
 Backward therefore costs roughly twice as much as forward:
@@ -625,7 +625,7 @@ For vector addition, LayerNorm and one course-model matrix multiplication:
 
 1. estimate FLOPs and HBM bytes;
 2. compute arithmetic intensity;
-3. find the target GPU's \(C/W\) ridge point;
+3. find the target GPU's \(P_{\text{peak}}/BW\) ridge point;
 4. predict the bound;
 5. name one optimization consistent with that prediction.
 

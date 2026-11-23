@@ -12,7 +12,7 @@
   <path class="flow" d="M104 110H130"/>
   <rect class="core" x="134" y="70" width="116" height="80" rx="9"/><text class="inverse" x="192" y="102" text-anchor="middle">Embedding</text><text class="inverse" x="192" y="126" text-anchor="middle">+ position</text>
   <path class="flow" d="M250 110H274"/>
-  <rect class="block" x="278" y="36" width="262" height="148" rx="14"/><text class="repeat" x="409" y="65" text-anchor="middle">× N</text>
+  <rect class="block" x="278" y="36" width="262" height="148" rx="14"/><text class="repeat" x="409" y="65" text-anchor="middle">× L</text>
   <rect class="core" x="298" y="84" width="106" height="58" rx="8"/><text class="inverse" x="351" y="108" text-anchor="middle">Causal</text><text class="inverse" x="351" y="130" text-anchor="middle">attention</text>
   <path class="flow" d="M404 113H434"/>
   <rect class="core" x="438" y="84" width="84" height="58" rx="8"/><text class="inverse" x="480" y="120" text-anchor="middle">MLP</text>

@@ -17,7 +17,7 @@ This lab accompanies [Module 11: Frontier architectures and efficient generation
 
 ## Objectives
 
-1. **Speculative decoding speedup dynamics**: Simulate rejection sampling token acceptance and quantify wall-clock acceleration as a function of draft length $K$ and acceptance rate $\alpha$.
+1. **Speculative decoding speedup dynamics**: Simulate rejection sampling token acceptance and quantify wall-clock acceleration as a function of draft length $\gamma$ and acceptance rate $\alpha$.
 2. **DeepSeek Multi-Head Latent Attention (MLA)**: Calculate KV-cache memory footprints comparing standard MHA, Grouped-Query Attention (GQA), and low-rank latent compression (MLA).
 3. **Linear recurrence & constant-memory states**: Contrast quadratic attention cache growth with constant $\mathcal{O}(1)$ associative memory states (e.g. Gated Delta Networks and Mamba-2).
 4. **Sparse Mixture of Experts (MoE)**: Evaluate expert routing, parameter capacity scaling, and active compute efficiency.

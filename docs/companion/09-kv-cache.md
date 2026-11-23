@@ -20,7 +20,7 @@ Then predict, for the benchmark model (2 layers, 2 heads, $d=64$, fp32, batch 1)
 with a 64-token prompt and 16 generated tokens:
 
 1. the shape of one layer's K cache after the last decode step;
-2. the total cache bytes, $2 \times L \times B \times H \times T \times d_{\text{head}} \times 4$.
+2. the total cache bytes, $2 \times L \times B \times H \times T \times d_h \times 4$.
    Careful with $T$: the final emitted token is never fed back into the model.
 
 ## Set up the exercise
@@ -54,7 +54,7 @@ logits, loss, caches = model(next_token, kv_caches=caches, use_cache=True)  # de
 ```
 
 where `caches` is a list with one `(K, V)` pair per layer, each of shape
-$B \times H \times T_{\text{seen}} \times d_{\text{head}}$.
+$B \times H \times T_{\text{seen}} \times d_h$.
 
 The plumbing is provided: [`starter/09_kv_cache_methods.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/09_kv_cache_methods.py)
 contains the methods to paste into **your** `nanolm/model.py`:

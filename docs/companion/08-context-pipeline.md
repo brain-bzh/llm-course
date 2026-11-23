@@ -62,7 +62,7 @@ not execute the full logical mesh or measure GPU/network performance.
 
 1. Read the rank-group definitions in
    [Module 8](../modules/08-context-pipeline.md) and complete one
-   pipeline-bubble calculation by hand: $P=4$ stages, $m=8$ micro-batches.
+   pipeline-bubble calculation by hand: $N_{pp}=4$ stages, $M=8$ micro-batches.
 2. Run the quickstart commands above once, so that the environment is ready.
 
 ```bash
@@ -98,7 +98,7 @@ Combined EP/FSDP layouts require separate expert synchronization and
 shard-group definitions.
 
 !!! success "What to take away"
-    - **A layout is a factorization of the device count.** Write $G = P \times T_P \times C \times D$
+    - **A layout is a factorization of the device count.** Write $W = N_{dp} \times N_{tp} \times N_{cp} \times N_{pp}$
       explicitly; FSDP and EP subdivide data parallelism and add no devices.
     - **Each axis splits something different.** TP and PP split model state, CP
       splits the sequence's activations, DP splits the batch. Choose the axis for
@@ -106,7 +106,7 @@ shard-group definitions.
     - **Put the chattiest groups on the fastest links.** TP communicates every
       layer; pipeline stages communicate only at their boundaries, so they tolerate slower links.
     - **Bubbles are arithmetic.** For AFAB and 1F1B the idle fraction is
-      $(P-1)/(m+P-1)$; reducing it to 10 % needs $m > 9(P-1)$ micro-batches. 1F1B
+      $(N_{pp}-1)/(M+N_{pp}-1)$; reducing it to 10 % needs $M > 9(N_{pp}-1)$ micro-batches. 1F1B
       changes activation residency, not this fraction.
     - **An estimate is a hypothesis.** The calculator gives persistent state and
       payloads, not peak VRAM or step time. Name the measurement that would choose between two layouts.

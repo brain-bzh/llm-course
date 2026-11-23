@@ -83,8 +83,8 @@
   <path class="flow" d="M375 118 H475"/>
   <text class="api-lbl" x="425" y="92">dist.all_reduce</text>
   <text class="meta-lbl" x="425" y="134">RS ➔ AG</text>
-  <text class="meta-lbl" x="425" y="152">Sends 2(R−1)/R · S</text>
-  <text class="meta-cost" x="425" y="172">Total = 2(R − 1)S</text>
+  <text class="meta-lbl" x="425" y="152">Sends 2(W−1)/W · S</text>
+  <text class="meta-cost" x="425" y="172">Total = 2(W − 1)S</text>
 
   <!-- Right: Final State -->
   <rect class="bg" x="495" y="15" width="350" height="205"/>

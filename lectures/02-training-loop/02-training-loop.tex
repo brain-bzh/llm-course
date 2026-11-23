@@ -18,6 +18,14 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{Where we are}
+  \courseroadmap{2}
+  \vspace{10pt}
+  \textbf{\textcolor{accentdark}{Last time:}} a GPT that maps token IDs $(B,T)$ to logits $(B,T,V)$ and reproduces the GPT-2 reference logits.\par
+  \vspace{10pt}
+  \textbf{\textcolor{signaldark}{Today:}} the loop that trains it: loss, gradients, the AdamW update, accumulation, clipping, schedule and checkpoints.
+\end{frame}
+
 \learninggoals
 {Explain SGD, learning rate, gradients, and optimizer state.}
 {Trace the base loop from activations and loss to a parameter update.}
@@ -122,6 +130,30 @@
   \end{itemize}
 \end{frame}
 
+\begin{frame}{AdamW: decoupled weight decay and parameter groups}
+  \[
+    \theta_{t+1}=\theta_t-\eta_t\Bigl(\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}+\lambda\,\theta_t\Bigr)
+  \]
+  \begin{itemize}
+    \item \textbf{Decoupled:} $\lambda\theta_t$ is added to the step, not to $g_t$. It never enters $m_t$ or $v_t$, so it is not rescaled by $1/\sqrt{\hat v_t}$.
+  \end{itemize}
+  \vspace{2pt}
+  \begin{columns}[t]
+    \begin{column}{.48\linewidth}
+      \begin{block}{Decay group: $\lambda=0.1$}
+        \texttt{p.dim() >= 2}: \texttt{Linear} weight matrices, token and position embeddings.
+      \end{block}
+    \end{column}
+    \begin{column}{.48\linewidth}
+      \begin{block}{No-decay group: $\lambda=0$}
+        \texttt{p.dim() < 2}: biases, LayerNorm gains and biases.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{6pt}
+  {\footnotesize Both groups go to one \texttt{AdamW}. Only trainable parameters are grouped; the tied embedding / LM-head matrix is counted once.}
+\end{frame}
+
 \section{Base loop}
 
 \begin{frame}{Where does the gradient come from?}
@@ -204,7 +236,7 @@
     \item \textbf{Scheduler:} vary the learning rate over optimizer updates.
   \end{enumerate}
   \begin{block}{One update boundary}
-    Accumulate backward passes $\rightarrow$ clip $\rightarrow$ optimizer step $\rightarrow$ advance schedule $\rightarrow$ clear gradients.
+    Set $\eta_t$ $\rightarrow$ accumulate $K$ backward passes $\rightarrow$ clip $\rightarrow$ optimizer step $\rightarrow$ clear gradients.
   \end{block}
 \end{frame}
 
@@ -219,8 +251,10 @@
 \begin{frame}{Gradient accumulation changes update frequency}
   \small
   \[
-    N_{\text{tokens/update}} = B_{\text{micro}}\,T\,K\,W
+    \text{tokens per update} = B\,T\,K\,W
   \]
+  \par\vspace{-6pt}
+  {\centering\footnotesize $B$: micro-batch per device \quad $W$: devices ($W=1$ until Module 5)\par}
   \begin{columns}[c]
     \begin{column}{0.48\linewidth}
       \begin{itemize}
@@ -232,8 +266,8 @@
     \end{column}
     \begin{column}{0.48\linewidth}
       \begin{block}{Worked count}
-        $B_{\text{micro}}=4$, $T=1024$, $K=8$, $W=2$\\[5pt]
-        \centering$N=65{,}536$ tokens per optimizer update
+        $B=4$, $T=1024$, $K=8$, $W=2$\\[5pt]
+        \centering$BTKW=65{,}536$ tokens per optimizer update
       \end{block}
     \end{column}
   \end{columns}
@@ -260,18 +294,46 @@
 
 \begin{frame}{The scheduler counts optimizer updates}
   \begin{columns}[c]
-    \begin{column}{0.55\linewidth}
+    \begin{column}{0.60\linewidth}
       \scriptsize
       \[
         \eta_t=
         \begin{cases}
-          \eta_{\max}\frac{t+1}{T_w+1} & t<T_w \\
-          \eta_{\min}+\frac{1+\cos(\pi r)}{2}(\eta_{\max}-\eta_{\min}) & t\ge T_w
+          \eta_{\max}\,\dfrac{t+1}{t_w+1} & t<t_w \\[5pt]
+          \eta_{\min}+\tfrac{1+\cos\pi r}{2}(\eta_{\max}-\eta_{\min}) & t_w\le t\le t_{\max} \\[4pt]
+          \eta_{\min} & t>t_{\max}
         \end{cases}
       \]
-      where $r=(t-T_w)/(T_{\max}-T_w)$.
+      where $r=(t-t_w)/(t_{\max}-t_w)$ runs from 0 to 1.
+      \par\vspace{3pt}
+      \centering
+      \begin{tikzpicture}
+        \begin{axis}[
+            width=6.3cm, height=3.5cm,
+            axis lines=left, axis line style={neutraldark},
+            xmin=0, xmax=108, ymin=0, ymax=1.18,
+            xtick={10,100}, xticklabels={$t_w$,$t_{\max}$},
+            ytick={0.1,1}, yticklabels={$\eta_{\min}$,$\eta_{\max}$},
+            tick label style={font=\scriptsize},
+            xlabel={optimizer update $t$}, ylabel={$\eta_t$},
+            label style={font=\scriptsize},
+            xlabel style={at={(axis description cs:0.55,-0.08)},anchor=north},
+            ylabel style={rotate=-90,at={(axis description cs:-0.04,0.6)},anchor=east},
+            clip=false,
+          ]
+          % plotted from the slide formula with t_w=10, t_max=100, eta_min=0.1 eta_max
+          \draw[dashed,neutrallight] (axis cs:10,0)--(axis cs:10,1);
+          \draw[dashed,neutrallight] (axis cs:0,1)--(axis cs:10,1);
+          \draw[dashed,neutrallight] (axis cs:0,0.1)--(axis cs:100,0.1);
+          \addplot[very thick,accentdarkdraw,domain=0:9,samples=10] {(x+1)/11};
+          \addplot[very thick,themebluedraw,domain=10:100,samples=91]
+            {0.1+0.45*(1+cos(deg(pi*(x-10)/90)))};
+          \node[font=\scriptsize,text=accentdark,anchor=west] at (axis cs:12,0.42) {warmup};
+          \node[font=\scriptsize,text=themebluedraw,anchor=west] at (axis cs:62,0.72) {cosine decay};
+        \end{axis}
+      \end{tikzpicture}
     \end{column}
-    \begin{column}{0.41\linewidth}
+    \begin{column}{0.37\linewidth}
       \begin{block}{Warmup}
         Limits early updates while activations and optimizer moments stabilize.
       \end{block}
@@ -280,6 +342,27 @@
       \end{alertblock}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{One full update, in order}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}cll@{}}
+      \toprule
+      & Operation & State it changes \\
+      \midrule
+      1 & set $\eta_t$ from the schedule & optimizer learning rate \\
+      2 & $K$ times: forward, $\mathcal L_k/K$, backward & \texttt{.grad} accumulates $\tfrac1K\sum_k\nabla\mathcal L_k$ \\
+      3 & clip the global norm to $M$ & \texttt{.grad} rescaled \\
+      4 & optimizer step & $\theta$, $m$, $v$ \\
+      5 & clear gradients & \texttt{.grad} $\leftarrow$ \texttt{None} \\
+      6 & $t\leftarrow t+1$ & update counter \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \begin{alertblock}{Why this order}
+    Divide before backward: the buffers then hold the gradient of the mean loss over all $K$ micro-batches. Clip after the last backward and before the step: the norm is measured on the complete gradient. Log $\mathcal L_k$, not $\mathcal L_k/K$.
+  \end{alertblock}
 \end{frame}
 
 \section{FLOP and memory accounting}
@@ -343,12 +426,12 @@
 \end{frame}
 
 \begin{frame}{A first activation-memory estimate}
-  \small A saved hidden-state tensor has shape $B\times L\times d$.
+  \small A saved hidden-state tensor has shape $B\times T\times d$.
   \[
-    \text{bytes for one tensor}=B\,L\,d\,b
+    \text{bytes for one tensor}=B\,T\,d\,b
   \]
   \begin{block}{Try a single tensor}
-    With $B=4$, $L=512$, $d=768$ and BF16 ($b=2$ bytes), one such tensor is \textbf{3 MiB}.
+    With $B=4$, $T=512$, $d=768$ and BF16 ($b=2$ bytes), one such tensor is \textbf{3 MiB}.
   \end{block}
   \begin{alertblock}{What happens as the run changes?}
     Double the micro-batch or sequence length: this tensor doubles. How many tensors are saved, and for how long? The answer depends on the model and implementation.
@@ -360,7 +443,7 @@
   \begin{columns}[t]
     \begin{column}{.48\linewidth}
       \begin{block}{First: can the loop learn?}
-        Overfit one fixed shifted batch. Falling loss tests the training path, not generalization.
+        Overfit one fixed shifted batch: for token IDs $s$ of shape $(B,T{+}1)$, $x=s[:,:T]$ and $y=s[:,1:]$. Loss falling towards 0 tests the training path, not generalization.
       \end{block}
     \end{column}
     \begin{column}{.48\linewidth}
@@ -370,49 +453,76 @@
     \end{column}
   \end{columns}
   \vfill
-  \textbf{This afternoon:} instructor-prepared JSONL documents; the baseline script packs its own byte-token shards. The data-pipeline lab follows tomorrow.
-\end{frame}
-
-\begin{frame}{The afternoon lab: one update, then a baseline}
-  \begin{columns}[t]
-    \begin{column}{.48\linewidth}
-      \begin{block}{Session 7: make it learn}
-        Shift inputs and targets; implement the FP32 update; overfit one batch; check a checkpoint round-trip.
-      \end{block}
-    \end{column}
-    \begin{column}{.48\linewidth}
-      \begin{block}{Session 8: measure a baseline}
-        Run disjoint documents, inspect held-out loss and token count, and test interruption and recovery.
-      \end{block}
-    \end{column}
-  \end{columns}
-  \vfill
-  \begin{alertblock}{Recovery contract}
-    Resuming needs optimizer, RNG and run identity as well as weights. Use the supplied reference checkpoint code if your extension is unfinished.
+  \begin{alertblock}{Read the first test correctly}
+    A loop that cannot memorize one short sequence is broken: targets, backward, update or causal mask. More data or compute will not fix it.
   \end{alertblock}
-  \small Mixed precision is introduced with GPU execution in Module 4.
 \end{frame}
 
 \begin{frame}{Read the baseline as evidence}
-  \begin{itemize}
-      \setlength{\itemsep}{7pt}
-    \item Count tokens: $B_{\rm micro}\times T\times K\times$ updates (one device).
-    \item Compare train loss with held-out loss on a fixed validation protocol; a tiny or synthetic corpus is a workflow check, not evidence of language quality.
-    \item Track learning rate and gradient norm to diagnose a spike. For nearly uniform logits, initial cross-entropy is roughly $\log V$.
-    \item Record checkpoints and compare runs at the same token budget. Fixed-prompt samples, if available, are qualitative diagnostics.
-  \end{itemize}
+  \begin{columns}[c]
+    \begin{column}{0.50\linewidth}
+      \footnotesize
+      \begin{itemize}
+          \setlength{\itemsep}{4pt}
+        \item Count tokens: $B\times T\times K\times$ updates (one device).
+        \item Compare train loss with held-out loss on a fixed validation protocol; a tiny or synthetic corpus is a workflow check, not evidence of language quality.
+        \item Track learning rate and gradient norm to diagnose a spike. For nearly uniform logits, initial cross-entropy is roughly $\log V$.
+        \item Record checkpoints and compare runs at the same token budget. Fixed-prompt samples, if available, are qualitative diagnostics.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\linewidth}
+      \centering
+      \begin{tikzpicture}
+        \begin{axis}[
+            width=6.0cm, height=4.6cm,
+            axis lines=left, axis line style={neutraldark},
+            xmin=0, xmax=63, ymin=2, ymax=6.1,
+            xtick={0,20,40,60}, ytick={2,3,4,5},
+            tick label style={font=\scriptsize},
+            xlabel={optimizer update}, ylabel={loss (nats)},
+            label style={font=\scriptsize},
+            legend style={font=\scriptsize,draw=none,fill=none,at={(0.98,0.80)},anchor=north east},
+            legend cell align=left,
+          ]
+          % values logged by companion scripts/02_train_baseline.py (report.json records)
+          \addplot[thick,themebluedraw,mark=*,mark size=1.1pt] coordinates {
+            (5,4.932) (10,4.134) (15,5.262) (20,3.000) (25,2.730) (30,2.526)
+            (35,2.383) (40,2.309) (45,2.266) (50,2.233) (55,2.225) (60,2.222)};
+          \addlegendentry{train (one batch)}
+          \addplot[thick,signaldark,mark=square*,mark size=1.1pt] coordinates {
+            (0,5.569) (5,4.854) (10,4.015) (15,3.400) (20,3.015) (25,2.824) (30,2.744)
+            (35,2.650) (40,2.618) (45,2.588) (50,2.573) (55,2.568) (60,2.566)};
+          \addlegendentry{held-out}
+          \draw[dashed,neutraldark] (axis cs:0,5.549)--(axis cs:62,5.549)
+            node[above left,font=\scriptsize,inner sep=1.5pt] {$\log 257\approx 5.55$};
+        \end{axis}
+      \end{tikzpicture}
+      \par
+      {\scriptsize Logged CPU run on a small synthetic corpus: byte tokens ($V=257$), $L=2$, $H=2$, $d=64$, $B=4$, $T=32$, 60 updates, seed 42. Workflow check only.\par}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \begin{frame}{Recovery requires more than weights}
-  \begin{block}{A resumable training run}
-    Save model weights, optimizer moments, completed step and schedule configuration, RNG state, and the data/configuration identity.
-  \end{block}
+  \small
+  \begin{center}
+    \begin{tabular}{@{}ll@{}}
+      \toprule
+      A resumable checkpoint saves & because the next update depends on it \\
+      \midrule
+      model parameters $\theta$ & the function being trained \\
+      optimizer state: $m$, $v$, update count & AdamW moments and bias correction \\
+      completed step $t$ & position in the schedule $\eta_t$; token count \\
+      model and run configuration & same architecture, $t_w$ and $t_{\max}$ \\
+      RNG states: Python, NumPy, PyTorch & same batches and dropout masks \\
+      data identity: document hashes & refuse to resume on different data \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
   \begin{block}{Test the claim}
-    Compare uninterrupted and save/resume runs with the same planned schedule. The companion tests exact CPU continuation; CUDA requires its own verification.
+    Interrupt, resume, and compare with an uninterrupted run that has the same planned $t_{\max}$: loss records, weights and optimizer state must be identical on CPU. On GPU, exact equality also requires deterministic kernels.
   \end{block}
-  \begin{alertblock}{If real documents are unavailable}
-    Run the synthetic smoke fixture and label the result as a mechanics check.
-  \end{alertblock}
+  \footnotesize Weights alone reproduce inference (bit-identical logits), not training.
 \end{frame}
 
 \takeaways
