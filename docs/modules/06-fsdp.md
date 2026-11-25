@@ -122,6 +122,16 @@ on the optimizer, dtype and implementation.
 
 ## The two collectives FSDP needs
 
+An all-reduce sum has the same result as a **reduce-scatter followed by an
+all-gather**: first each rank receives one shard of the sum, then every rank
+receives all the summed shards. A ring all-reduce uses these two phases. Divide
+by the number of ranks if a mean is needed.
+
+Sharded optimization can stop after the reduce-scatter: each rank updates its
+own parameter shard with its gradient shard. A later all-gather brings together
+the **updated parameters**, rather than gathering the original gradients.
+FSDP gathers parameter units when computation needs them.
+
 In a two-rank example, let $P_0$ and $P_1$ be parameter shards for one
 Transformer block. **All-gather** takes one shard from each rank and gives both
 ranks $[P_0,P_1]$ for their local forward or backward computation. Their data

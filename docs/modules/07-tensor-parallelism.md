@@ -16,9 +16,18 @@ every GPU is no longer possible or efficient.
 
 ## Start from matrix multiplication
 
-Flatten the batch and sequence dimensions into `B`. A linear layer receives
-`X ∈ B × d` and stores `W ∈ d × m`. There are two useful ways to partition the
-matrix product.
+Flatten the batch and sequence dimensions into `B` tokens, with one token per
+row. Our mathematical convention is `X ∈ ℝ^(B × d)`, `W ∈ ℝ^(d × m)`, and
+`Y = XW ∈ ℝ^(B × m)`.
+
+!!! note "How this relates to PyTorch and column vectors"
+    `nn.Linear(d, m)` stores `weight` with shape `m × d` and computes
+    `Y = X @ weight.T + bias`, broadcasting the bias over tokens. Thus the
+    `W` used here is `weight.T`. For a single column-vector token, the same
+    operation is `y = weight @ x + bias`. The partition diagrams initially
+    omit biases; their placement matters when combining parallel results.
+
+There are two useful ways to partition the matrix product.
 
 First consider a **replicated matmul**: both GPUs hold the full weight $W$
 and, for the same input $X$, each computes the same full $Y=XW$. This repeats
@@ -160,6 +169,12 @@ At a tensor-parallel boundary, the final all-reduce can become a reduce-scatter:
 it both sums the partial results and keeps only a sequence shard on each rank.
 Before the next tensor-parallel region, an all-gather restores the replicated
 input expected by the column-parallel projection.
+
+Recall the FSDP lecture: an all-reduce sum is equivalent to reduce-scatter
+followed by all-gather. TP+SP separates those phases so token-local work can
+run on the shards in between. The later gather therefore collects the
+**processed** token shards; it is not an all-reduce of the original partials
+by itself.
 
 <figure markdown="span">
   ![Reduce-scatter creates token shards for local operations; all-gather restores the tokens for the next tensor-parallel region.](../assets/figures/tp-sequence-parallel.svg){ loading=lazy }

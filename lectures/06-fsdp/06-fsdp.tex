@@ -109,10 +109,10 @@
     \bottomrule
   \end{tabular}
   \vspace{4pt}
-  \par\footnotesize Divide by world size for the mean. A ring all-reduce uses these two phases.
+  \par\footnotesize Reduce-scatter sums and leaves one shard per rank; all-gather replicates the full sum. Divide by world size for the mean.
   \vfill
   \begin{block}{For a sharded update, move the gather}
-    Each rank updates its own parameter shard using its reduced gradient shard. Gather updated parameters for the next forward pass; full sharding gathers each unit when needed.
+    Stop after reduce-scatter: each rank updates its own parameter shard. Later, gather \emph{updated parameters}, not gradients, for computation; full sharding gathers each unit when needed.
   \end{block}
 \end{frame}
 

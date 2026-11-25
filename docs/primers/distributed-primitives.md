@@ -109,7 +109,7 @@ every rank ends up with the complete concatenated tensor $[N]$.
   - Legacy list: `dist.all_gather(tensor_list, input_shard)`
 - **Used in:**
   - **FSDP / ZeRO-3:** Materializing un-sharded layer parameters before forward and backward compute.
-  - **Sequence Parallelism (SP):** Gathering activations along the sequence length before LayerNorm and Dropout.
+  - **Sequence Parallelism (SP):** Gathering sequence shards before the next tensor-parallel region; LayerNorm and dropout can operate on local token shards.
 
 ---
 
@@ -138,13 +138,34 @@ is computed across all ranks, and the complete reduced tensor $[N]$ is stored on
 
 ![All-reduce collective summing partial tensors across ranks and replicating the full reduced tensor everywhere.](../assets/figures/collective-allreduce.svg){ loading=lazy }
 
-- **Equivalence:**
-  $$\text{All-Reduce} \equiv \text{Reduce-Scatter} \xrightarrow{\quad} \text{All-Gather}.$$
 - **Tensor Shapes:** Input on each rank: $[N]$. Output on each rank: $[N]$.
 - **PyTorch API:** `dist.all_reduce(tensor, op=dist.ReduceOp.SUM)`
 - **Used in:**
   - **DDP (Distributed Data Parallel):** Averaging gradients across data replicas after backward.
   - **Tensor Parallelism (TP):** Summing partial matrix multiplications across ranks at RowParallelLinear boundaries.
+
+#### Why reduce-scatter followed by all-gather equals all-reduce
+
+For the same reduction and compatible shard layout, reduce-scatter followed
+immediately by all-gather produces the same result as an all-reduce:
+
+$$\operatorname{AllReduce}(x) =
+\operatorname{AllGather}\!\left(\operatorname{ReduceScatter}(x)\right).$$
+
+For example, with SUM on two ranks:
+
+![Two ranks reduce and split their input sums, then gather both summed shards on each rank.](../assets/figures/collective-allreduce-decomposition.svg){ loading=lazy }
+
+The first phase sums and distributes shards; the second reconstructs the full
+sum on every rank. Divide by the world size when the desired result is a mean.
+This describes the result: ring all-reduce uses these phases, while other
+algorithms need not. Floating-point reduction order can change rounding.
+
+This intermediate sharded state is useful: FSDP updates parameter shards after
+reducing gradient shards and later gathers **parameters**; TP with sequence
+parallelism performs token-local work before gathering the **processed
+activations**. With work between the collectives, the full sequence is not an
+all-reduce of the original input.
 
 ---
 

@@ -30,6 +30,34 @@
 
 \section{Start from one matrix multiplication}
 
+\begin{frame}{Shapes of a matrix multiplication}
+  \centering
+  \begin{block}{Matrix multiplication in PyTorch}
+    A linear layer without bias computes $Y=XW$ for a batch of $N$ tokens, i.e. $X \in \mathbb{R}^{N \times d_{\mathrm{in}}}$, and weight matrix $W \in \mathbb{R}^{d_{\mathrm{in}} \times d_{\mathrm{out}}}$.
+  \end{block}
+
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\small,align=center}]
+    % Matching dimensions have matching lengths: X width = W height;
+    % X height = Y height; W width = Y width.
+    \fill[themebluebg,draw=themebluedraw] (-5.5,0) rectangle (-3.5,1.5);
+    \node at (-4.5,.75) {$X$};
+    \node at (-2.75,.75) {$\times$};
+    \fill[themenavy!20,draw=themenavy] (-1.7,-.25) rectangle (.8,1.75);
+    \node at (-.45,.75) {$W$};
+    \node at (1.35,.75) {$=$};
+    \fill[themebluebg,draw=themebluedraw] (2.4,0) rectangle (4.9,1.5);
+    \node at (3.65,.75) {$Y$};
+    \node[above] at (-4.5,1.5) {$d_{\mathrm{in}}$};
+    \node[left] at (-5.5,.75) {$N$};
+    \node[above] at (-.45,1.75) {$d_{\mathrm{out}}$};
+    \node[left] at (-1.7,.75) {$d_{\mathrm{in}}$};
+    \node[above] at (3.65,1.5) {$d_{\mathrm{out}}$};
+    \node[left] at (2.4,.75) {$N$};
+    \node[font=\footnotesize] at (-4.5,-.55) {tokens $\times$ features};
+    \node[font=\footnotesize] at (3.65,-.55) {tokens $\times$ features};
+  \end{tikzpicture}
+\end{frame}
+
 \begin{frame}{Parallelism map: TP splits a layer's width}
   \centering
   \ParallelLegend\par\vspace{6pt}
@@ -281,7 +309,7 @@
       second/.style={draw=leafreddraw,fill=leafredbg},
       absent/.style={draw=neutraldark!45,densely dashed,fill=white},
       comm/.style={-{Stealth[length=4pt]},very thick,draw=accentvioletdraw},
-      local/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
+    local/.style={-{Stealth[length=4pt]},thick,draw=themenavy}]
     % Four token slots per column; blank slots make the sequence split visible.
     \node[font=\small\bfseries] at (.75,3.45) {1. TP output};
     \node[font=\small\bfseries] at (3.4,3.45) {2. Sum + split};
@@ -331,8 +359,8 @@
     \node[font=\scriptsize,text=neutraldark] at (8.7,.40) {full sequence};
   \end{tikzpicture}
   \vspace{-2pt}
-  \begin{block}{Same model, less replicated activation memory}
-    For token $i$, $y_i=p_i^0+p_i^1$. Each GPU keeps two complete tokens for local residual and per-token normalization; all-gather supplies all four tokens to the next TP region.
+  \begin{block}{}
+    \textbf{An all-reduce is reduce-scatter $\rightarrow$ all-gather}. Here, local residual and per-token normalization happen \emph{between} them while tokens stay sharded; the gather supplies the next TP region.
   \end{block}
   \scriptsize Each cell is a token’s hidden vector. Dashed slots are not stored on that GPU.
   \smallsource{Korthikanti et al., \href{https://arxiv.org/abs/2205.05198}{Reducing Activation Recomputation in Large Transformer Models} (2022)}

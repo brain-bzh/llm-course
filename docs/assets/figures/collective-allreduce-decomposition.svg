@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 250" role="img" aria-labelledby="title desc">
+  <title id="title">All-reduce as reduce-scatter followed by all-gather</title>
+  <desc id="desc">Rank 0 begins with a and b, rank 1 with c and d. Reduce-scatter gives a plus c to rank 0 and b plus d to rank 1. All-gather gives both ranks both sums.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto"><path d="M0 0L10 4L0 8z" fill="#68798a"/></marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #10233f; }
+      .panel { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; }
+      .title { font-size: 17px; font-weight: 700; }
+      .rank { font-size: 14px; fill: #526071; }
+      .value { font-size: 17px; font-weight: 700; text-anchor: middle; }
+      .blue { fill: #bdecee; } .orange { fill: #fde68a; }
+      .flow { stroke: #68798a; stroke-width: 2; marker-end: url(#arrow); }
+      @media (prefers-color-scheme: dark) {
+        .panel { fill: #131d2a; stroke: #2c4052; }
+        .title { fill: #f3f7fa; } .rank { fill: #b8c9d8; }
+      }
+    </style>
+  </defs>
+  <rect class="panel" x="8" y="15" width="250" height="220" rx="14"/>
+  <rect class="panel" x="325" y="15" width="250" height="220" rx="14"/>
+  <rect class="panel" x="642" y="15" width="250" height="220" rx="14"/>
+  <text class="title" x="28" y="48">1. Local inputs</text>
+  <text class="title" x="345" y="48">2. Reduce-scatter</text>
+  <text class="title" x="662" y="48">3. All-gather</text>
+  <path class="flow" d="M270 125H311"/><path class="flow" d="M587 125H628"/>
+  <g class="rank"><text x="28" y="105">Rank 0</text><text x="28" y="178">Rank 1</text><text x="345" y="105">Rank 0</text><text x="345" y="178">Rank 1</text><text x="662" y="105">Rank 0</text><text x="662" y="178">Rank 1</text></g>
+  <rect class="blue" x="94" y="78" width="62" height="40" rx="4"/><text class="value" x="125" y="104">a</text>
+  <rect class="orange" x="159" y="78" width="62" height="40" rx="4"/><text class="value" x="190" y="104">b</text>
+  <rect class="blue" x="94" y="151" width="62" height="40" rx="4"/><text class="value" x="125" y="177">c</text>
+  <rect class="orange" x="159" y="151" width="62" height="40" rx="4"/><text class="value" x="190" y="177">d</text>
+  <rect class="blue" x="411" y="78" width="62" height="40" rx="4"/><text class="value" x="442" y="104">a+c</text>
+  <rect class="orange" x="476" y="151" width="62" height="40" rx="4"/><text class="value" x="507" y="177">b+d</text>
+  <rect class="blue" x="728" y="78" width="62" height="40" rx="4"/><text class="value" x="759" y="104">a+c</text>
+  <rect class="orange" x="793" y="78" width="62" height="40" rx="4"/><text class="value" x="824" y="104">b+d</text>
+  <rect class="blue" x="728" y="151" width="62" height="40" rx="4"/><text class="value" x="759" y="177">a+c</text>
+  <rect class="orange" x="793" y="151" width="62" height="40" rx="4"/><text class="value" x="824" y="177">b+d</text>
+</svg>
