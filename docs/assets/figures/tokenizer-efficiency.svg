@@ -2,7 +2,7 @@
   <title id="title">Tokenizer fidelity and efficiency trade-offs</title>
   <desc id="desc">A tokenizer must first preserve the input exactly. Moving from fine to coarse tokens lowers tokens per byte but makes each token harder to predict. Bits per byte combines tokens per byte and bits per token.</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto"><path d="M0 1L8.5 4L0 7z" fill="#68798a"/></marker>
+    <marker id="arrow" viewBox="0 0 10 8" refX="8.5" refY="4" markerWidth="3.8" markerHeight="3.0" orient="auto"><path d="M0 1L8.5 4L0 7z" class="arrow-head"/></marker>
     <style>
       text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
       .gate{fill:#10233f}
@@ -18,6 +18,7 @@
       .tealtext{fill:#007f86;font-size:16px;font-weight:750}
       .orangetext{fill:#b8481f;font-size:16px;font-weight:750}
       .formula{fill:#10233f;font-size:21px;font-weight:750}
+      .arrow-head{fill:#68798a} 
       @media(prefers-color-scheme:dark){
         .gate{fill:#172636;stroke:#2c4052;stroke-width:1}
         .fine{fill:#173b40;stroke:#54d2d8}
@@ -28,7 +29,7 @@
         .orange{stroke:#fb923c}
         .tealtext{fill:#54d2d8}
         .orangetext{fill:#fb923c}
-      }
+      .arrow-head{fill:#54d2d8}}
     </style>
   </defs>
 

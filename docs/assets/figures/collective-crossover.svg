@@ -2,7 +2,7 @@
   <title id="title">Illustrative all-reduce algorithm crossover</title>
   <desc id="desc">An illustrative graph of communication time against message size. The tree line starts lower and rises more steeply than the ring line. They cross; the tree is faster before the crossover and the ring after it. The result depends on the hardware and implementation.</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#647789"/></marker>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" class="arrow-head"/></marker>
     <style>
       text {font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
       .bg {fill:#f2f7fa;stroke:#d4e1e8;stroke-width:2}.axis {stroke:#647789;stroke-width:3;marker-end:url(#arrow)}
@@ -10,7 +10,7 @@
       .tree {stroke:#d15a21;stroke-width:5;fill:none}.ring {stroke:#00868a;stroke-width:5;fill:none}
       .label {fill:#263e53;font-size:20px;font-weight:650}.legend {fill:#263e53;font-size:21px;font-weight:700}
       .small {fill:#526779;font-size:18px}.dot {fill:#263e53;stroke:#f2f7fa;stroke-width:3}
-      @media(prefers-color-scheme:dark){.bg{fill:#192737;stroke:#354b5e}.grid{stroke:#3b5061}.label,.legend{fill:#eef6fb}.small{fill:#c5d5df}.tree{stroke:#ff9c61}.ring{stroke:#69d5d6}.axis,.cross{stroke:#a3b5c5}.dot{fill:#eef6fb;stroke:#192737}}
+      .arrow-head{fill:#647789} @media(prefers-color-scheme:dark){.bg{fill:#192737;stroke:#354b5e}.grid{stroke:#3b5061}.label,.legend{fill:#eef6fb}.small{fill:#c5d5df}.tree{stroke:#ff9c61}.ring{stroke:#69d5d6}.axis,.cross{stroke:#a3b5c5}.dot{fill:#eef6fb;stroke:#192737}.arrow-head{fill:#a3b5c5}}
     </style>
   </defs>
   <rect class="bg" x="2" y="2" width="956" height="506" rx="10"/>

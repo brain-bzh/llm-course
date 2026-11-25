@@ -2,7 +2,7 @@
   <title id="title">All-reduce as reduce-scatter followed by all-gather</title>
   <desc id="desc">Rank 0 begins with a and b, rank 1 with c and d. Reduce-scatter gives a plus c to rank 0 and b plus d to rank 1. All-gather gives both ranks both sums.</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto"><path d="M0 0L10 4L0 8z" fill="#68798a"/></marker>
+    <marker id="arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto"><path d="M0 0L10 4L0 8z" class="arrow-head"/></marker>
     <style>
       text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #10233f; }
       .panel { fill: #f8fafc; stroke: #d8e2e8; stroke-width: 2; }
@@ -11,9 +11,11 @@
       .value { font-size: 17px; font-weight: 700; text-anchor: middle; }
       .blue { fill: #bdecee; } .orange { fill: #fde68a; }
       .flow { stroke: #68798a; stroke-width: 2; marker-end: url(#arrow); }
+      .arrow-head { fill: #68798a; }
       @media (prefers-color-scheme: dark) {
         .panel { fill: #131d2a; stroke: #2c4052; }
         .title { fill: #f3f7fa; } .rank { fill: #b8c9d8; }
+              .flow { stroke: #94a3b8; } .arrow-head { fill: #94a3b8; }
       }
     </style>
   </defs>

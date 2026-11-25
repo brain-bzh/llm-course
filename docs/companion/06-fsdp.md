@@ -10,7 +10,7 @@ three parts that follow the ZeRO stages:
    parameters gather and reshard around each block, and measure what each rank stores.
 
 The checkpoint-format part of this module runs in
-[Session 21](07-tensor-parallelism.md#part-a-checkpoint-formats-25-minutes).
+[Session 21](07-tensor-parallelism.md).
 
 !!! tip "Files used in this lab"
     - **Starter:** [`starter/06_zero.py`](https://github.com/brain-bzh/llm-course-companion/blob/main/starter/06_zero.py)
