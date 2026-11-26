@@ -22,6 +22,29 @@
   \vspace{10pt}
   \textbf{\textcolor{signaldark}{Today:}} split the layer's matrix multiplication itself, so several ranks compute one layer and each holds only a slice of its weights.
 \end{frame}
+\begin{frame}{Does your model fit on one GPU?}
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,every node/.style={align=center}]
+    \node[font=\large\bfseries] at (-3.8,2.1) {One GPU};
+    \node[font=\large\bfseries] at (2.0,2.1) {One large model};
+    \fill[themebluebg,draw=themebluedraw,rounded corners=3pt] (-5.65,.25) rectangle (-1.95,1.55);
+    \node[font=\large\bfseries] at (-3.8,1.12) {80 GB};
+    \node[font=\small] at (-3.8,.66) {A100 / H100 example};
+    \node[font=\Large\bfseries,text=signaldark] at (-1.25,.9) {$\ll$};
+    \fill[themenavy!20,draw=themenavy,rounded corners=3pt] (-.55,.25) rectangle (4.65,1.55);
+    \node[font=\large\bfseries] at (2.05,1.12) {810 GB of weights};
+    \node[font=\small] at (2.05,.66) {Llama 3.1: 405B dense parameters};
+    \node[font=\small] at (0,-.25) {BF16: $405\text{B}\times 2$ bytes $\approx 810$ GB};
+    \node[font=\small\bfseries,text=accentdark] at (0,-.85) {$\geq 11$ GPUs just for the weights, ideally distributed};
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \begin{block}{Distribute memory and work}
+    FSDP shards model state. Tensor parallelism splits individual layer computations across GPUs.
+  \end{block}
+  \scriptsize Weight-only lower bound; activations, gradients and optimizer state need additional memory. Decimal GB. MoE models can additionally distribute their experts across GPUs.
+  \smallsource{\href{https://www.nvidia.com/en-us/data-center/a100/}{NVIDIA A100}; \href{https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory-h100-h200-b200/latest/components.html}{NVIDIA H100 SXM}; \href{https://arxiv.org/abs/2407.21783}{Llama 3 report}}
+\end{frame}
+
 \learninggoals
 {Derive column- and row-parallel linear layers from matrix multiplication.}
 {Track replicated and sharded tensor layouts through an MLP and attention block.}
