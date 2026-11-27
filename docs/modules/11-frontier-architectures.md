@@ -87,6 +87,12 @@ Frontier designs attack the per-request terms in two ways:
   <figcaption>Layer patterns read from each model's <code>config.json</code>.</figcaption>
 </figure>
 
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Read the architecture through its costs: what is computed, stored and communicated?</span>
+
+</div>
+
 ## 2. Four mechanisms
 
 ### MLA, and MLA without RoPE

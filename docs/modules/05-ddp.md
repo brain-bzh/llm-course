@@ -112,6 +112,12 @@ and average each gradient. If local batches have different valid-token counts,
 averaging rank-local *means* is no longer the true global token mean; weight by
 the counts or construct equal-token batches.
 
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Split the batch, average the gradients, keep the model replicas in sync.</span>
+
+</div>
+
 ## Batch accounting
 
 Let:

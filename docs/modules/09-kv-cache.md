@@ -46,6 +46,12 @@ may attend to the past; the past may not attend to the new token.
 Therefore the model can store old K/V tensors once and compute only the new
 token's projections at the next decode step.
 
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Cache past keys and values: less repeated computation, more memory to manage.</span>
+
+</div>
+
 ## Two phases with different shapes
 
 <figure markdown="span">

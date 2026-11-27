@@ -242,6 +242,12 @@ count becomes a payload only after specifying precision and sharding. For FSDP,
 also specify how often weights are resharded and whether gradients synchronize
 on each micro-batch; “three times parameters per optimizer step” is not universal.
 
+<div class="formula-highlight" markdown>
+
+<span style="font-weight: 700;">GPU layout and communication speed dictates how to compose the parallel dimensions.</span>
+
+</div>
+
 ## Compose the parallel dimensions
 
 For this course's balanced teaching layout, define independent coordinates:

@@ -163,6 +163,12 @@ Attention metadata ensures each query reads only its own visible KV context.
   <figcaption>Continuous batching turns vacated capacity into useful work at the next engine step.</figcaption>
 </figure>
 
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Schedule changing batches of tokens to balance latency and throughput.</span>
+
+</div>
+
 ### Interactive serving simulator
 
 To explore how scheduler and cache-allocation choices interact, launch the

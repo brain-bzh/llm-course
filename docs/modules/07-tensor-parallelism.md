@@ -54,8 +54,8 @@ with the same input `X`, but stores only one column shard of `W1`. Rank `i`
 computes `H_i = φ(X W1_i)`.
 
 <figure markdown="span">
-  ![Two ranks receive the same X and compute different output-feature shards of H.](../assets/figures/tp-column-linear.svg){ loading=lazy }
-  <figcaption>Column parallelism partitions the output features.</figcaption>
+  ![Replicated X passes through identity, a column-sharded matmul and all-gather to produce replicated Y.](../assets/figures/tp-column-linear.svg){ loading=lazy }
+  <figcaption>A standalone column-parallel layer gathers its output shards.</figcaption>
 </figure>
 
 A standalone column-parallel layer needs an all-gather if its caller requires a
@@ -69,17 +69,17 @@ with the hidden-feature shards produced by the first layer. Rank `i` computes a
 partial output `Ŷ_i = H_i W2_i`.
 
 <figure markdown="span">
-  ![Each rank computes a partial output, then an all-reduce sums and replicates Y.](../assets/figures/tp-row-linear.svg){ loading=lazy }
-  <figcaption>Row parallelism sums partial results with one all-reduce.</figcaption>
+  ![Replicated X is sliced across ranks; each rank computes a partial output, then all-reduce sums and replicates Y.](../assets/figures/tp-row-linear.svg){ loading=lazy }
+  <figcaption>A standalone row-parallel layer slices its input and sums partial outputs.</figcaption>
 </figure>
 
 Each partial result has the **full output shape**, but not the full value: each
 contains only the contribution from that rank's input features. This is
 different from a column-parallel output shard, which contains complete values
 for only some output features. The complete result is `Y = Σ_i Ŷ_i`. An
-all-reduce performs that sum and leaves the same `Y` on every rank. A standalone row-parallel layer would first need its
-input scattered into compatible shards; composition gives it those shards for
-free.
+all-reduce performs that sum and leaves the same `Y` on every rank. A standalone
+row-parallel layer slices its replicated input locally into compatible shards;
+composition gives it those shards directly.
 
 ## Compare the three layouts
 
@@ -111,6 +111,12 @@ The two layouts are deliberately paired:
 This removes one intermediate collective; it does **not** make tensor
 parallelism communication-free. The backward pass has the complementary
 communication pattern, and collectives occur in every Transformer block.
+
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Column then row: shard the hidden features and keep them local between layers.</span>
+
+</div>
 
 ### Why not start with a row-sharded projection?
 

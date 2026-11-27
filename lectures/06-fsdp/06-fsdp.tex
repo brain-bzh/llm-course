@@ -38,7 +38,7 @@
     % Throughput (grayed out: covered in Module 5): the same work finishes sooner on two devices.
     \begin{scope}[opacity=0.45,text=halfgray,
         work/.style={draw=neutrallight,fill=black!10},
-        comm/.style={draw=neutrallight,fill=black!5}]
+      comm/.style={draw=neutrallight,fill=black!5}]
       \node[font=\small\bfseries] at (2.35,4.45) {Throughput};
       \node[anchor=east] at (.75,3.55) {1 GPU};
       \draw[work] (.9,3.3) rectangle (4.7,3.8); \node at (2.8,3.55) {work};
@@ -97,23 +97,62 @@
   \end{alertblock}
 \end{frame}
 
-\begin{frame}{All-reduce = reduce-scatter + all-gather}
-  \centering\small
-  \begin{tabular}{@{}lll@{}}
-    \toprule
-    & Rank 0 & Rank 1 \\
-    \midrule
-    Local gradients & $[g_{00},g_{01}]$ & $[g_{10},g_{11}]$ \\
-    Reduce-scatter (sum) & $s_0=g_{00}+g_{10}$ & $s_1=g_{01}+g_{11}$ \\
-    All-gather gradients & $[s_0,s_1]$ & $[s_0,s_1]$ \\
-    \bottomrule
-  \end{tabular}
-  \vspace{4pt}
-  \par\footnotesize Reduce-scatter sums and leaves one shard per rank; all-gather replicates the full sum. Divide by world size for the mean.
-  \vfill
-  \begin{block}{For a sharded update, move the gather}
-    Stop after reduce-scatter: each rank updates its own parameter shard. Later, gather \emph{updated parameters}, not gradients, for computation; full sharding gathers each unit when needed.
-  \end{block}
+\begin{frame}{Move a shardable function between collectives}
+  \centering
+  \begin{tikzpicture}[every node/.style={font=\scriptsize,align=center},
+      data/.style={draw=themebluedraw,fill=themebluebg,minimum width=2.1cm,minimum height=.52cm},
+      work/.style={draw=warningdraw,fill=warningbg,minimum width=2.1cm,minimum height=.52cm},
+    arrow/.style={-{Stealth[length=4pt]},draw=neutraldark}]
+    \foreach \x in {1.25,3.65,7.25,9.65} {
+      \draw[arrow] (\x,3.38)--(\x,2.91);
+      \draw[arrow] (\x,2.36)--(\x,2.05);
+      \draw[arrow] (\x,1.49)--(\x,1.03);
+    }
+    \node[font=\small\bfseries] at (2.45,4.45) {Replicated work};
+    \node[font=\small\bfseries] at (8.45,4.45) {Sharded work};
+    \foreach \x/\label in {1.25/Rank 0,3.65/Rank 1,7.25/Rank 0,9.65/Rank 1}
+    \node[text=neutraldark] at (\x,4.05) {\label};
+    \foreach \x/\g in {1.25/{[p_{00},p_{01}]},3.65/{[p_{10},p_{11}]},7.25/{[p_{00},p_{01}]},9.65/{[p_{10},p_{11}]}}
+    \node[data] at (\x,3.65) {$\g$};
+    \node[text=accentdark,fill=white,inner sep=1pt] at (2.45,3.13) {all-reduce};
+    \node[text=accentdark,fill=white,inner sep=1pt] at (8.45,3.13) {reduce-scatter};
+    \foreach \x in {1.25,3.65} {
+      \draw[draw=themebluedraw,fill=themebluebg] (\x-1.05,2.37) rectangle (\x,2.89);
+      \draw[draw=themebluedraw,fill=themebluebg] (\x,2.37) rectangle (\x+1.05,2.89);
+      \node at (\x-.525,2.63) {$x_0$};
+      \node at (\x+.525,2.63) {$x_1$};
+    }
+    \draw[draw=themebluedraw,fill=themebluebg] (6.2,2.37) rectangle (7.25,2.89);
+    \draw[draw=neutrallight,dashed] (7.25,2.37) rectangle (8.3,2.89);
+    \node at (6.725,2.63) {$x_0$};
+    \node[text=neutraldark] at (7.775,2.63) {$x_1$};
+    \draw[draw=neutrallight,dashed] (8.6,2.37) rectangle (9.65,2.89);
+    \draw[draw=themebluedraw,fill=themebluebg] (9.65,2.37) rectangle (10.7,2.89);
+    \node[text=neutraldark] at (9.125,2.63) {$x_0$};
+    \node at (10.175,2.63) {$x_1$};
+    \foreach \x in {1.25,3.65} {
+      \draw[draw=warningdraw,fill=warningbg] (\x-1.05,1.51) rectangle (\x,2.03);
+      \draw[draw=warningdraw,fill=warningbg] (\x,1.51) rectangle (\x+1.05,2.03);
+      \node at (\x-.525,1.77) {$f(x_0)$};
+      \node at (\x+.525,1.77) {$f(x_1)$};
+    }
+    \draw[draw=warningdraw,fill=warningbg] (6.2,1.51) rectangle (7.25,2.03);
+    \draw[draw=neutrallight,dashed] (7.25,1.51) rectangle (8.3,2.03);
+    \node at (6.725,1.77) {$f(x_0)$};
+    \node[text=neutraldark] at (7.775,1.77) {$f(x_1)$};
+    \draw[draw=neutrallight,dashed] (8.6,1.51) rectangle (9.65,2.03);
+    \draw[draw=warningdraw,fill=warningbg] (9.65,1.51) rectangle (10.7,2.03);
+    \node[text=neutraldark] at (9.125,1.77) {$f(x_0)$};
+    \node at (10.175,1.77) {$f(x_1)$};
+    \node[text=accentdark,fill=white,inner sep=1pt] at (8.45,1.25) {all-gather};
+    \foreach \x in {1.25,3.65,7.25,9.65}
+    \node[data] at (\x,.75) {$f(x)$};
+    \draw[neutrallight] (5.45,.45)--(5.45,4.55);
+  \end{tikzpicture}
+  \par\vspace{4pt}
+  \footnotesize Rank $r$ holds partial sum $[p_{r0},p_{r1}]$; the reduced vector is $x=[x_0,x_1]$, where $x_i=p_{0i}+p_{1i}$.
+  \par\vspace{3pt}
+  \footnotesize Dashed = shard absent or work skipped on that rank. This requires $f([x_0,x_1])=[f(x_0),f(x_1)]$.
 \end{frame}
 
 \begin{frame}{Explore: can the ranks share the update?}
@@ -388,17 +427,6 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{From the idea to a PyTorch training loop}
-  \begin{enumerate}
-    \item Initialize the process group and a device mesh over the ranks.
-    \item Construct the model; call \texttt{fully\_shard} on each Transformer block, then on the root.
-    \item Construct the optimizer after sharding, on the sharded parameters.
-    \item Run forward, backward, optimizer step; measure the state each rank holds.
-  \end{enumerate}
-  \vfill
-  \small This is the FSDP2 interface (\texttt{torch.distributed.fsdp.fully\_shard}). Each wrapped block is one unit; each parameter is stored as a shard along its first dimension. The optimizer sees only local shards, so its moments are sharded with them.
-\end{frame}
-
 \begin{frame}{Choose FSDP when memory is the binding constraint}
   \begin{itemize}
       \setlength{\itemsep}{8pt}
@@ -547,7 +575,7 @@
         \fill[accentdark] (4.2,1.02) circle (3pt);
         \draw[dashed,neutraldark] (4.2,0)--(4.2,1.02);
         \foreach \c/\t/\x in {warningdraw/{save $S/\tau$}/0.4,themebluedraw/{lost work $\tau/(2T_{\text{int}})$}/2.75,accentdark/{total}/6.85}
-          \draw[very thick,\c] (\x,4.8)--(\x+.5,4.8) node[right,text=\c,inner sep=2pt]{\t};
+        \draw[very thick,\c] (\x,4.8)--(\x+.5,4.8) node[right,text=\c,inner sep=2pt]{\t};
         \node[below,align=center] at (4.2,0) {best measured\\interval};
         \node[below,text=neutraldark] at (7.35,-.48) {checkpoint interval $\tau$};
       \end{tikzpicture}

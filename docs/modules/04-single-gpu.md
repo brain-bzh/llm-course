@@ -224,6 +224,12 @@ above it, it can be compute-bound.
   <figcaption>The roofline is a prediction: place an operation by arithmetic intensity, then look for the lower ceiling.</figcaption>
 </figure>
 
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Performance depends on data movement as much as computation.</span>
+
+</div>
+
 ### Worked example 1 — vector addition
 
 Adding two FP32 vectors and writing the result performs one FLOP while moving

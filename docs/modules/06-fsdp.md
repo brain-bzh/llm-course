@@ -127,6 +127,36 @@ all-gather**: first each rank receives one shard of the sum, then every rank
 receives all the summed shards. A ring all-reduce uses these two phases. Divide
 by the number of ranks if a mean is needed.
 
+The decomposition also lets us move suitable work between the two collectives.
+Suppose each rank starts with a partial vector $p_r$, and the reduced vector is
+$x=p_0+p_1=[x_0,x_1]$. If a function acts independently on each shard,
+$f(x)=[f(x_0),f(x_1)]$, each rank can apply it to its own reduced shard before
+the all-gather:
+
+<figure markdown="span">
+  ![Two ranks compare all-reduce followed by replicated function work with reduce-scatter, sharded function work and all-gather. Dashed halves show absent shards and skipped work.](../assets/figures/fsdp-sharded-function.svg){ loading=lazy }
+  <figcaption>Moving shardable work between the collectives removes duplicated function evaluations.</figcaption>
+</figure>
+
+<div class="formula-highlight" markdown>
+
+<span style="font-size: 1.3em; font-weight: 700;">Decomposition allows us to halve the function FLOPs per GPU while keeping the same total communication volume.</span>
+
+</div>
+
+With equally sized shards and work proportional to shard size, each rank does
+half the function FLOPs, and the two ranks together do one full evaluation
+instead of two. The saving is in the function work, not the reduction itself;
+the function and any required state must be shardable for the results to match.
+
+**Communication volume:** for the same tensor size and dtype, a ring
+all-reduce sends the same number of bytes per rank as a ring reduce-scatter
+followed by an all-gather. For a full vector of $S$ bytes over $W$ ranks, each
+phase sends $(W-1)S/W$ bytes per rank, for a total of $2(W-1)S/W$. Thus the
+figure saves function FLOPs without increasing this idealized byte count,
+provided $f(x)$ has the same size and dtype as $x$. Actual implementations,
+latency and exposed communication can differ.
+
 Sharded optimization can stop after the reduce-scatter: each rank updates its
 own parameter shard with its gradient shard. A later all-gather brings together
 the **updated parameters**, rather than gathering the original gradients.
